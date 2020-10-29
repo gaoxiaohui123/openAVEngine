@@ -3,7 +3,7 @@
 #sudo apt-get install alsa-base alsa-utils alsa-source libasound2-dev
 #export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/glibc-2.27/lib
 
-gcc -o libhcsvcapi.so -shared -fPIC  -Wformat=0 -Wl,-Bsymbolic -fvisibility=hidden -ldl -Wl,-rpath=. \
+gcc -o libopenave.so -shared -fPIC  -Wformat=0 -Wl,-Bsymbolic -fvisibility=hidden -ldl -Wl,-rpath=. \
 -Xlinker --unresolved-symbols=ignore-in-shared-libs \
 ./codec/decoding_encoding.c \
 ./codec/scaling_video.c \
@@ -49,7 +49,7 @@ gcc -o libhcsvcapi.so -shared -fPIC  -Wformat=0 -Wl,-Bsymbolic -fvisibility=hidd
 #gcc -o libhcsvc.so -shared -fPIC -Wl,-rpath=. -ldl \
 #./codec/hcsvc.c
 
-gcc -o libhcsvc.so -shared -fPIC -Wl,-Bsymbolic -g -fvisibility=hidden -ldl -Wl,--exclude-libs=ALL \
+gcc -o libave.so -shared -fPIC -Wl,-Bsymbolic -g -fvisibility=hidden -ldl -Wl,--exclude-libs=ALL \
 ./codec/hcsvc.c
 
 #-L../ffmpeg-linux/openssl-1.0.2d
