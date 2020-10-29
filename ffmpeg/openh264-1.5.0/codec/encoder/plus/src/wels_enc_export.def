@@ -1,0 +1,8 @@
+EXPORTS
+    WelsCreateSVCEncoder
+    WelsDestroySVCEncoder
+    WelsGetCodecVersion
+    WelsGetCodecVersionEx
+    WelsCreateDenoise
+    api_video_denoise_close
+    api_video_denoise
