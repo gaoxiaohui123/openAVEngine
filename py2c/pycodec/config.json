@@ -1,0 +1,232 @@
+{
+    "multchan": {
+        "0": {
+            "audios": {
+                "aec": 1, 
+                "agc": 0, 
+                "audiofmt": {
+                    "name": "default", 
+                    "value": 0
+                }, 
+                "channels": {
+                    "name": "2", 
+                    "value": 1
+                }, 
+                "codec": {
+                    "name": "AAC", 
+                    "value": 0
+                }, 
+                "denoise": 1, 
+                "detect": 0, 
+                "framesize": {
+                    "name": "1024", 
+                    "value": 1
+                }, 
+                "recorder": {
+                    "name": "macro", 
+                    "value": 1
+                }, 
+                "samplerate": {
+                    "name": "48000", 
+                    "value": 4
+                }, 
+                "vad": 0
+            }, 
+            "videos": {
+                "bitrate": {
+                    "name": "512kbps", 
+                    "value": 1
+                }, 
+                "capture": {
+                    "name": "fb0", 
+                    "value": 1
+                }, 
+                "codec": {
+                    "name": "HCSVC", 
+                    "value": 0
+                }, 
+                "denoise": 1, 
+                "fec": 0, 
+                "framerate": {
+                    "name": "15fps", 
+                    "value": 1
+                }, 
+                "resolution": {
+                    "name": "1280x720", 
+                    "value": 1
+                }
+            }
+        }, 
+        "1": {
+            "audios": {
+                "aec": 0, 
+                "agc": 0, 
+                "audiofmt": {
+                    "name": "default", 
+                    "value": 0
+                }, 
+                "channels": {
+                    "name": "2", 
+                    "value": 1
+                }, 
+                "codec": {
+                    "name": "AAC", 
+                    "value": 0
+                }, 
+                "denoise": 1, 
+                "detect": 0, 
+                "framesize": {
+                    "name": "1024", 
+                    "value": 1
+                }, 
+                "recorder": {
+                    "name": "macro", 
+                    "value": 1
+                }, 
+                "samplerate": {
+                    "name": "48000", 
+                    "value": 4
+                }, 
+                "vad": 0
+            }, 
+            "videos": {
+                "bitrate": {
+                    "name": "512kbps", 
+                    "value": 1
+                }, 
+                "capture": {
+                    "name": "fb0", 
+                    "value": 1
+                }, 
+                "codec": {
+                    "name": "HCSVC", 
+                    "value": 0
+                }, 
+                "denoise": 1, 
+                "fec": 0, 
+                "framerate": {
+                    "name": "15fps", 
+                    "value": 1
+                }, 
+                "resolution": {
+                    "name": "1280x720", 
+                    "value": 1
+                }
+            }
+        }, 
+        "2": {
+            "audios": {
+                "aec": 0, 
+                "agc": 0, 
+                "audiofmt": {
+                    "name": "default", 
+                    "value": 0
+                }, 
+                "channels": {
+                    "name": "2", 
+                    "value": 1
+                }, 
+                "codec": {
+                    "name": "AAC", 
+                    "value": 0
+                }, 
+                "denoise": 1, 
+                "detect": 0, 
+                "framesize": {
+                    "name": "1024", 
+                    "value": 1
+                }, 
+                "recorder": {
+                    "name": "macro", 
+                    "value": 1
+                }, 
+                "samplerate": {
+                    "name": "48000", 
+                    "value": 4
+                }, 
+                "vad": 0
+            }, 
+            "videos": {
+                "bitrate": {
+                    "name": "512kbps", 
+                    "value": 1
+                }, 
+                "capture": {
+                    "name": "fb0", 
+                    "value": 1
+                }, 
+                "codec": {
+                    "name": "HCSVC", 
+                    "value": 0
+                }, 
+                "denoise": 1, 
+                "fec": 0, 
+                "framerate": {
+                    "name": "15fps", 
+                    "value": 1
+                }, 
+                "resolution": {
+                    "name": "1280x720", 
+                    "value": 1
+                }
+            }
+        }, 
+        "3": {
+            "audios": {
+                "aec": 0, 
+                "agc": 0, 
+                "audiofmt": {
+                    "name": "default", 
+                    "value": 0
+                }, 
+                "channels": {
+                    "name": "2", 
+                    "value": 1
+                }, 
+                "codec": {
+                    "name": "AAC", 
+                    "value": 0
+                }, 
+                "denoise": 1, 
+                "detect": 0, 
+                "framesize": {
+                    "name": "1024", 
+                    "value": 1
+                }, 
+                "recorder": {
+                    "name": "macro", 
+                    "value": 1
+                }, 
+                "samplerate": {
+                    "name": "48000", 
+                    "value": 4
+                }, 
+                "vad": 0
+            }, 
+            "videos": {
+                "bitrate": {
+                    "name": "512kbps", 
+                    "value": 1
+                }, 
+                "capture": {
+                    "name": "fb0", 
+                    "value": 1
+                }, 
+                "codec": {
+                    "name": "HCSVC", 
+                    "value": 0
+                }, 
+                "denoise": 1, 
+                "fec": 0, 
+                "framerate": {
+                    "name": "15fps", 
+                    "value": 1
+                }, 
+                "resolution": {
+                    "name": "1280x720", 
+                    "value": 1
+                }
+            }
+        }
+    }
+}
