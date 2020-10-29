@@ -548,10 +548,21 @@ class ClientFrame(object):
             #self.meeting_frame.mainloop()
 
         print("openFrame: over")
-class ConfigGerenalFrame(object):
-    def __init__(self, parent, parentFrame, width0, height0):
+class ConfigGeneralFrame(object):
+    def __init__(self, parent, parentFrame, width0, height0, generalDict):
         self.parent = parent
         self.parentFrame = parentFrame
+        self.dict = generalDict
+        self.modeDict = {}
+        self.mcuDict = {}
+        self.suppramsDict = {}
+        if generalDict != None:
+            if generalDict.get("mode") != None:
+                self.modeDict = generalDict.get("mode")
+            if generalDict.get("mcu") != None:
+                self.mcuDict = generalDict.get("mcu")
+            if generalDict.get("supprams") != None:
+                self.suppramsDict = generalDict.get("supprams")
         self.splitMode = 0
         (self.width, self.height) = (width0, height0)
         (orgx, orgy, width1, height1) = (0, 0, (width0 >> 1), ((height0 >> 1) - 16))
@@ -696,6 +707,7 @@ class ConfigGerenalFrame(object):
         return ret
 
     def CreateSplitFrame(self):
+        modeDict = self.modeDict
         self.modePosList = []
         self.modeNum = 20
         n = 5
@@ -711,15 +723,22 @@ class ConfigGerenalFrame(object):
         #h3 = 3#h2 >> 3
         self.imglist = []
         self.splitModeVar = tk.IntVar()
+
+        idValue = 0
+        if modeDict != None:
+            modeId = modeDict.get("modeId")
+            if modeId != None:
+                idValue = modeId
         #self.splitimage = tk.PhotoImage(file='icon/stock_table_split.png').zoom(6,3)
-        def chanPage_1(v, id):
-            print("chanPage: (v, id)= ", (v, id))
-            # self.chainId = v
-            self.chanIdList[id] = v
+        self.splitSubFrameList = None
         def modePage(v):
             print("modePage: v= ", v)
+            if self.splitSubFrameList != None:
+                for splitSubFrame in self.splitSubFrameList:
+                    splitSubFrame.destroy()
             self.splitMode = v
             self.splitRects = self.CreateModeTab(v - 1)
+            posList = []
             print("modePage: self.splitRects= ", self.splitRects)
             self.chanBntList = []  # [k]
             #self.chanBntVarList = [len(self.splitRects)]  # [k]
@@ -729,32 +748,82 @@ class ConfigGerenalFrame(object):
             self.chanIdList = [0 for i in range(len(self.splitRects))]
             self.chanIdVarList = [0 for i in range(len(self.splitRects))] #tk.IntVar()
 
-            def chanPage(v, id):
-                print("chanPage: (v, id)= ", (v, id))
-                #self.chainId = v
-                self.chanIdList[id] = v
+            def chanPage(v2):
+                print("chanPage: (v, v2)= ", (v, v2))
+                #self.chainId = v2
+                #self.chanIdList[id] = v2
+                #self.modeDict["modePos"][id]["devideId"] = v2
+                i = v2 - 1
+                splitSubFrame = self.splitSubFrameList[i]
+                (orgx, orgy, fsize, lsize, step, combSize, btnWidth) = (0, 0, 8, 8, 32, 3, 10)
+                if i == 0:
+                    (orgx, orgy) = (100, 100)
+                deviceId = None
+                value = 0
+                #if suppramsDict != None:
+                #    spatiallayer = suppramsDict.get("spatiallayer")
+                #    if spatiallayer != None:
+                #        value = spatiallayer.get("value")
+                #        name = spatiallayer.get("name")
+                ttk.Label(splitSubFrame, text="设备", width=lsize).place(x=orgx, y=orgy)
+                self.deviceIdVar = tk.StringVar()
+                self.deviceIdChosen = ttk.Combobox(splitSubFrame, width=combSize,
+                                                       textvariable=self.deviceIdVar,
+                                                       state='readonly')
+                self.deviceIdChosen['values'] = (0, 1, 2, 3)  # 设置下拉列表的值
+                self.deviceIdChosen.current(value)  # 设置下拉列表默认显示的值，0为 numberChosen['values'] 的下标值
+                self.deviceIdChosen.place(x=(orgx + 40), y=orgy)
+                orgy += step
 
+                chanId = None
+                value = 0
+                # if suppramsDict != None:
+                #    spatiallayer = suppramsDict.get("spatiallayer")
+                #    if spatiallayer != None:
+                #        value = spatiallayer.get("value")
+                #        name = spatiallayer.get("name")
+                ttk.Label(splitSubFrame, text="通道", width=lsize).place(x=orgx, y=orgy)
+                self.chanIdVar = tk.StringVar()
+                self.chanIdChosen = ttk.Combobox(splitSubFrame, width=combSize,
+                                                   textvariable=self.chanIdVar,
+                                                   state='readonly')
+                self.chanIdChosen['values'] = (1, 2, 3, 4)  # 设置下拉列表的值
+                self.chanIdChosen.current(value)  # 设置下拉列表默认显示的值，0为 numberChosen['values'] 的下标值
+                self.chanIdChosen.place(x=(orgx + 40), y=orgy)
+
+            self.chanBntVar = tk.IntVar()
             #for rect in self.splitRects:
             for i in range(len(self.splitRects)):
                 self.chanIdVarList[i] = tk.IntVar()
                 self.chanIdVarList[i].set(i)
                 print("modePage: self.chanIdVarList[i].get()= ", self.chanIdVarList[i].get())
                 rect = self.splitRects[i]
-                x0 = rect[0] / 2
-                y0 = (rect[1] - 32) / 2
-                dw = rect[2] / 2
-                dh = (rect[3] - 32) / 2
+                captureId = 0 if i == 0 else -1
+                posList.append({"chanId":i, "devideId": captureId, "pos":rect})
+                #x0 = rect[0] / 2
+                x0 = int((rect[0]) / 2.2)
+                y0 = int((rect[1]) / 2.4)
+                #dw = rect[2] / 2
+                #dh = (rect[3] - 32) / 2
+                dw = int((rect[2]) / 2.2)
+                dh = int((rect[3]) / 2.4)
+                #if y0 > 0:
+                #    y0 -= 32
+                #x0 = rect[0] / 2
+                #y0 = (rect[1]) / 2
+                #dw = rect[2] / 2
+                #dh = (rect[3]) / 2
                 #dw -= 32
-                #dh -= 32
-                splitSubFrame = ttk.LabelFrame(self.splitFrame1, text=str(i), width=dw, height=dh)
-                splitSubFrame.place(x=x0, y=y0)
+                #dh -=
+                #def SetChan(v):
+                #    print("SetChan: v=", v)
+                #splitSubFrame = ttk.LabelFrame(self.splitFrame1, text=str(i), width=dw, height=dh)
+                #splitSubFrame = tk.Button(self.splitFrame1, text=str(i), command=lambda: SetChan(i), width=dw/10,
+                #                          height=dh/30)
 
-                def chanPage_0(vv0, vv1):
-                    v = vv0.get()
-                    id = vv1.get()
-                    print("chanPage: (v, id)= ", (v, id))
-                    # self.chainId = v
-                    self.chanIdList[id] = v
+                splitSubFrame = tk.Radiobutton(self.splitFrame1, text=str(i), value=(i + 1), variable=self.chanBntVar,
+                               command=lambda: chanPage(self.chanBntVar.get()), indicatoron=0,width=dw/10,height=dh/30)
+                splitSubFrame.place(x=x0, y=y0)
 
                 k = len(self.splitRects)
                 n2 = 4
@@ -764,22 +833,29 @@ class ConfigGerenalFrame(object):
                 offset2 = 2#8
                 w3 = stepx2 - (offset2 << 1)
                 h3 = stepy2 - (offset2 << 1)
-                chanBntVar = tk.IntVar()
-                self.chanBntVarList[i] = chanBntVar #tk.IntVar()
-                for j in range(n2):
-                    for l in range(n2):
-                        id = j * n2 + l
-                        orgx = l * stepx2 + offset2
-                        orgy = j * stepy2 + offset2
-                        chanBnt = tk.Radiobutton(splitSubFrame, text=str(id), value=(id + 1), variable=chanBntVar,
-                                                 command=lambda: chanPage(chanBntVar.get(), i), indicatoron=0, width=w3,
-                                                 height=h3)
-                        chanBnt.place(x=orgx, y=orgy)
-                #self.chanBntVarList.append(chanBntVar)
-                #self.chanBntList.append(chanBnt)
-                #self.splitSubFrameList.append(splitSubFrame)
+                #chanBntVar = tk.IntVar()
+                #self.chanBntVarList[i] = chanBntVar #tk.IntVar()
+                ###chan select
+                ###device select
                 self.splitSubFrameList[i] = splitSubFrame
-
+                if False:
+                    for j in range(n2):
+                        for l in range(n2):
+                            id = j * n2 + l
+                            orgx = l * stepx2 + offset2
+                            orgy = j * stepy2 + offset2
+                            chanBnt = tk.Radiobutton(splitSubFrame, text=str(id), value=(id + 1), variable=chanBntVar,
+                                                     command=lambda: chanPage(chanBntVar.get(), i), indicatoron=0,
+                                                     width=w3,
+                                                     height=h3)
+                            chanBnt.place(x=orgx, y=orgy)
+                    #self.chanBntVarList.append(chanBntVar)
+                    #self.chanBntList.append(chanBnt)
+                    #self.splitSubFrameList.append(splitSubFrame)
+                    self.splitSubFrameList[i] = splitSubFrame
+            self.splitModeVar.set(v)
+            self.modeDict.update({"modeId":v, "modePos":posList})
+            return
         disableList = [1, 2, 7, 9]
         for i in range(n):
             for j in range(n):
@@ -801,11 +877,15 @@ class ConfigGerenalFrame(object):
                     #self.subFrame.place(x=0, y=0)
                     if id in disableList:
                         splitBtn.configure(state='disabled')
+        self.splitModeVar.set(idValue)
+        return modeDict
     def CreateSplitChanFrame(self):
         pass
     def CreateMcuFrame(self):
-        pass
+        mcuDict = self.mcuDict
+        return mcuDict
     def CreateSuppramsFrame(self):
+        suppramsDict = self.suppramsDict
         w = (self.width >> 1) - 16
         h = (self.height >> 1) - 16
         w2 = w >> 1
@@ -818,6 +898,12 @@ class ConfigGerenalFrame(object):
         ttk.Label(otherSubFrame, text="服务器地址", width=lsize).place(x=orgx, y=orgy)
         #
         serverAddVar = "47.92.7.66:10088"
+        self.suppramsDict = suppramsDict
+        if suppramsDict != None:
+            serverAddr = suppramsDict.get("serverAddr")
+            if serverAddr != None:
+                serverAddVar = serverAddr
+
         self.var_sever_add = tk.StringVar()
         entry_sever_add = tk.Entry(otherSubFrame, textvariable=self.var_sever_add)
         entry_sever_add.place(x=(orgx + 100), y=orgy)
@@ -826,10 +912,10 @@ class ConfigGerenalFrame(object):
         orgx1 = dw
         self.compatible = tk.IntVar()
         compatibleValue = 1
-        # if supprams != None:
-        #    compatibleValue = supprams.get("compatible")
-        #    if compatibleValue == None:
-        #        compatibleValue = 1
+        if suppramsDict != None:
+            compatible = suppramsDict.get("compatible")
+            if compatible != None:
+                compatibleValue = compatible
 
         self.selectCompatible = tk.Checkbutton(otherSubFrame, text='兼容模式', variable=self.compatible, onvalue=1,
                                                offvalue=0)  # 传值原理类似于radiobutton部件
@@ -840,10 +926,10 @@ class ConfigGerenalFrame(object):
         orgx1 += 100
         self.osd = tk.IntVar()
         osdValue = 1
-        # if supprams != None:
-        #    osdValue = supprams.get("osd")
-        #    if osdValue == None:
-        #        osdValue = 1
+        if suppramsDict != None:
+            osd = suppramsDict.get("osd")
+            if osd != None:
+                osdValue = osd
 
         self.selectOSD = tk.Checkbutton(otherSubFrame, text='内置OSD', variable=self.osd, onvalue=1,
                                         offvalue=0)  # 传值原理类似于radiobutton部件
@@ -854,11 +940,11 @@ class ConfigGerenalFrame(object):
         orgx2 = fsize * lsize
         spatiallayer = None
         value = 0
-        #if supprams != None:
-        #    spatiallayer = supprams.get("spatiallayer")
-        #if spatiallayer != None:
-        #    value = spatiallayer.get("value")
-        #    name = spatiallayer.get("name")
+        if suppramsDict != None:
+            spatiallayer = suppramsDict.get("spatiallayer")
+            if spatiallayer != None:
+                value = spatiallayer.get("value")
+                name = spatiallayer.get("name")
         ttk.Label(otherSubFrame, text="空域层", width=lsize).place(x=orgx, y=orgy)
         self.spatialLayerVar = tk.StringVar()
         self.spatialLayerChosen = ttk.Combobox(otherSubFrame, width=combSize,
@@ -873,49 +959,54 @@ class ConfigGerenalFrame(object):
         orgx2 += fsize * lsize * 2
         temporallayer = None
         value = 1
-        # if supprams != None:
-        #    temporallayer = supprams.get("temporallayer")
-        # if temporallayer != None:
-        #    value = temporallayer.get("value")
-        #    name = temporallayer.get("name")
+        if suppramsDict != None:
+            temporallayer = suppramsDict.get("temporallayer")
+            if temporallayer != None:
+                value = temporallayer.get("value")
+                name = temporallayer.get("name")
         ttk.Label(otherSubFrame, text="时域层", width=lsize).place(x=orgx1, y=orgy)
         self.temporalLayerVar = tk.StringVar()
         self.temporalLayerChosen = ttk.Combobox(otherSubFrame, width=combSize,
                                                textvariable=self.temporalLayerVar,
                                                state='readonly')
         self.temporalLayerChosen['values'] = (1, 2, 4, 8, 16)  # 设置下拉列表的值
-        self.temporalLayerChosen.current(value)  # 设置下拉列表默认显示的值，0为 numberChosen['values'] 的下标值
+        value0 = self.temporalLayerChosen.current(value)  # 设置下拉列表默认显示的值，0为 numberChosen['values'] 的下标值
+        print("value0=", value0)
         self.temporalLayerChosen.place(x=orgx2, y=orgy)
         #orgy += step
 
-        if True:
-            orgx1 = dw + 20
-            ttk.Label(otherSubFrame, text="上传层", width=lsize).place(x=orgx1, y=orgy)
-            scrolly = Scrollbar(otherSubFrame)
-            #scrolly.pack(side=RIGHT, fill=Y)
-            scrolly.place(x=(orgx1 + 70), y=orgy)
-            lb = tk.Listbox(otherSubFrame, selectmode=tk.MULTIPLE, width=2, height=2, yscrollcommand=scrolly.set)
-            lb.place(x=(orgx1 + 50), y=orgy)
-            for item in [1, 2, 3, 4, 5]:
-                lb.insert(tk.END, item)
-            lb.selection_set(0, 2) #0~2
-            #lb.selection_clear(0, 3)
-            print("has select:", lb.curselection())
-            print(lb.selection_includes(4))
-            scrolly.config(command=lb.yview)
+        orgx1 = dw + 20
+        values = [0, 1, 2]
+        if suppramsDict != None:
+            uploadlayers = suppramsDict.get("uploadlayers")
+            if uploadlayers != None:
+                values = uploadlayers
+        ttk.Label(otherSubFrame, text="上传层", width=lsize).place(x=orgx1, y=orgy)
+        self.scrolly = Scrollbar(otherSubFrame)
+        # scrolly.pack(side=RIGHT, fill=Y)
+        self.scrolly.place(x=(orgx1 + 70), y=orgy)
+        self.uplayers = tk.Listbox(otherSubFrame, selectmode=tk.MULTIPLE, width=2, height=2, yscrollcommand=self.scrolly.set)
+        self.uplayers.place(x=(orgx1 + 50), y=orgy)
+        for item in [1, 2, 3, 4, 5]:
+            self.uplayers.insert(tk.END, item)
+        # lb.selection_set(0, 2) #0~2
+        for thisvalue in values:
+            self.uplayers.selection_set(thisvalue)
+        # lb.selection_clear(0, 3)
+        print("has select:", self.uplayers.curselection())
+        print(self.uplayers.selection_includes(4))
+        self.scrolly.config(command=self.uplayers.yview)
 
-            def saveConfigPage():
-                #self.parent.save_config()
-                thisvalue = self.saveConfigVar.get()
-                print("CreateSuppramsFrame: saveConfigPage: thisvalue= ", thisvalue)
+        def saveConfigPage():
+            # self.parent.save_config()
+            self.SaveConfig()
 
-            self.saveConfigVar = tk.IntVar()
-            saveConfigBtn = tk.Radiobutton(otherSubFrame, text='参数保存', value=1, variable=self.saveConfigVar,
-                                           # image=image4,
-                                           command=saveConfigPage, indicatoron=0, width=btnWidth)
-            self.saveConfigVar.set(0)
-            saveConfigBtn.place(x=(orgx1 + 100), y=orgy)
-
+        self.saveConfigVar = tk.IntVar()
+        saveConfigBtn = tk.Radiobutton(otherSubFrame, text='参数保存', value=1, variable=self.saveConfigVar,
+                                       # image=image4,
+                                       command=saveConfigPage, indicatoron=0, width=btnWidth)
+        self.saveConfigVar.set(0)
+        saveConfigBtn.place(x=(orgx1 + 100), y=orgy)
 
         orgy += step
 
@@ -926,7 +1017,7 @@ class ConfigGerenalFrame(object):
         ttk.Label(netSubFrame, text="网络丢包", width=lsize).place(x=orgx, y=orgy)
         netLossVar = "sudo tc qdisc add dev eno1 root netem loss 5%"
         self.var_net_loss = tk.StringVar()
-        entry_net_loss = tk.Entry(netSubFrame, textvariable=self.var_net_loss, width=60)
+        entry_net_loss = tk.Entry(netSubFrame, textvariable=self.var_net_loss, width=50)
         entry_net_loss.place(x=(orgx + 100), y=orgy)
         self.var_net_loss.set(netLossVar)
 
@@ -952,7 +1043,7 @@ class ConfigGerenalFrame(object):
         ttk.Label(netSubFrame, text="网络延迟", width=lsize).place(x=orgx, y=orgy)
         netDelayVar = "sudo tc qdisc add dev eth0 root netem delay 300ms 100ms 30%"
         self.var_net_delay = tk.StringVar()
-        entry_net_delay = tk.Entry(netSubFrame, textvariable=self.var_net_delay, width=60)
+        entry_net_delay = tk.Entry(netSubFrame, textvariable=self.var_net_delay, width=50)
         entry_net_delay.place(x=(orgx + 100), y=orgy)
         self.var_net_delay.set(netDelayVar)
 
@@ -967,7 +1058,7 @@ class ConfigGerenalFrame(object):
         ttk.Label(netSubFrame, text="包乱序", width=lsize).place(x=orgx, y=orgy)
         netReorderVar = "sudo tc qdisc change dev eno1 root netem delay 10ms reorder 25% 50%"
         self.var_net_reorder = tk.StringVar()
-        entry_net_reorder = tk.Entry(netSubFrame, textvariable=self.var_net_reorder, width=60)
+        entry_net_reorder = tk.Entry(netSubFrame, textvariable=self.var_net_reorder, width=50)
         entry_net_reorder.place(x=(orgx + 100), y=orgy)
         self.var_net_reorder.set(netReorderVar)
         self.netreorder = tk.IntVar()
@@ -981,7 +1072,7 @@ class ConfigGerenalFrame(object):
         ttk.Label(netSubFrame, text="包损坏", width=lsize).place(x=orgx, y=orgy)
         netCorruptVar = "sudo tc qdisc add dev eno1 root netem corrupt 0.2%"
         self.var_net_corrupt = tk.StringVar()
-        entry_net_corrupt = tk.Entry(netSubFrame, textvariable=self.var_net_corrupt, width=60)
+        entry_net_corrupt = tk.Entry(netSubFrame, textvariable=self.var_net_corrupt, width=50)
         entry_net_corrupt.place(x=(orgx + 100), y=orgy)
         self.var_net_corrupt.set(netCorruptVar)
         self.netcorrupt = tk.IntVar()
@@ -996,7 +1087,7 @@ class ConfigGerenalFrame(object):
         ttk.Label(netSubFrame, text="复位", width=lsize).place(x=orgx, y=orgy)
         netResetVar = "sudo tc qdisc del dev eno1 root"
         self.var_net_reset = tk.StringVar()
-        entry_net_reset = tk.Entry(netSubFrame, textvariable=self.var_net_reset, width=60)
+        entry_net_reset = tk.Entry(netSubFrame, textvariable=self.var_net_reset, width=50)
         entry_net_reset.place(x=(orgx + 100), y=orgy)
         self.var_net_reset.set(netResetVar)
         self.netreset = tk.IntVar()
@@ -1007,7 +1098,31 @@ class ConfigGerenalFrame(object):
         self.selectNetReset.place(x=(w - 50), y=orgy)
         self.netreset.set(netresetValue)
         orgy += step
-
+        return suppramsDict
+    def SaveConfig(self):
+        thisvalue = self.saveConfigVar.get()
+        print("CreateSuppramsFrame: saveConfigPage: thisvalue= ", thisvalue)
+        self.suppramsDict.update({"serverAddr": self.var_sever_add.get()})
+        self.suppramsDict.update({"compatible": self.compatible.get()})
+        self.suppramsDict.update({"osd": self.osd.get()})
+        name = self.spatialLayerChosen.get()
+        value = self.spatialLayerChosen.current()
+        self.suppramsDict.update({"spatiallayer": {"name": name, "value": value}})
+        name = self.temporalLayerChosen.get()
+        value = self.temporalLayerChosen.current()
+        print("value=", value)
+        self.suppramsDict.update({"temporallayer": {"name": name, "value": value}})
+        print("has select:", self.uplayers.curselection())
+        self.suppramsDict.update({"uploadlayers": self.uplayers.curselection()})
+        # self.suppramsDict.update({"uploadlayers": (0,1,2)})
+        if self.parent.json.dict.get("general") == None:
+            self.parent.json.dict.update({"general": {}})
+        self.parent.json.dict["general"].update({"supprams": self.suppramsDict})
+        if self.mcuDict != None:
+            self.parent.json.dict["general"].update({"mcu": self.mcuDict})
+        if self.modeDict != None:
+            self.parent.json.dict["general"].update({"mode": self.modeDict})
+        self.parent.json.writefile(None, "")
 class ConfigControlFrame(object):
     def __init__(self, parent, parentFrame):
         self.parent = parent
@@ -1020,21 +1135,21 @@ class ConfigControlFrame(object):
         contrFrame = ttk.LabelFrame(self.parentFrame, text='控制面板', width=160, height=720)
         contrFrame.place(x=offset, y=0)
         ###
-        def addChan():
-            self.chanNum += 1
-            print("addChan: self.chanNum= ", self.chanNum)
+        def addDevice():
+            self.deviceNum += 1
+            print("addDevice: self.deviceNum= ", self.deviceNum)
 
         (orgx, offsety, step, btnWidth) = (8, 8, 40, 10)
         image4 = tk.PhotoImage(file='icon/config.png').subsample(3, 4)
-        self.addChanVar = tk.IntVar()
-        addChanBtn = tk.Radiobutton(contrFrame, text='增加通道', value=1, variable=self.addChanVar,  # image=image4,
-                                    command=addChan, indicatoron=0, width=btnWidth)
-        self.addChanVar.set(0)
-        addChanBtn.place(x=orgx, y=offsety)
+        self.addDeviceVar = tk.IntVar()
+        addDeviceBtn = tk.Radiobutton(contrFrame, text='增加通道', value=1, variable=self.addDeviceVar,  # image=image4,
+                                    command=addDevice, indicatoron=0, width=btnWidth)
+        self.addDeviceVar.set(0)
+        addDeviceBtn.place(x=orgx, y=offsety)
         offsety += step
 
         def frontPage():
-            print("fronPage: self.chanNum= ", self.chanNum)
+            print("fronPage: self.deviceNum= ", self.deviceNum)
 
         self.frontVar = tk.IntVar()
         frontBtn = tk.Radiobutton(contrFrame, text='前一页', value=1, variable=self.frontVar,  # image=image4,
@@ -1044,7 +1159,7 @@ class ConfigControlFrame(object):
         offsety += step
 
         def backPage():
-            print("backPage: self.chanNum= ", self.chanNum)
+            print("backPage: self.deviceNum= ", self.deviceNum)
 
         self.backVar = tk.IntVar()
         backBtn = tk.Radiobutton(contrFrame, text='后一页', value=1, variable=self.backVar,  # image=image4,
@@ -1054,7 +1169,7 @@ class ConfigControlFrame(object):
         offsety += step
 
         def mcuViewPage():
-            print("mcuViewPage: self.chanNum= ", self.chanNum)
+            print("mcuViewPage: self.deviceNum= ", self.deviceNum)
 
         self.mcuViewVar = tk.IntVar()
         mcuViewBtn = tk.Radiobutton(contrFrame, text='合成预览', value=1, variable=self.mcuViewVar,  # image=image4,
@@ -1097,15 +1212,15 @@ class ConfigControlFrame(object):
             splitBtn.place(x=orgx, y=offsety)
             offsety += step
             # self.splitVarList.append(splitVar)
-class ConfigChannelFrame(object):
-    def __init__(self, parent, parentFrame, chanId, chanDict):
+class ConfigDeviceFrame(object):
+    def __init__(self, parent, parentFrame, deviceId, deviceDict):
         self.parent = parent
         self.parentFrame = parentFrame
-        self.chanId = chanId
+        self.deviceId = deviceId
         self.audioFrame = None
         self.videoFarame = None
         self.width = 280
-        self.dict = chanDict
+        self.dict = deviceDict
     def SaveConfig(self):
         audios = None
         videos = None
@@ -1120,6 +1235,7 @@ class ConfigChannelFrame(object):
 
         value = self.audioDeviceChosen.current()
         name = self.audioDeviceChosen.get()
+        #print("SaveConfig: value=", value)
         audios.update({"recorder":{"value": value, "name": name}})
 
         value = self.audioCodecChosen.current()
@@ -1183,7 +1299,7 @@ class ConfigChannelFrame(object):
         self.dict.update({"videos": videos})
         return self.dict
 
-    def CreateChan(self):
+    def CreateDevice(self):
         ret = {}
         audios = None
         videos = None
@@ -1244,14 +1360,14 @@ class ConfigChannelFrame(object):
         self.audioDeviceChosen.place(x=offsetx, y=offsety)
         offsety += step
 
-        #print("CreateChan: audioDeviceChosen.get()=", self.audioDeviceChosen.get())
-        #print("CreateChan: audioDeviceChosen.current()=", self.audioDeviceChosen.current())
+        #print("CreateDevice: audioDeviceChosen.get()=", self.audioDeviceChosen.get())
+        #print("CreateDevice: audioDeviceChosen.current()=", self.audioDeviceChosen.current())
 
         if recorder != None:
-            #print("CreateChan: 0: recorder=", recorder)
+            #print("CreateDevice: 0: recorder=", recorder)
             pass
         else:
-            #print("CreateChan: 1: recorder=", recorder)
+            #print("CreateDevice: 1: recorder=", recorder)
             name = self.audioDeviceChosen['values'][value]
             audios.update({"recorder":{"value": value, "name": name}})
 
@@ -1327,8 +1443,8 @@ class ConfigChannelFrame(object):
         if framesize != None:
             value = framesize.get("value")
             name = framesize.get("name")
-            print("CreateChan: framesize: value=", value)
-            print("CreateChan: framesize: name=", name)
+            print("CreateDevice: framesize: value=", value)
+            print("CreateDevice: framesize: name=", name)
         ttk.Label(frame30, text="帧大小", font=Font1, width=lsize).place(x=orgx, y=offsety)
         self.audioFrameSize = tk.StringVar()
         self.audioFrameSizeChosen = ttk.Combobox(frame30, font=Font1, width=combSize, textvariable=self.audioFrameSize,
@@ -1473,9 +1589,9 @@ class ConfigChannelFrame(object):
         offsety += step
 
         if capture != None:
-            print("CreateChan: 0: capture=", capture)
+            print("CreateDevice: 0: capture=", capture)
         else:
-            print("CreateChan: 1: capture=", capture)
+            print("CreateDevice: 1: capture=", capture)
             name = self.videoDeviceChosen['values'][value]
             videos.update({"capture":{"value": value, "name": name}})
 
@@ -1640,21 +1756,21 @@ class ConfigFrame(object):
     def exit(self):
         print("ConfigFrame: exit")
     def save_config(self):
-        multchan = self.json.dict.get("multchan")
-        if multchan != None:
-            #print("ConfigFrame:save_config: len(multchan)= ", len(multchan))
+        multdevice = self.json.dict.get("multdevice")
+        if multdevice != None:
+            #print("ConfigFrame:save_config: len(multdevice)= ", len(multdevice))
             pass
         else:
-            multchan = {}
-        for configChan in self.configChanFrameList:
-            chanDict = configChan.SaveConfig()
-            if chanDict != None:
-                chanId = configChan.chanId
-                # multchan[str(chanId)] = chanDict
-                multchan.update({str(chanId): chanDict})
-        if multchan != None:
-            #print("ConfigFrame:save_config: len(multchan)= ", len(multchan))
-            for key, value in multchan.items():
+            multdevice = {}
+        for configDevice in self.configDeviceFrameList:
+            deviceDict = configDevice.SaveConfig()
+            if deviceDict != None:
+                deviceId = configDevice.deviceId
+                # multdevice[str(deviceId)] = deviceDict
+                multdevice.update({str(deviceId): deviceDict})
+        if multdevice != None:
+            #print("ConfigFrame:save_config: len(multdevice)= ", len(multdevice))
+            for key, value in multdevice.items():
                 #print("ConfigFrame:save_config: key= ", key)
                 if value != None:
                     for key2, value2 in value.items():
@@ -1663,14 +1779,19 @@ class ConfigFrame(object):
                             for key3, value3 in value2.items():
                                 print("ConfigFrame:save_config: key3= ", key3)
                                 print("ConfigFrame:save_config: value3= ", value3)
-            self.json.dict.update({"multchan" : multchan})
+            self.json.dict.update({"multdevice" : multdevice})
             self.json.writefile(None, "")
     def open_config_frame(self):
-        multchan = self.json.dict.get("multchan")
-        if multchan != None:
-            print("ConfigFrame:open_config_frame: len(multchan)= ", len(multchan))
+        multdevice = self.json.dict.get("multdevice")
+        if multdevice != None:
+            print("ConfigFrame:open_config_frame: len(multdevice)= ", len(multdevice))
         else:
-            multchan = {}
+            multdevice = {}
+        generalDict = self.json.dict.get("general")
+        if generalDict != None:
+            print("ConfigFrame:open_config_frame: len(generalDict)= ", len(generalDict))
+        else:
+            generalDict = {}
         #self.hide()
         if True:
             # self.status = True
@@ -1708,7 +1829,7 @@ class ConfigFrame(object):
                 tab = ttk.Notebook(self.config_frame)
 
                 frame0 = tk.Frame(tab, bg="blue")
-                tab0 = tab.add(frame0, text="多通道")
+                tab0 = tab.add(frame0, text="设备管理")
 
                 frame1 = tk.Frame(tab, bg="yellow")
                 tab1 = tab.add(frame1, text="通用")
@@ -1846,29 +1967,29 @@ class ConfigFrame(object):
                 comboxlist.current(0)  # 选择第一个
                 comboxlist.bind("<<ComboboxSelected>>", go)  # 绑定事件,(下拉列表框被选中时，绑定go()函数)
                 comboxlist.pack()
-            ###chanframe
-            self.chanNum = 4
+            ###deviceframe
+            self.deviceNum = 4
             offset = 0
             self.framelist = []
-            self.configChanFrameList = []
-            for chanId in range(self.chanNum):
+            self.configDeviceFrameList = []
+            for deviceId in range(self.deviceNum):
                 # Create an audio container to hold labels
-                chanFrame = ttk.LabelFrame(frame0, text='通道'+str(chanId), width=280, height=720)
-                chanFrame.place(x=offset, y=0)
-                chanDict = None
-                if multchan != None:
-                    chanDict = multchan.get(str(chanId))
-                self.chan0 = ConfigChannelFrame(self, chanFrame, chanId, chanDict)
-                chanDict = self.chan0.CreateChan()
-                if chanDict != None:
-                    #multchan[str(chanId)] = chanDict
-                    multchan.update({str(chanId) : chanDict})
+                deviceFrame = ttk.LabelFrame(frame0, text='通道'+str(deviceId), width=280, height=720)
+                deviceFrame.place(x=offset, y=0)
+                deviceDict = None
+                if multdevice != None:
+                    deviceDict = multdevice.get(str(deviceId))
+                self.device0 = ConfigDeviceFrame(self, deviceFrame, deviceId, deviceDict)
+                deviceDict = self.device0.CreateDevice()
+                if deviceDict != None:
+                    #multdevice[str(deviceId)] = deviceDict
+                    multdevice.update({str(deviceId) : deviceDict})
                 offset += 280
-                self.framelist.append(chanFrame)
-                self.configChanFrameList.append(self.chan0)
-            if multchan != None and False:
-                print("ConfigFrame:open_config_frame: len(multchan)= ", len(multchan))
-                for key,value in multchan.items():
+                self.framelist.append(deviceFrame)
+                self.configDeviceFrameList.append(self.device0)
+            if multdevice != None and False:
+                print("ConfigFrame:open_config_frame: len(multdevice)= ", len(multdevice))
+                for key,value in multdevice.items():
                     print("ConfigFrame:open_config_frame: key= ", key)
                     if value != None:
                         for key2, value2 in value.items():
@@ -1881,10 +2002,19 @@ class ConfigFrame(object):
             self.ctrFrame = ConfigControlFrame(self, frame0)
             self.ctrFrame.CreateControlFrame(offset)
             ###genernalframe
-            self.genFrame = ConfigGerenalFrame(self, frame1, width0, height0)
-            self.genFrame.CreateSplitFrame()
-            self.genFrame.CreateMcuFrame()
-            self.genFrame.CreateSuppramsFrame()
+            self.genFrame = ConfigGeneralFrame(self, frame1, width0, height0, generalDict)
+            modeDict = self.genFrame.CreateSplitFrame()
+            mcuDict = self.genFrame.CreateMcuFrame()
+            suppramsDict = self.genFrame.CreateSuppramsFrame()
+            if modeDict != None:
+                generalDict.update({"mode": modeDict})
+            if mcuDict != None:
+                generalDict.update({"mcu": mcuDict})
+            if suppramsDict != None:
+                generalDict.update({"supprams": suppramsDict})
+            #generalDict = self.genFrame.dict
+            if generalDict != None:
+                self.json.dict.update({"general": generalDict})
 
             if False:
                 # 文本框
