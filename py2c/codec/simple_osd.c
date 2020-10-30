@@ -186,6 +186,26 @@ int api_simple_osd_init(char *handle, char *param)
     printf("api_simple_osd_init: ok \n");
     return ret;
 }
+int correct_orgxy(int *orgX, int *orgY, int width, int height)
+{
+    int ret = 0;
+    int x = orgX[0];//[0,width)
+    int y = orgY[0];//[0,height)
+    int stride = FontWidth;
+    if((x + stride) >= width)
+    {
+        x -=  stride;
+        orgX[0] = x;
+        ret = 1;
+    }
+    if((y + stride) >= height)
+    {
+        y -=  stride;
+        orgY[0] = y;
+        ret = 1;
+    }
+    return ret;
+}
 HCSVC_API
 int api_simple_osd_process(char *handle, char *data, char *param)
 {
@@ -229,6 +249,7 @@ int api_simple_osd_process(char *handle, char *data, char *param)
 	else{
 	    height = obj->height;
 	}
+	int ret2 = correct_orgxy(&orgX, &orgY, width, height);
     //
     //int width = obj->width;
     //int height = obj->height;
