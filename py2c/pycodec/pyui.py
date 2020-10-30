@@ -23,6 +23,9 @@ import pickle
 import ttk
 import tkSimpleDialog as dl
 import tkMessageBox as mb
+import tkFileDialog as df
+from PIL import Image
+from matplotlib import pyplot as plt
 
 
 #refer to:
@@ -787,7 +790,8 @@ class ConfigGeneralFrame(object):
                 print("chanPage: (ww, wh)", (ww, wh))
                 popFrame = tk.Toplevel()
                 #popFrame = tk.Frame(splitSubFrame, width=640, height=480)
-                popFrame.title("设备及通道选择")
+                title = '设备及通道选择(' + str(i) + ')'
+                popFrame.title(title)
                 (popwidth, popheight) = (320, 240)
                 str_resolution = str(popwidth) + "x" + str(popheight) + "+" + str(wx) + "+" + str(wy)
                 popFrame.geometry(str_resolution)
@@ -833,6 +837,13 @@ class ConfigGeneralFrame(object):
                 self.chanIdChosen['values'] = (1, 2, 3, 4)  # 设置下拉列表的值
                 self.chanIdChosen.current(value)  # 设置下拉列表默认显示的值，0为 numberChosen['values'] 的下标值
                 self.chanIdChosen.place(x=(orgx + 40), y=orgy)
+                orgy += step
+                def setting():
+                    print("setting")
+                    #popFrame.delete("all")
+                    popFrame.destroy()
+                self.btnEnter = tk.Button(popFrame, text="确定", command=setting)
+                self.btnEnter.place(x=(orgx + 100), y=(orgy + 30))
 
             self.chanBntVar = tk.IntVar()
             #for rect in self.splitRects:
@@ -952,35 +963,9 @@ class ConfigGeneralFrame(object):
         entry_sever_add.place(x=(orgx + 100), y=orgy)
         self.var_sever_add.set(serverAddVar)
 
-        orgx1 = dw
-        self.compatible = tk.IntVar()
-        compatibleValue = 1
-        if suppramsDict != None:
-            compatible = suppramsDict.get("compatible")
-            if compatible != None:
-                compatibleValue = compatible
-
-        self.selectCompatible = tk.Checkbutton(otherSubFrame, text='兼容模式', variable=self.compatible, onvalue=1,
-                                               offvalue=0)  # 传值原理类似于radiobutton部件
-        self.selectCompatible.place(x=orgx1, y=orgy)
-        self.compatible.set(compatibleValue)
-        # offsety += step
-
-        orgx1 += 100
-        self.osd = tk.IntVar()
-        osdValue = 1
-        if suppramsDict != None:
-            osd = suppramsDict.get("osd")
-            if osd != None:
-                osdValue = osd
-
-        self.selectOSD = tk.Checkbutton(otherSubFrame, text='内置OSD', variable=self.osd, onvalue=1,
-                                        offvalue=0)  # 传值原理类似于radiobutton部件
-        self.selectOSD.place(x=orgx1, y=orgy)
-        self.osd.set(osdValue)
-        orgy += step
-        #
-        orgx2 = fsize * lsize
+        #offsetx = fsize * lsize * 2 + 32
+        #orgx2 = fsize * lsize
+        orgx1 = 250
         spatiallayer = None
         value = 0
         if suppramsDict != None:
@@ -988,18 +973,18 @@ class ConfigGeneralFrame(object):
             if spatiallayer != None:
                 value = spatiallayer.get("value")
                 name = spatiallayer.get("name")
-        ttk.Label(otherSubFrame, text="空域层", width=lsize).place(x=orgx, y=orgy)
+        ttk.Label(otherSubFrame, text="空域层", width=lsize).place(x=orgx1, y=orgy)
         self.spatialLayerVar = tk.StringVar()
         self.spatialLayerChosen = ttk.Combobox(otherSubFrame, width=combSize,
-                                                  textvariable=self.spatialLayerVar,
-                                                  state='readonly')
+                                               textvariable=self.spatialLayerVar,
+                                               state='readonly')
         self.spatialLayerChosen['values'] = (1, 2, 3, 4, 5)  # 设置下拉列表的值
         self.spatialLayerChosen.current(value)  # 设置下拉列表默认显示的值，0为 numberChosen['values'] 的下标值
-        self.spatialLayerChosen.place(x=orgx2, y=orgy)
-        #orgy += step
+        self.spatialLayerChosen.place(x=(orgx1 + 50), y=orgy)
+        orgx1 += 130
 
-        orgx1 = fsize * lsize * 2
-        orgx2 += fsize * lsize * 2
+        #orgx1 = fsize * lsize * 2
+        #orgx2 += fsize * lsize * 2
         temporallayer = None
         value = 1
         if suppramsDict != None:
@@ -1010,15 +995,14 @@ class ConfigGeneralFrame(object):
         ttk.Label(otherSubFrame, text="时域层", width=lsize).place(x=orgx1, y=orgy)
         self.temporalLayerVar = tk.StringVar()
         self.temporalLayerChosen = ttk.Combobox(otherSubFrame, width=combSize,
-                                               textvariable=self.temporalLayerVar,
-                                               state='readonly')
+                                                textvariable=self.temporalLayerVar,
+                                                state='readonly')
         self.temporalLayerChosen['values'] = (1, 2, 4, 8, 16)  # 设置下拉列表的值
         value0 = self.temporalLayerChosen.current(value)  # 设置下拉列表默认显示的值，0为 numberChosen['values'] 的下标值
         print("value0=", value0)
-        self.temporalLayerChosen.place(x=orgx2, y=orgy)
-        #orgy += step
+        self.temporalLayerChosen.place(x=(orgx1 + 50), y=orgy)
+        orgx1 += 130
 
-        orgx1 = dw + 20
         values = [0, 1, 2]
         if suppramsDict != None:
             uploadlayers = suppramsDict.get("uploadlayers")
@@ -1028,7 +1012,8 @@ class ConfigGeneralFrame(object):
         self.scrolly = Scrollbar(otherSubFrame)
         # scrolly.pack(side=RIGHT, fill=Y)
         self.scrolly.place(x=(orgx1 + 70), y=orgy)
-        self.uplayers = tk.Listbox(otherSubFrame, selectmode=tk.MULTIPLE, width=2, height=2, yscrollcommand=self.scrolly.set)
+        self.uplayers = tk.Listbox(otherSubFrame, selectmode=tk.MULTIPLE, width=2, height=2,
+                                   yscrollcommand=self.scrolly.set)
         self.uplayers.place(x=(orgx1 + 50), y=orgy)
         for item in [1, 2, 3, 4, 5]:
             self.uplayers.insert(tk.END, item)
@@ -1040,6 +1025,164 @@ class ConfigGeneralFrame(object):
         print(self.uplayers.selection_includes(4))
         self.scrolly.config(command=self.uplayers.yview)
 
+        orgy += step
+
+        def encrypAV():
+            print("encrypAV")
+            def signtowcg():
+                print("signtowcg")
+                # 获取输入框内的内容
+                # nn = new_name.get()
+                np = new_pwd.get()
+                npf = new_pwd_confirm.get()
+
+                # 本地加载已有用户信息,如果没有则已有用户信息为空
+                try:
+                    with open('usr_info.pickle', 'rb') as usr_file:
+                        exist_usr_info = pickle.load(usr_file)
+                except:  # FileNotFoundError:
+                    exist_usr_info = {}
+
+                    # 检查用户名存在、密码为空、密码前后不一致
+                # if nn in exist_usr_info:
+                #    tk.messagebox.showerror('错误', '用户名已存在')
+                if np == '':  # or nn == '':
+                    mb.showerror('错误', '密码为空')
+                elif np != npf:
+                    mb.showerror('错误', '密码前后不一致')
+                # 注册信息没有问题则将用户名密码写入数据库
+                else:
+                    # exist_usr_info[nn] = np
+                    with open('usr_info.pickle', 'wb') as usr_file:
+                        pickle.dump(exist_usr_info, usr_file)
+                    mb.showinfo('欢迎', '密码设置成功')
+                    # 注册成功关闭注册框
+                    popFrame.destroy()
+            popFrame = tk.Toplevel()
+            popFrame.title("音视频加密")
+            (popwidth, popheight) = (320, 240)
+            (wx, wy) = (300, 300)
+            str_resolution = str(popwidth) + "x" + str(popheight) + "+" + str(wx) + "+" + str(wy)
+            popFrame.geometry(str_resolution)
+            popFrame.resizable(width=False, height=False)  # 禁止改变窗口大小
+            popFrame.update()
+            warring = ["警告:\n\t1)密码只在音视频产生期间存在;\n\t2)服务器不获取密码;\n\t3)本地软件也不提供查询密码方式;\n\t4)请妥善保管密码 !"]
+            tk.Label(popFrame, text=warring[0], justify=LEFT).place(x=10, y=0)
+            # 密码变量及标签、输入框
+            new_pwd = tk.StringVar()
+            tk.Label(popFrame, text='请输入密码：').place(x=10, y=100)
+            tk.Entry(popFrame, textvariable=new_pwd, show='*').place(x=150, y=100)
+            # 重复密码变量及标签、输入框
+            new_pwd_confirm = tk.StringVar()
+            tk.Label(popFrame, text='请再次输入密码：').place(x=10, y=140)
+            tk.Entry(popFrame, textvariable=new_pwd_confirm, show='*').place(x=150, y=140)
+            # 确认注册按钮及位置
+            bt_confirm_sign_up = tk.Button(popFrame, text='确认',
+                                           command=signtowcg)
+            bt_confirm_sign_up.place(x=150, y=180)
+        orgx1 = 0
+        def logoEvent():
+            print("logoEvent")
+            default_dir = r"文件路径"
+            filetype = [("PNG", ".png"), ("JPEG", ".jpg")]
+            file_path = df.askopenfilename(title=u'选择文件', filetypes=filetype, initialdir=(os.path.expanduser(default_dir)))
+            image = Image.open(file_path)
+            plt.imshow(image)
+            plt.show()
+        self.logo = tk.IntVar()
+        logoValue = 0
+        if suppramsDict != None:
+            logo = suppramsDict.get("logo")
+            if logo != None:
+                logoValue = logo
+
+        self.logoCompatible = tk.Checkbutton(otherSubFrame, text='logo', variable=self.logo, onvalue=1,
+                                               offvalue=0, command=logoEvent)  # 传值原理类似于radiobutton部件
+        self.logoCompatible.place(x=orgx1, y=orgy)
+        self.logo.set(logoValue)
+        # offsety += step
+
+        orgx1 += 60
+
+        def openingEvent():
+            print("openingEvent")
+            default_dir = r"文件路径"
+            filetype = [("PNG", ".png"), ("JPEG", ".jpg")]
+            file_path = df.askopenfilename(title=u'选择文件', filetypes=filetype,
+                                           initialdir=(os.path.expanduser(default_dir)))
+            image = Image.open(file_path)
+            plt.imshow(image)
+            plt.show()
+        self.opening = tk.IntVar()
+        openingValue = 0
+        if suppramsDict != None:
+            opening = suppramsDict.get("opening")
+            if opening != None:
+                openingValue = opening
+
+        self.openingCompatible = tk.Checkbutton(otherSubFrame, text='片头', variable=self.opening, onvalue=2,
+                                               offvalue=0, command=openingEvent)  # 传值原理类似于radiobutton部件
+        self.openingCompatible.place(x=orgx1, y=orgy)
+        self.opening.set(openingValue)
+        # offsety += step
+
+        orgx1 += 60
+
+        self.encryp = tk.IntVar()
+        encrypValue = 0
+        if suppramsDict != None:
+            encryp = suppramsDict.get("encryp")
+            if encryp != None:
+                encrypValue = encryp
+
+        self.encrypCompatible = tk.Checkbutton(otherSubFrame, text='音视频加密', variable=self.encryp, onvalue=3,
+                                               offvalue=0, command=encrypAV)  # 传值原理类似于radiobutton部件
+        self.encrypCompatible.place(x=orgx1, y=orgy)
+        self.encryp.set(encrypValue)
+        # offsety += step
+
+        orgx1 += 100
+
+        self.compatible = tk.IntVar()
+        compatibleValue = 0
+        if suppramsDict != None:
+            compatible = suppramsDict.get("compatible")
+            if compatible != None:
+                compatibleValue = compatible
+
+        self.selectCompatible = tk.Checkbutton(otherSubFrame, text='兼容模式', variable=self.compatible, onvalue=4,
+                                               offvalue=0)  # 传值原理类似于radiobutton部件
+        self.selectCompatible.place(x=orgx1, y=orgy)
+        self.compatible.set(compatibleValue)
+        # offsety += step
+
+        orgx1 += 100
+        self.osd = tk.IntVar()
+        osdValue = 5
+        if suppramsDict != None:
+            osd = suppramsDict.get("osd")
+            if osd != None:
+                osdValue = osd
+
+        self.selectOSD = tk.Checkbutton(otherSubFrame, text='内置OSD', variable=self.osd, onvalue=5,
+                                        offvalue=0)  # 传值原理类似于radiobutton部件
+        self.selectOSD.place(x=orgx1, y=orgy)
+        self.osd.set(osdValue)
+
+        orgx1 += 100
+        self.float = tk.IntVar()
+        floatValue = 0
+        if suppramsDict != None:
+            float = suppramsDict.get("float")
+            if float != None:
+                floatValue = float
+
+        self.selectFloat = tk.Checkbutton(otherSubFrame, text='浮动视窗', variable=self.float, onvalue=6,
+                                        offvalue=0)  # 传值原理类似于radiobutton部件
+        self.selectFloat.place(x=orgx1, y=orgy)
+        self.float.set(floatValue)
+        orgy += step
+        #
         def saveConfigPage():
             # self.parent.save_config()
             self.SaveConfig()
@@ -1049,7 +1192,7 @@ class ConfigGeneralFrame(object):
                                        # image=image4,
                                        command=saveConfigPage, indicatoron=0, width=btnWidth)
         self.saveConfigVar.set(0)
-        saveConfigBtn.place(x=(orgx1 + 100), y=orgy)
+        saveConfigBtn.place(x=(w - 100), y=orgy)
 
         orgy += step
 
@@ -1172,89 +1315,255 @@ class ConfigControlFrame(object):
         self.parentFrame = parentFrame
         self.audioFrame = None
         self.videoFarame = None
-        self.width = 280
+        self.width = 720
+        self.height = 690
+        self.modeNum = 7
     def CreateControlFrame(self, offset):
+        (orgx, orgy, w, h) = (0, 0, self.width, self.height)
+        (w2, h2) = (w >> 1, 220)
         # Create a control container to hold labels
-        contrFrame = ttk.LabelFrame(self.parentFrame, text='控制面板', width=160, height=720)
-        contrFrame.place(x=offset, y=0)
+        directFrame = ttk.LabelFrame(self.parentFrame, text='导播面板', width=w, height=h)
+        directFrame.place(x=offset, y=0)
+
+        previewFrame = ttk.LabelFrame(directFrame, text='预览区', width=(w - 32), height=(h - 240))
+        previewFrame.place(x=16, y=0)
+
+        modeFrame = ttk.LabelFrame(directFrame, text='模式', width=w2, height=h2)
+        modeFrame.place(x=orgx, y=(h - 240))
         ###
-        def addDevice():
-            self.deviceNum += 1
-            print("addDevice: self.deviceNum= ", self.deviceNum)
+        offset = 0
+        (n, m) = (3, 4)
+        (dw, dh) = (60, 32)
+        (stepx, stepy) = (w2 / m, h2 / n)
+        self.imglist = []
+        self.splitModeVar = tk.IntVar()
+        def modePage(v):
+            print("modePage: v=", v)
+            def chanEvent(v2):
+                print("chanEvent: v2=", v2)
+                (wx, wy) = (300, 300)
+                wx = self.parent.config_frame.winfo_x()
+                wy = self.parent.config_frame.winfo_y()
+                wx += self.parentFrame.winfo_x()
+                wy += self.parentFrame.winfo_y()
+                wx += directFrame.winfo_x()
+                wy += directFrame.winfo_y()
+                wx += previewFrame.winfo_x()
+                wy += previewFrame.winfo_y()
+                #wx += self.previewBtn.winfo_x()
+                #wy += self.previewBtn.winfo_y()
 
-        (orgx, offsety, step, btnWidth) = (8, 8, 40, 10)
-        image4 = tk.PhotoImage(file='icon/config.png').subsample(3, 4)
-        self.addDeviceVar = tk.IntVar()
-        addDeviceBtn = tk.Radiobutton(contrFrame, text='增加通道', value=1, variable=self.addDeviceVar,  # image=image4,
-                                    command=addDevice, indicatoron=0, width=btnWidth)
-        self.addDeviceVar.set(0)
-        addDeviceBtn.place(x=orgx, y=offsety)
-        offsety += step
+                popFrame = tk.Toplevel()
+                # popFrame = tk.Frame(splitSubFrame, width=640, height=480)
+                title = '通道选择(' + str(v2 - 1) + ')'
+                popFrame.title(title)
+                (popwidth, popheight) = (320, 240)
+                str_resolution = str(popwidth) + "x" + str(popheight) + "+" + str(wx) + "+" + str(wy)
+                popFrame.geometry(str_resolution)
+                popFrame.resizable(width=False, height=False)  # 禁止改变窗口大小
+                popFrame.update()
 
-        def frontPage():
-            print("fronPage: self.deviceNum= ", self.deviceNum)
+                (orgx2, orgy2, fsize, lsize, step, combSize, btnWidth) = (8, 8, 8, 8, 32, 3, 10)
 
-        self.frontVar = tk.IntVar()
-        frontBtn = tk.Radiobutton(contrFrame, text='前一页', value=1, variable=self.frontVar,  # image=image4,
-                                  command=frontPage, indicatoron=0, width=btnWidth)
-        self.frontVar.set(0)
-        frontBtn.place(x=orgx, y=offsety)
-        offsety += step
+                chanId = None
+                value = 0
+                # if suppramsDict != None:
+                #    spatiallayer = suppramsDict.get("spatiallayer")
+                #    if spatiallayer != None:
+                #        value = spatiallayer.get("value")
+                #        name = spatiallayer.get("name")
+                ttk.Label(popFrame, text="通道", width=lsize).place(x=orgx2, y=orgy2)
+                self.chanIdVar = tk.StringVar()
+                self.chanIdChosen = ttk.Combobox(popFrame, width=combSize,
+                                                 textvariable=self.chanIdVar,
+                                                 state='readonly')
+                self.chanIdChosen['values'] = (1, 2, 3, 4)  # 设置下拉列表的值
+                self.chanIdChosen.current(value)  # 设置下拉列表默认显示的值，0为 numberChosen['values'] 的下标值
+                self.chanIdChosen.place(x=(orgx2 + 32), y=orgy2)
+                orgy2 += step
 
-        def backPage():
-            print("backPage: self.deviceNum= ", self.deviceNum)
+                def setting():
+                    print("setting")
+                    # popFrame.delete("all")
+                    popFrame.destroy()
 
-        self.backVar = tk.IntVar()
-        backBtn = tk.Radiobutton(contrFrame, text='后一页', value=1, variable=self.backVar,  # image=image4,
-                                 command=backPage, indicatoron=0, width=btnWidth)
-        self.backVar.set(0)
-        backBtn.place(x=orgx, y=offsety)
-        offsety += step
+                self.btnEnter = tk.Button(popFrame, text="确定", command=setting)
+                self.btnEnter.place(x=(orgx2 + 100), y=(orgy2))
+            self.previewVar = tk.IntVar()
+            (dw2, dh2) = ((w - 32), (h - 240 - 32))
+            id = 0
+            previewBtn = tk.Radiobutton(previewFrame, text=str(id), value=(id + 1), variable=self.previewVar,
+                                      #image=splitimage,
+                                      command=lambda: chanEvent(self.previewVar.get()), indicatoron=0, width=dw2 / 7,
+                                      height=dh2 / 18)
+            previewBtn.place(x=0, y=0)
+            if v in [1, 2, 3, 4]:
+                id = 1
+                (orgx2, orgy2) = (0 , 0)
+                if v in [1]:
+                    pass
+                elif v in [2]:
+                    (orgx2, orgy2) = (dw2 - (dw2 / 4) , 0)
+                elif v in [3]:
+                    (orgx2, orgy2) = (0 , (dh2 - (dh2 / 4)))
+                elif v in [4]:
+                    (orgx2, orgy2) = (dw2 - (dw2 / 4) , (dh2 - (dh2 / 4)))
+                previewBtn = tk.Radiobutton(previewFrame, text=str(id), value=(id + 1), variable=self.previewVar,
+                                            # image=splitimage,
+                                            command=lambda: chanEvent(self.previewVar.get()), indicatoron=0,
+                                            width=dw2 / 7 / 4,
+                                            height=dh2 / 18 / 4)
+                previewBtn.place(x=orgx2, y=orgy2)
+            elif v in [5, 6]:
+                (orgx2, orgy2) = (0, 0)
+                for i in range(4):
+                    id = 1 + i
+                    orgy2 = i * (dh2 / 4)
+                    if v in [6]:
+                        orgx2 = (dw2 - (dw2 / 4))
+                    previewBtn = tk.Radiobutton(previewFrame, text=str(id), value=(id + 1), variable=self.previewVar,
+                                                # image=splitimage,
+                                                command=lambda: chanEvent(self.previewVar.get()), indicatoron=0,
+                                                width=dw2 / 7 / 4,
+                                                height=dh2 / 18 / 4)
+                    previewBtn.place(x=orgx2, y=orgy2)
 
-        def mcuViewPage():
-            print("mcuViewPage: self.deviceNum= ", self.deviceNum)
-
-        self.mcuViewVar = tk.IntVar()
-        mcuViewBtn = tk.Radiobutton(contrFrame, text='合成预览', value=1, variable=self.mcuViewVar,  # image=image4,
-                                    command=mcuViewPage, indicatoron=0, width=btnWidth)
-        self.mcuViewVar.set(0)
-        mcuViewBtn.place(x=orgx, y=offsety)
-        offsety += step
-
-        def saveConfigPage():
-            print("ConfigControlFrame: saveConfigPage: ")
-            self.parent.save_config()
-
-        self.saveConfigVar = tk.IntVar()
-        saveConfigBtn = tk.Radiobutton(contrFrame, text='参数保存', value=1, variable=self.saveConfigVar,  # image=image4,
-                                    command=saveConfigPage, indicatoron=0, width=btnWidth)
-        self.saveConfigVar.set(0)
-        saveConfigBtn.place(x=orgx, y=offsety)
-        offsety += step
-
-        orgx = 0
-        # Create a control container to hold labels
-        mcuFrame = ttk.LabelFrame(contrFrame, text='编码合成分屏', width=(160 - (orgx << 1)), height=(720 - offsety))
-        mcuFrame.place(x=orgx, y=offsety)
-
-        (orgx, offsety, step, btnWidth) = (8, 8, 40, 10)
-
-        def splitPage(v):
-            print("splitPage: v= ", v)
-
-        splitNum = 8
-        # self.splitVarList = []
-        self.splitVar = tk.IntVar()
-        for splitId in range(splitNum):
-            splitName = '分屏' + str(splitId)
-            splitBtn = tk.Radiobutton(mcuFrame, text=splitName, value=(splitId + 1), variable=self.splitVar,
-                                      # image=image4,
-                                      command=lambda: splitPage(self.splitVar.get()), indicatoron=0, width=btnWidth)
-            # self.splitVar.set(splitId)
-            # print("self.splitVar.get()=", self.splitVar.get())
-            splitBtn.place(x=orgx, y=offsety)
+            elif v in [7]:
+                (orgx2, orgy2) = (0, 0)
+                for i in range(2):
+                    for j in range(2):
+                        id = (i * 2 + j)
+                        orgx2 = j * (dw2 / 2)
+                        orgy2 = i * (dh2 / 2)
+                        previewBtn = tk.Radiobutton(previewFrame, text=str(id), value=(id + 1),
+                                                    variable=self.previewVar,
+                                                    # image=splitimage,
+                                                    command=lambda: chanEvent(self.previewVar.get()), indicatoron=0,
+                                                    width=dw2 / 7 / 2,
+                                                    height=dh2 / 18 / 2)
+                        previewBtn.place(x=orgx2, y=orgy2)
+        for i in range(n):
+            for j in range(m):
+                orgx = j * stepx + offset
+                orgy = i * stepy + offset
+                id = i * m + j
+                if id < self.modeNum:
+                    name = str(id)
+                    imgname = 'mmm' + str(id)
+                    imgpath = 'icon/' + imgname + '.png'
+                    splitimage = tk.PhotoImage(file=imgpath).subsample(2, 2)
+                    self.imglist.append(splitimage)
+                    #self.subFrame = ttk.LabelFrame(self.splitFrame0, text=name, width=w2, height=h2)
+                    #self.subFrame.place(x=orgx, y=orgy)
+                    splitBtn = tk.Radiobutton(modeFrame, text=name, value=(id + 1), variable=self.splitModeVar, image=splitimage,
+                                              command=lambda: modePage(self.splitModeVar.get()), indicatoron=0, width=dw, height=dh)
+                    splitBtn.place(x=orgx, y=orgy)
+        ###
+        contrFrame = ttk.LabelFrame(directFrame, text='控制面板', width=w2, height=h2)
+        contrFrame.place(x=w2, y=(h - 240))
+        ###
+        offset = 0
+        (n, m) = (5, 4)
+        (dw, dh) = (60, 16)
+        (stepx, stepy) = (w2 / m, h2 / n)
+        btnWidth = 10
+        contrlNum = 12
+        nameList = ["增加通道", "前一页", "后一页", "合成预览",
+                    "淡入淡出", "logo", "片头", "8",
+                    "9", "10", "11", "参数保存"]
+        self.controlVar = tk.IntVar()
+        def controlEvent(v):
+            #self.deviceNum += 1
+            print("addDevice: v= ", v)
+            if v == contrlNum:
+                self.parent.save_config()
+        for i in range(n):
+            for j in range(m):
+                orgx = j * stepx + offset
+                orgy = i * stepy + offset
+                id = i * m + j
+                if id < contrlNum:
+                    controlBtn = tk.Radiobutton(contrFrame, text=nameList[id], value=(id + 1), variable=self.controlVar,
+                                                  # image=image4,
+                                                  command=lambda: controlEvent(self.controlVar.get()), indicatoron=0, width=btnWidth)
+                    self.controlVar.set(0)
+                    controlBtn.place(x=orgx, y=orgy)
+        if False:
+            (orgx, offsety, step, btnWidth) = (8, 8, 40, 10)
+            image4 = tk.PhotoImage(file='icon/config.png').subsample(3, 4)
+            self.addDeviceVar = tk.IntVar()
+            addDeviceBtn = tk.Radiobutton(contrFrame, text='增加通道', value=1, variable=self.addDeviceVar,  # image=image4,
+                                          command=addDevice, indicatoron=0, width=btnWidth)
+            self.addDeviceVar.set(0)
+            addDeviceBtn.place(x=orgx, y=offsety)
             offsety += step
-            # self.splitVarList.append(splitVar)
+
+            def frontPage():
+                print("fronPage: self.deviceNum= ", self.deviceNum)
+
+            self.frontVar = tk.IntVar()
+            frontBtn = tk.Radiobutton(contrFrame, text='前一页', value=1, variable=self.frontVar,  # image=image4,
+                                      command=frontPage, indicatoron=0, width=btnWidth)
+            self.frontVar.set(0)
+            frontBtn.place(x=orgx, y=offsety)
+            offsety += step
+
+            def backPage():
+                print("backPage: self.deviceNum= ", self.deviceNum)
+
+            self.backVar = tk.IntVar()
+            backBtn = tk.Radiobutton(contrFrame, text='后一页', value=1, variable=self.backVar,  # image=image4,
+                                     command=backPage, indicatoron=0, width=btnWidth)
+            self.backVar.set(0)
+            backBtn.place(x=orgx, y=offsety)
+            offsety += step
+
+            def mcuViewPage():
+                print("mcuViewPage: self.deviceNum= ", self.deviceNum)
+
+            self.mcuViewVar = tk.IntVar()
+            mcuViewBtn = tk.Radiobutton(contrFrame, text='合成预览', value=1, variable=self.mcuViewVar,  # image=image4,
+                                        command=mcuViewPage, indicatoron=0, width=btnWidth)
+            self.mcuViewVar.set(0)
+            mcuViewBtn.place(x=orgx, y=offsety)
+            offsety += step
+
+            def saveConfigPage():
+                print("ConfigControlFrame: saveConfigPage: ")
+                self.parent.save_config()
+
+            self.saveConfigVar = tk.IntVar()
+            saveConfigBtn = tk.Radiobutton(contrFrame, text='参数保存', value=1, variable=self.saveConfigVar,
+                                           # image=image4,
+                                           command=saveConfigPage, indicatoron=0, width=btnWidth)
+            self.saveConfigVar.set(0)
+            saveConfigBtn.place(x=orgx, y=offsety)
+            offsety += step
+
+        if False:
+            orgx = 0
+            # Create a control container to hold labels
+            mcuFrame = ttk.LabelFrame(contrFrame, text='编码合成分屏', width=(160 - (orgx << 1)), height=(720 - offsety))
+            mcuFrame.place(x=orgx, y=offsety)
+
+            (orgx, offsety, step, btnWidth) = (8, 8, 40, 10)
+
+            def splitPage(v):
+                print("splitPage: v= ", v)
+
+            splitNum = 8
+            # self.splitVarList = []
+            self.splitVar = tk.IntVar()
+            for splitId in range(splitNum):
+                splitName = '分屏' + str(splitId)
+                splitBtn = tk.Radiobutton(mcuFrame, text=splitName, value=(splitId + 1), variable=self.splitVar,
+                                          # image=image4,
+                                          command=lambda: splitPage(self.splitVar.get()), indicatoron=0, width=btnWidth)
+                # self.splitVar.set(splitId)
+                # print("self.splitVar.get()=", self.splitVar.get())
+                splitBtn.place(x=orgx, y=offsety)
+                offsety += step
+                # self.splitVarList.append(splitVar)
 class ConfigDeviceFrame(object):
     def __init__(self, parent, parentFrame, deviceId, deviceDict):
         self.parent = parent
@@ -1613,6 +1922,18 @@ class ConfigDeviceFrame(object):
         ttk.Label(frame31, text="摄像头", font=Font1, width=lSize).place(x=orgx, y=offsety)
         offsetx += fsize * lsize
 
+        def camEvent(*args):
+            print("camEvent")
+            selectStr = self.videoDeviceChosen.get()
+            print(self.videoDeviceChosen.get())
+            urltoopen = ""
+            if selectStr in ["RTMP"]:
+                urltoopen = "rtmp://stream/test0"
+                urltoopen = dl.askstring("Address", "输入流媒体流地址", initialvalue=urltoopen) #parent=self.text,
+            elif selectStr in ["RTSP"]:
+                urltoopen = "rtsp://stream/test0"
+                urltoopen = dl.askstring("Address", "输入流媒体流地址", initialvalue=urltoopen)
+            print("urltoopen= ", urltoopen)
         capture = None
         value = 1
         name = "test"
@@ -1628,6 +1949,7 @@ class ConfigDeviceFrame(object):
         self.videoDeviceChosen = ttk.Combobox(frame31, font=Font1, width=combSize, textvariable=self.videoDevice, state='readonly')
         self.videoDeviceChosen['values'] = ("video0", "fb0", "RTMP", "RTSP", "其他")  # 设置下拉列表的值
         self.videoDeviceChosen.current(value)  # 设置下拉列表默认显示的值，0为 numberChosen['values'] 的下标值
+        self.videoDeviceChosen.bind("<<ComboboxSelected>>", camEvent)
         self.videoDeviceChosen.place(x=offsetx, y=offsety)
         offsety += step
 
@@ -1844,7 +2166,7 @@ class ConfigFrame(object):
             cvalue1 = "参数设置"
             self.config_frame.title(cvalue0 + cvalue1)
             (width0, height0) = (1280, 720)
-            str_resolution = str(width0) + "x" + str(height0)
+            str_resolution = str(width0) + "x" + str(height0) + "+300+200"
             self.config_frame.geometry(str_resolution)  # "1280x720"
             self.config_imagefile = tk.PhotoImage(file='icon/hc_2.png')  # .zoom(2)
 
@@ -1877,8 +2199,8 @@ class ConfigFrame(object):
                 frame1 = tk.Frame(tab, bg="yellow")
                 tab1 = tab.add(frame1, text="通用")
 
-                #frame2 = tk.Frame(tab, bg="green")
-                #tab2 = tab.add(frame2, text="显示屏")
+                frame2 = tk.Frame(tab, bg="green")
+                tab2 = tab.add(frame2, text="媒体中心")
 
                 #frame3 = tk.Frame(tab, bg="red")
                 #tab3 = tab.add(frame3, text="高级调参")
@@ -2011,7 +2333,7 @@ class ConfigFrame(object):
                 comboxlist.bind("<<ComboboxSelected>>", go)  # 绑定事件,(下拉列表框被选中时，绑定go()函数)
                 comboxlist.pack()
             ###deviceframe
-            self.deviceNum = 4
+            self.deviceNum = 2#4
             offset = 0
             self.framelist = []
             self.configDeviceFrameList = []
@@ -2179,7 +2501,7 @@ class Conference(object):
     def root_frame(self):
         self.root = tk.Tk()
         self.root.title('欢迎进入会畅SVC调试系统')
-        self.root.geometry('690x500')
+        self.root.geometry('690x500+300+100')
         ##self.frame = tk.Frame(self.root)
         # self.frame = tk.Frame(self.root, width=640, height=480)
         ##self.frame.pack()
@@ -2199,12 +2521,17 @@ class Conference(object):
 
         # `在这里插入代码片`
         # 标签 用户名密码
-        tk.Label(self.root, text='会议号:').place(x=200, y=320)
+        tk.Label(self.root, text='会议号:').place(x=200, y=280)
+        tk.Label(self.root, text='会议密码:').place(x=200, y=320)
         tk.Label(self.root, text='帐号:').place(x=200, y=360)
         # 会议号输入框
         self.var_meeting_id = tk.StringVar()
         entry_meeting_id = tk.Entry(self.root, textvariable=self.var_meeting_id)
-        entry_meeting_id.place(x=260, y=320)
+        entry_meeting_id.place(x=260, y=280)
+        # 密码输入框
+        self.var_usr_pwd = tk.StringVar()
+        entry_usr_pwd = tk.Entry(self.root, textvariable=self.var_usr_pwd, show='*')
+        entry_usr_pwd.place(x=260, y=320)
         # 帐号输入框
         self.var_usr_name = tk.StringVar()
         entry_usr_name = tk.Entry(self.root, textvariable=self.var_usr_name)
@@ -2306,6 +2633,12 @@ def mytest():
     w = Label(root, text="Label Title")
     w.pack()
 
+    default_dir = r"文件路径"
+    file_path = df.askopenfilename(title=u'选择文件', initialdir=(os.path.expanduser(default_dir)))
+    image = Image.open(file_path)
+    plt.imshow(image)
+    plt.show()
+    return
     mb.showinfo("welcome", "Welcome Message")
     guess = dl.askinteger("Number", "Enter a number")
 
@@ -2318,7 +2651,6 @@ if __name__ == '__main__':
     #mytest()
 
     call = Conference()
-    #call.start()
     call.root_frame()
 
     #call = Pyui()
