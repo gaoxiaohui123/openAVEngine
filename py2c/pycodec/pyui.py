@@ -21,6 +21,13 @@ import pickle
 # from tux import Image_sys   #调用文件tux
 #from PIL import ImageTk, Image
 import ttk
+import tkSimpleDialog as dl
+import tkMessageBox as mb
+
+
+#refer to:
+# https://blog.csdn.net/ahilll/article/details/81531587
+# https://vlight.me/2017/12/04/Layout-Management/
 
 class JsonFile(object):
     def __init__(self, filename):
@@ -755,6 +762,42 @@ class ConfigGeneralFrame(object):
                 #self.modeDict["modePos"][id]["devideId"] = v2
                 i = v2 - 1
                 splitSubFrame = self.splitSubFrameList[i]
+                wx = splitSubFrame.winfo_x()
+                wy = splitSubFrame.winfo_y()
+                ww = splitSubFrame.winfo_width()
+                wh = splitSubFrame.winfo_height()
+                winfo0 = self.parent.config_frame.winfo_geometry()
+                winfo1 = self.parentFrame.winfo_geometry()
+                winfo2 = self.splitFrame1.winfo_geometry()
+                winfo3 = splitSubFrame.winfo_geometry()
+                print("chanPage: winfo0", winfo0)
+                print("chanPage: winfo1", winfo1)
+                print("chanPage: winfo2", winfo2)
+                print("chanPage: winfo3", winfo3)
+                wx = self.parent.config_frame.winfo_x()
+                wy = self.parent.config_frame.winfo_y()
+                wx += self.parentFrame.winfo_x()
+                wy += self.parentFrame.winfo_y()
+                wx += self.splitFrame1.winfo_x()
+                wy += self.splitFrame1.winfo_y()
+                wx += splitSubFrame.winfo_x()
+                wy += splitSubFrame.winfo_y()
+
+                print("chanPage: (wx, wy)", (wx, wy))
+                print("chanPage: (ww, wh)", (ww, wh))
+                popFrame = tk.Toplevel()
+                #popFrame = tk.Frame(splitSubFrame, width=640, height=480)
+                popFrame.title("设备及通道选择")
+                (popwidth, popheight) = (320, 240)
+                str_resolution = str(popwidth) + "x" + str(popheight) + "+" + str(wx) + "+" + str(wy)
+                popFrame.geometry(str_resolution)
+                popFrame.resizable(width=False, height=False)  # 禁止改变窗口大小
+                #popFrame.pack()
+                #popFrame.wm_attributes('-topmost', 1)
+                #popFrame.place(x=wx, y=wy)
+                popFrame.update()
+                #popFrame.deiconify()
+
                 (orgx, orgy, fsize, lsize, step, combSize, btnWidth) = (0, 0, 8, 8, 32, 3, 10)
                 if i == 0:
                     (orgx, orgy) = (100, 100)
@@ -765,9 +808,9 @@ class ConfigGeneralFrame(object):
                 #    if spatiallayer != None:
                 #        value = spatiallayer.get("value")
                 #        name = spatiallayer.get("name")
-                ttk.Label(splitSubFrame, text="设备", width=lsize).place(x=orgx, y=orgy)
+                ttk.Label(popFrame, text="设备", width=lsize).place(x=orgx, y=orgy)
                 self.deviceIdVar = tk.StringVar()
-                self.deviceIdChosen = ttk.Combobox(splitSubFrame, width=combSize,
+                self.deviceIdChosen = ttk.Combobox(popFrame, width=combSize,
                                                        textvariable=self.deviceIdVar,
                                                        state='readonly')
                 self.deviceIdChosen['values'] = (0, 1, 2, 3)  # 设置下拉列表的值
@@ -782,9 +825,9 @@ class ConfigGeneralFrame(object):
                 #    if spatiallayer != None:
                 #        value = spatiallayer.get("value")
                 #        name = spatiallayer.get("name")
-                ttk.Label(splitSubFrame, text="通道", width=lsize).place(x=orgx, y=orgy)
+                ttk.Label(popFrame, text="通道", width=lsize).place(x=orgx, y=orgy)
                 self.chanIdVar = tk.StringVar()
-                self.chanIdChosen = ttk.Combobox(splitSubFrame, width=combSize,
+                self.chanIdChosen = ttk.Combobox(popFrame, width=combSize,
                                                    textvariable=self.chanIdVar,
                                                    state='readonly')
                 self.chanIdChosen['values'] = (1, 2, 3, 4)  # 设置下拉列表的值
@@ -2258,13 +2301,27 @@ class Conference(object):
         if self.config_frame != None:
             self.config_frame.setting()
 
+def mytest():
+    root = Tk()
+    w = Label(root, text="Label Title")
+    w.pack()
+
+    mb.showinfo("welcome", "Welcome Message")
+    guess = dl.askinteger("Number", "Enter a number")
+
+    output = 'This is output message'
+    mb.showinfo("Output:", output)
+    return
+
 if __name__ == '__main__':
     print('Start pycall.')
+    #mytest()
+
     call = Conference()
     #call.start()
     call.root_frame()
 
-    ##call = Pyui()
+    #call = Pyui()
     # call.FrameTest()
-    ##call.FrameCallSDL()
+    #call.FrameCallSDL()
     print('End pycall.')
