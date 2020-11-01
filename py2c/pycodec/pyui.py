@@ -845,6 +845,14 @@ class ConfigGeneralFrame(object):
                 self.btnEnter = tk.Button(popFrame, text="确定", command=setting)
                 self.btnEnter.place(x=(orgx + 100), y=(orgy + 30))
 
+            sw = self.splitFrame1.winfo_width()
+            sh = self.splitFrame1.winfo_height()
+            print("CreateSplitFrame: (sw, sh)=", (sw, sh))
+            factorx = float(self.width) / float(sw)
+            factory = float(self.height) / float(sh)
+            factor = factorx
+            print("CreateSplitFrame: (factorx, factory)=", (factorx, factory))
+            #fsize = 7
             self.chanBntVar = tk.IntVar()
             #for rect in self.splitRects:
             for i in range(len(self.splitRects)):
@@ -854,29 +862,12 @@ class ConfigGeneralFrame(object):
                 rect = self.splitRects[i]
                 captureId = 0 if i == 0 else -1
                 posList.append({"chanId":i, "devideId": captureId, "pos":rect})
-                #x0 = rect[0] / 2
-                x0 = int((rect[0]) / 2.2)
-                y0 = int((rect[1]) / 2.4)
-                #dw = rect[2] / 2
-                #dh = (rect[3] - 32) / 2
-                dw = int((rect[2]) / 2.2)
-                dh = int((rect[3]) / 2.4)
-                #if y0 > 0:
-                #    y0 -= 32
-                #x0 = rect[0] / 2
-                #y0 = (rect[1]) / 2
-                #dw = rect[2] / 2
-                #dh = (rect[3]) / 2
-                #dw -= 32
-                #dh -=
-                #def SetChan(v):
-                #    print("SetChan: v=", v)
-                #splitSubFrame = ttk.LabelFrame(self.splitFrame1, text=str(i), width=dw, height=dh)
-                #splitSubFrame = tk.Button(self.splitFrame1, text=str(i), command=lambda: SetChan(i), width=dw/10,
-                #                          height=dh/30)
 
+                (x0, y0, dw, dh) = (int(rect[0] / factorx), int(rect[1] / factory), int(rect[2] / factorx), int(rect[3] / factory))
+                dw /= 7
+                dh /= 17
                 splitSubFrame = tk.Radiobutton(self.splitFrame1, text=str(i), value=(i + 1), variable=self.chanBntVar,
-                               command=lambda: chanPage(self.chanBntVar.get()), indicatoron=0,width=dw/10,height=dh/30)
+                               command=lambda: chanPage(self.chanBntVar.get()), indicatoron=0,width=dw,height=dh)
                 splitSubFrame.place(x=x0, y=y0)
 
                 k = len(self.splitRects)
@@ -1310,16 +1301,21 @@ class ConfigGeneralFrame(object):
             self.parent.json.dict["general"].update({"mode": self.modeDict})
         self.parent.json.writefile(None, "")
 class ConfigControlFrame(object):
-    def __init__(self, parent, parentFrame):
+    def __init__(self, parent, parentFrame, dict):
         self.parent = parent
         self.parentFrame = parentFrame
+        self.dict = dict
         self.audioFrame = None
         self.videoFarame = None
         self.width = 720
         self.height = 690
+        self.confWidth = parent.width
+        self.confHeight = parent.height
         self.modeNum = 7
     def CreateControlFrame(self, offset):
-        (orgx, orgy, w, h) = (0, 0, self.width, self.height)
+        pw = self.parentFrame.winfo_width()
+        ph = self.parentFrame.winfo_height()
+        (orgx, orgy, w, h) = (0, 0, self.width, ph)
         (w2, h2) = (w >> 1, 220)
         # Create a control container to hold labels
         directFrame = ttk.LabelFrame(self.parentFrame, text='导播面板', width=w, height=h)
@@ -1339,6 +1335,11 @@ class ConfigControlFrame(object):
         self.splitModeVar = tk.IntVar()
         def modePage(v):
             print("modePage: v=", v)
+            if self.dict != None:
+                #mode = self.dict.get("mode")
+                self.dict["mode"] = (v - 1)
+            directDict = {}
+            rectList = []
             def chanEvent(v2):
                 print("chanEvent: v2=", v2)
                 (wx, wy) = (300, 300)
@@ -1398,10 +1399,15 @@ class ConfigControlFrame(object):
                                       height=dh2 / 18)
             previewBtn.place(x=0, y=0)
             if v in [1, 2, 3, 4]:
+                rect = (0, 0, self.confWidth, self.confHeight)
+                thisDict = {"chanId" : 0, "rect" : rect}
+                rectList.append(thisDict)
                 id = 1
                 (orgx2, orgy2) = (0 , 0)
                 if v in [1]:
-                    pass
+                    rect = (0, 0, self.confWidth / 4, self.confHeight / 4)
+                    thisDict = {"chanId": 1, "rect": rect}
+                    rectList.append(thisDict)
                 elif v in [2]:
                     (orgx2, orgy2) = (dw2 - (dw2 / 4) , 0)
                 elif v in [3]:
@@ -1442,6 +1448,7 @@ class ConfigControlFrame(object):
                                                     width=dw2 / 7 / 2,
                                                     height=dh2 / 18 / 2)
                         previewBtn.place(x=orgx2, y=orgy2)
+            return
         for i in range(n):
             for j in range(m):
                 orgx = j * stepx + offset
@@ -1488,82 +1495,7 @@ class ConfigControlFrame(object):
                                                   command=lambda: controlEvent(self.controlVar.get()), indicatoron=0, width=btnWidth)
                     self.controlVar.set(0)
                     controlBtn.place(x=orgx, y=orgy)
-        if False:
-            (orgx, offsety, step, btnWidth) = (8, 8, 40, 10)
-            image4 = tk.PhotoImage(file='icon/config.png').subsample(3, 4)
-            self.addDeviceVar = tk.IntVar()
-            addDeviceBtn = tk.Radiobutton(contrFrame, text='增加通道', value=1, variable=self.addDeviceVar,  # image=image4,
-                                          command=addDevice, indicatoron=0, width=btnWidth)
-            self.addDeviceVar.set(0)
-            addDeviceBtn.place(x=orgx, y=offsety)
-            offsety += step
 
-            def frontPage():
-                print("fronPage: self.deviceNum= ", self.deviceNum)
-
-            self.frontVar = tk.IntVar()
-            frontBtn = tk.Radiobutton(contrFrame, text='前一页', value=1, variable=self.frontVar,  # image=image4,
-                                      command=frontPage, indicatoron=0, width=btnWidth)
-            self.frontVar.set(0)
-            frontBtn.place(x=orgx, y=offsety)
-            offsety += step
-
-            def backPage():
-                print("backPage: self.deviceNum= ", self.deviceNum)
-
-            self.backVar = tk.IntVar()
-            backBtn = tk.Radiobutton(contrFrame, text='后一页', value=1, variable=self.backVar,  # image=image4,
-                                     command=backPage, indicatoron=0, width=btnWidth)
-            self.backVar.set(0)
-            backBtn.place(x=orgx, y=offsety)
-            offsety += step
-
-            def mcuViewPage():
-                print("mcuViewPage: self.deviceNum= ", self.deviceNum)
-
-            self.mcuViewVar = tk.IntVar()
-            mcuViewBtn = tk.Radiobutton(contrFrame, text='合成预览', value=1, variable=self.mcuViewVar,  # image=image4,
-                                        command=mcuViewPage, indicatoron=0, width=btnWidth)
-            self.mcuViewVar.set(0)
-            mcuViewBtn.place(x=orgx, y=offsety)
-            offsety += step
-
-            def saveConfigPage():
-                print("ConfigControlFrame: saveConfigPage: ")
-                self.parent.save_config()
-
-            self.saveConfigVar = tk.IntVar()
-            saveConfigBtn = tk.Radiobutton(contrFrame, text='参数保存', value=1, variable=self.saveConfigVar,
-                                           # image=image4,
-                                           command=saveConfigPage, indicatoron=0, width=btnWidth)
-            self.saveConfigVar.set(0)
-            saveConfigBtn.place(x=orgx, y=offsety)
-            offsety += step
-
-        if False:
-            orgx = 0
-            # Create a control container to hold labels
-            mcuFrame = ttk.LabelFrame(contrFrame, text='编码合成分屏', width=(160 - (orgx << 1)), height=(720 - offsety))
-            mcuFrame.place(x=orgx, y=offsety)
-
-            (orgx, offsety, step, btnWidth) = (8, 8, 40, 10)
-
-            def splitPage(v):
-                print("splitPage: v= ", v)
-
-            splitNum = 8
-            # self.splitVarList = []
-            self.splitVar = tk.IntVar()
-            for splitId in range(splitNum):
-                splitName = '分屏' + str(splitId)
-                splitBtn = tk.Radiobutton(mcuFrame, text=splitName, value=(splitId + 1), variable=self.splitVar,
-                                          # image=image4,
-                                          command=lambda: splitPage(self.splitVar.get()), indicatoron=0, width=btnWidth)
-                # self.splitVar.set(splitId)
-                # print("self.splitVar.get()=", self.splitVar.get())
-                splitBtn.place(x=orgx, y=offsety)
-                offsety += step
-                # self.splitVarList.append(splitVar)
 class ConfigDeviceFrame(object):
     def __init__(self, parent, parentFrame, deviceId, deviceDict):
         self.parent = parent
@@ -1674,8 +1606,12 @@ class ConfigDeviceFrame(object):
         (fsize0, fsize, lsize, combSize) = (10, 8, 11, 14)
         ttk.Style().configure(".", font=("仿宋", fsize0))
         Font1 = ("Arial", fsize)
+        pw = self.parentFrame.winfo_width()
+        ph = self.parentFrame.winfo_height()
+        print("CreateDevice: (pw, ph)=", (pw, ph))
+        ah = 400
         # Create an audio container to hold labels
-        frame30 = ttk.LabelFrame(self.parentFrame, text='音频设置', width=self.width, height=400)
+        frame30 = ttk.LabelFrame(self.parentFrame, text='音频设置', width=self.width, height=ah)
         self.audioFrame = frame30
         frame30.place(x=0, y=0)
         # frame30 = frame3
@@ -1913,9 +1849,9 @@ class ConfigDeviceFrame(object):
         # frame31 = ttk.LabelFrame(frame3, text='视频设置', width=600, height=700)
         # frame31.place(x=300, y=0)
 
-        frame31 = ttk.LabelFrame(self.parentFrame, text='视频设置', width=self.width, height=300)
+        frame31 = ttk.LabelFrame(self.parentFrame, text='视频设置', width=self.width, height=(ph - ah))
         self.videoFarame = frame31
-        frame31.place(x=0, y=400)
+        frame31.place(x=0, y=ah)
 
         (orgx, orgy, offsetx, offsety, step) = (8, 8, 8, 8, 32)
         (fSize, lSize, combSize) = (10, 11, 14)
@@ -2081,6 +2017,9 @@ class ConfigFrame(object):
     def __init__(self, parent):
         self.parent = parent
         self.config_frame = None
+        #会议分辨率，可更改
+        self.width = 1280
+        self.height = 720
         self.iv0_0 = 0
         self.iv0 = tk.IntVar()
         self.json = JsonFile("config.json")
@@ -2337,10 +2276,18 @@ class ConfigFrame(object):
             offset = 0
             self.framelist = []
             self.configDeviceFrameList = []
+            frame0.update()
+            fw = frame0.winfo_width()
+            fh = frame0.winfo_height()
+            print("open_config_frame: (fw, fh)=", (fw, fh))
             for deviceId in range(self.deviceNum):
                 # Create an audio container to hold labels
-                deviceFrame = ttk.LabelFrame(frame0, text='通道'+str(deviceId), width=280, height=720)
+                deviceFrame = ttk.LabelFrame(frame0, text='通道'+str(deviceId), width=280, height=fh)
                 deviceFrame.place(x=offset, y=0)
+                deviceFrame.update()
+                dw = deviceFrame.winfo_width()
+                dh = deviceFrame.winfo_height()
+                print("open_config_frame: (dw, dh)=", (dw, dh))
                 deviceDict = None
                 if multdevice != None:
                     deviceDict = multdevice.get(str(deviceId))
@@ -2364,7 +2311,12 @@ class ConfigFrame(object):
                                     print("ConfigFrame:open_config_frame: key3= ", key3)
                                     print("ConfigFrame:open_config_frame: value3= ", value3)
             #self.save_config() ##test
-            self.ctrFrame = ConfigControlFrame(self, frame0)
+            controlDict = self.json.dict.get("control")
+            if controlDict != None:
+                print("ConfigFrame:open_config_frame: len(controlDict)= ", len(controlDict))
+            else:
+                controlDict = {}
+            self.ctrFrame = ConfigControlFrame(self, frame0, controlDict)
             self.ctrFrame.CreateControlFrame(offset)
             ###genernalframe
             self.genFrame = ConfigGeneralFrame(self, frame1, width0, height0, generalDict)
