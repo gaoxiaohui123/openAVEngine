@@ -37,7 +37,7 @@ class VideoCapture(threading.Thread):
         #self.input_format = "raw"
         self.max_buf_num = 4  # 8#3
         self.ratio = 3  # 1
-        self.denoise = 0#2  # 1#0#1#0#1
+        self.denoise = 2#0#2  # 1#0#1#0#1
         self.select_device = 1#0#-1  # 2#1#0#1#-1
         self.osd = 1
         self.orgX = 0

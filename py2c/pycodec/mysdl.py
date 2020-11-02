@@ -40,8 +40,10 @@ class MySDL(threading.Thread):
         self.param.update({"name": "decode"})
         self.param.update({"screen_w": self.width})
         self.param.update({"screen_h": self.height})
-        self.param.update({"pixel_w": loadlib.WIDTH})
-        self.param.update({"pixel_h": loadlib.HEIGHT})
+        #self.param.update({"pixel_w": loadlib.WIDTH})
+        #self.param.update({"pixel_h": loadlib.HEIGHT})
+        self.param.update({"pixel_w": self.width})
+        self.param.update({"pixel_h": self.height})
         # self.param.update({"pixel_w": 320})
         # self.param.update({"pixel_h": 240})
         self.param.update({"bpp": 12})
@@ -118,7 +120,8 @@ class MySDL(threading.Thread):
                 show_flag = 0
                 param.update({"show_flag": show_flag})
                 param_str = json.dumps(param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
-                self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
+                #self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
+                self.load.lib.api_split_screen(self.handle, data, param_str, self.width)
                 refreshlist.append(idx0)
                 # print("mult_layer_refresh: 0: rect= ", rect)
             if idx1 not in refreshlist: #后刷新被遮挡
@@ -134,7 +137,8 @@ class MySDL(threading.Thread):
                 param.update({"rect_h": rect[3]})
                 param.update({"show_flag": show_flag})
                 param_str = json.dumps(param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
-                self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
+                #self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
+                self.load.lib.api_split_screen(self.handle, data, param_str, self.width)
                 refreshlist.append(idx1)
                 # print("mult_layer_refresh: 1: rect= ", rect)
             i += 1
@@ -178,7 +182,8 @@ class MySDL(threading.Thread):
             self.mult_layer_refresh()
         else:
             # print("sdl_refresh: rect= ", rect)
-            self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
+            #self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
+            self.load.lib.api_split_screen(self.handle, data, param_str, self.width)
         self.lock.release()
         return True
 
@@ -195,7 +200,8 @@ class MySDL(threading.Thread):
         param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
         self.lock.acquire()
         print("sdl_refresh_0")
-        self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
+        #self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
+        self.load.lib.api_split_screen(self.handle, data, param_str, self.width)
         self.lock.release()
         return True
 
@@ -246,8 +252,8 @@ class ReadFrame(threading.Thread):
         self.__running.set()  # 将running设置为True
         self.yuvfilename = loadlib.yuvfilename
 
-    def init(self):
-        self.sdl = MySDL(self.id, 1920, 1080)
+    def init(self, width, height):
+        self.sdl = MySDL(self.id, width, height)
         self.sdl.init()
         self.cap = VideoCapture()
         # self.cap.input_name = "x11grab"
@@ -262,6 +268,8 @@ class ReadFrame(threading.Thread):
 
         self.cap.framerate = 0  # 15#25#0
 
+        (self.cap.width, self.cap.height) = (width, height)
+        (self.cap.cap_width, self.cap.cap_height) = (self.cap.width, self.cap.height)
         self.cap.init()
         self.cap.start()
         # time.sleep(1)
@@ -382,7 +390,7 @@ class ReadFrame(threading.Thread):
 if __name__ == '__main__':
     print('Start pycall.')
     call = ReadFrame(0)
-    call.init()
+    call.init(1920, 1080)
     call.start()
     #time.sleep(2)
     # idx = 0

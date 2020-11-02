@@ -325,7 +325,7 @@ class Pyui(object):
 ## Sets the position in the widget that will be placed at the specified coordinates. docstore.mik.ua/orelly/perl3/tk/ch02_03.htm
 
 class ExternalSDL(threading.Thread):
-    def __init__(self):
+    def __init__(self, parent):
         threading.Thread.__init__(self)
         self.lock = threading.Lock()
         self.__flag = threading.Event()  # 用于暂停线程的标识
@@ -333,7 +333,7 @@ class ExternalSDL(threading.Thread):
         self.__running = threading.Event()  # 用于停止线程的标识
         self.__running.set()  # 将running设置为True
         self.pause()
-
+        self.parent = parent
         self.status = 0
         self.preview = None
         self.winid = 0
@@ -355,7 +355,7 @@ class ExternalSDL(threading.Thread):
             self.winid = win_hnd
         if self.preview == None:
             self.preview = ReadFrame(self.winid)
-            self.preview.init()
+            self.preview.init(self.parent.width, self.parent.height)
             self.preview.start()
     def close_meeting(self):
         if self.preview != None:
@@ -612,7 +612,7 @@ class ClientFrame(object):
             self.meeting_frame.update()
 
             if self.preview == None:
-                self.preview = ExternalSDL()
+                self.preview = ExternalSDL(self.parent)
                 self.preview.start()
             self.preview.set_winid(self.winid)
             self.preview.set_status(1)
@@ -2233,8 +2233,8 @@ class ConfigFrame(object):
         self.config_frame = None
         self.client = client
         #会议分辨率，可更改
-        self.width = 1280
-        self.height = 720
+        self.width = parent.width #1280
+        self.height = parent.height #720
         self.videoInfolist = self.parent.videoInfolist
         self.audioInfolist = self.parent.audioInfolist
         (self.screen_width, self.screen_height) = (self.parent.screen_width, self.parent.screen_height)
@@ -2603,7 +2603,7 @@ class ConfigFrame(object):
             #print("setting: value= ", value)
         return
 class Conference(object):
-    def __init__(self):
+    def __init__(self, width, height):
         self.root = None
         #self.preview = ExternalSDL()
         #self.preview.start()
@@ -2611,7 +2611,7 @@ class Conference(object):
         self.client = None #ClientFrame(self.root)
         self.config_frame = None
         self.top = None
-        (self.width, self.height) = (loadlib.WIDTH, loadlib.HEIGHT)
+        (self.width, self.height) = (width, height) #(loadlib.WIDTH, loadlib.HEIGHT)
         self.videoInfolist = []
         self.audioInfolist = []
         (self.screen_width, self.screen_height) = (0, 0)
@@ -2820,8 +2820,8 @@ def mytest():
 if __name__ == '__main__':
     print('Start pycall.')
     #mytest()
-
-    call = Conference()
+    (width, height) = (1280, 720)
+    call = Conference(width, height)
     call.root_frame()
 
     #call = Pyui()
