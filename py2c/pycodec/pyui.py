@@ -2322,6 +2322,8 @@ class ConfigFrame(object):
     def create_device_frame(self, deviceId, offset):
         fh = self.frame0.winfo_height()
         multdevice = self.json.dict.get("multdevice")
+        if multdevice == None:
+            multdevice = {}
         deviceFrame = ttk.LabelFrame(self.frame0, text='通道' + str(deviceId), width=280, height=fh)
         deviceFrame.place(x=offset, y=0)
         deviceFrame.update()
@@ -2477,7 +2479,8 @@ class ConfigFrame(object):
             ###deviceframe
             self.deviceNum = 2#4
             if multdevice != None:
-                self.deviceNum = len(multdevice)
+                if len(multdevice) > 0:
+                    self.deviceNum = len(multdevice)
             offset = 0
             self.framelist = []
             self.configDeviceFrameList = []
@@ -2820,6 +2823,7 @@ def mytest():
 if __name__ == '__main__':
     print('Start pycall.')
     #mytest()
+    #(width, height) = (1920, 1080)
     (width, height) = (1280, 720)
     call = Conference(width, height)
     call.root_frame()
