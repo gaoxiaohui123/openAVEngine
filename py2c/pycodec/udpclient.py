@@ -37,8 +37,8 @@ LOSS_RATE = 0.2#0.4 #0.2  # 0.8 #0.6 #0.2
 DISTILL_LIST = [0, 1]  # [0] #[0, 1]
 #DISTILL_LIST = [0]
 EXCHANGE = 0# 1#0#1
-SHOW_WIDTH = 1280 #1920
-SHOW_HEIGHT = 720 #1080
+SHOW_WIDTH = loadlib.WIDTH
+SHOW_HEIGHT = loadlib.HEIGHT
 SHOW_TYPE = 0# 1
 SHOW_POLL_TIME = 10  # 5
 SVC_REFS = 2#16#2
@@ -183,7 +183,7 @@ class ShowThread(threading.Thread):
         self.lock.release()
 
     def data2img(self, data0):
-        (h, w) = (loadlib.HEIGHT, loadlib.WIDTH)
+        (h, w) = (self.height, self.width)
         # print("data2img:  (h, w)= ", (h, w))
         frame0 = np.frombuffer(data0, dtype=np.uint8)
         yuv_I420_0 = frame0.reshape((h * 3) / 2, w)
@@ -666,6 +666,8 @@ class DecodeFrameThread(threading.Thread):
         self.client = client
         self.framelist = []
         self.idr_status = 0
+        self.width = SHOW_WIDTH
+        self.height = SHOW_HEIGHT
         #self.ref_idc_list = []
 
         ###
@@ -700,7 +702,7 @@ class DecodeFrameThread(threading.Thread):
         self.lock.release()
 
     def show_yuv(self, data0, id):
-        (h, w) = (loadlib.HEIGHT, loadlib.WIDTH)
+        (h, w) = (self.height, self.width)
         if id in [2]:
             frame0 = np.frombuffer(data0, dtype=np.uint8)
             yuv_I420_0 = frame0.reshape((h * 3) / 2, w)
@@ -1263,12 +1265,12 @@ class EncoderClient(EchoClientThread):
         # self.recv_task.start()
         ###
 
-        (self.width, self.height) = (loadlib.WIDTH, loadlib.HEIGHT)
+        (self.width, self.height) = (SHOW_WIDTH, SHOW_HEIGHT)
         self.frame_size = (self.width * self.height * 3) / 2
         self.imglist = []
         self.img_num = 0
 
-        self.encode0 = CallVideoEncode(id)
+        self.encode0 = CallVideoEncode(id, self.width, self.height)
         self.encode0.refs = 1  # 16
         self.encode0.enable_fec = 0  # 1#0
         self.fec_level = 0
@@ -1391,7 +1393,7 @@ class EncoderClient(EchoClientThread):
         return outjson
 
     def show_yuv(self, data0, id):
-        (h, w) = (loadlib.HEIGHT, loadlib.WIDTH)
+        (h, w) = (self.height, self.width)
         if True:  # id in [20]:
             frame0 = np.frombuffer(data0, dtype=np.uint8)
             yuv_I420_0 = frame0.reshape((h * 3) / 2, w)
@@ -1812,6 +1814,8 @@ class DecoderClient(EchoClientThread):
         self.__running = threading.Event()  # 用于停止线程的标识
         self.__running.set()  # 将running设置为True
         ###
+        self.width = SHOW_WIDTH
+        self.height = SHOW_HEIGHT
         self.log_fp = None
         try:
             filename = "../../mytest/dec_log_" + str(id) + ".txt"
@@ -1828,7 +1832,7 @@ class DecoderClient(EchoClientThread):
         array_type = c_char_p * 1
         self.ctime = array_type()
         ###
-        self.decode0 = CallVideoDecode(self.id)
+        self.decode0 = CallVideoDecode(self.id, self.width, self.height)
         ###
         self.data_master = DataManager(id)
         self.recv_task = RecvTaskManagerThread(self)
@@ -1909,7 +1913,7 @@ class DecoderClient(EchoClientThread):
 
 def GetParams(refs):
     ret = (3 * 1024 * 1024, 1400, 0, 10)
-    (h, w) = (loadlib.HEIGHT, loadlib.WIDTH)
+    (h, w) = (SHOW_HEIGHT, SHOW_WIDTH)
     if (w * h) <= 352 * 288:
         fec_level = 2
         if refs <= 2:

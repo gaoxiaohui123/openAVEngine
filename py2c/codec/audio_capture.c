@@ -1522,8 +1522,6 @@ int api_audio_capture_read_frame(char *handle)
     long long *testp = (long long *)handle;
     AudioCaptureObj *obj = (AudioCaptureObj *)testp[0];
 
-    AVPacket *packet = (AVPacket *)av_malloc(sizeof(AVPacket));
-    packet->data = 0;
     int64_t time0 = get_sys_time();
 
     int sum = 0;
@@ -1547,39 +1545,54 @@ int api_audio_capture_read_frame(char *handle)
     {
         while(sum < frame_size)
         {
+            //AVPacket *packet = (AVPacket *)av_malloc(sizeof(AVPacket));
+            AVPacket packet;
+            av_init_packet(&packet);
+            packet.data = 0;
             int64_t time0 = get_sys_time();
             while(1)
             {
-			    ret = av_read_frame(obj->pFormatCtx, packet);
+			    ret = av_read_frame(obj->pFormatCtx, &packet);
 			    if(ret < 0)
 	            {
 	                return -1;
 	            }
-			    if(packet->stream_index == obj->audioindex)
-				    break;
+			    if(packet.stream_index == obj->audioindex)
+			    {
+			        break;
+			    }
+				else{
+				    printf("warning: api_audio_capture_read_frame: packet.stream_index= %d \n", packet.stream_index);
+				}
 		    }
             if(ret >= 0)
             {
                 if(obj->fp_cap)
                 {
-                    fwrite(packet->data, 1, packet->size, obj->fp_cap);
+                    fwrite(packet.data, 1, packet.size, obj->fp_cap);
                 }
-                //printf("api_audio_capture_read_frame: packet->size= %d \n", packet->size);
-                if(packet->size > obj->frame_size)
+                //printf("api_audio_capture_read_frame: packet.size= %d \n", packet.size);
+                if(packet.size > obj->frame_size)
                 {
-                    //printf("warning: api_audio_capture_read_frame: packet->size= %d \n", packet->size);
+                    //printf("warning: api_audio_capture_read_frame: packet.size= %d \n", packet.size);
                     //printf("warning: api_audio_capture_read_frame: obj->pCodecCtx->channels= %d \n", obj->pCodecCtx->channels);
                     //printf("warning: api_audio_capture_read_frame: obj->pCodecCtx->sample_rate= %d \n", obj->pCodecCtx->sample_rate);
                     //printf("warning: api_audio_capture_read_frame: obj->pCodecCtx->sample_fmt= %d \n", obj->pCodecCtx->sample_fmt);
-                    memcpy(&obj->tmp_buf0[0], packet->data, packet->size);
+                    memcpy(&obj->tmp_buf0[0], packet.data, packet.size);
                     sum = obj->frame_size;
                     obj->in_offset = obj->frame_size;
 
                 }
                 else{
-                    memcpy(&obj->tmp_buf0[sum], packet->data, packet->size);
-                    sum += packet->size;
+                    memcpy(&obj->tmp_buf0[sum], packet.data, packet.size);
+                    sum += packet.size;
                 }
+            }
+            //printf("api_audio_capture_read_frame: packet.flags= %d \n", packet.flags);
+            //printf("api_audio_capture_read_frame: packet.stream_index= %d \n", packet.stream_index);
+            if(packet.data)
+            {
+                av_free_packet(&packet);
             }
         }
     }
@@ -1591,8 +1604,6 @@ int api_audio_capture_read_frame(char *handle)
         //printf("warning: api_audio_capture_read_frame: obj->frame_size= %d \n", obj->frame_size);
     }
 
-    //printf("api_audio_capture_read_frame: packet->flags= %d \n", packet->flags);
-    //printf("api_audio_capture_read_frame: packet->stream_index= %d \n", packet->stream_index);
     if(sum != obj->frame_size)
     {
         printf("warning: api_audio_capture_read_frame: obj->pCodecCtx->sample_rate= %d \n", obj->pCodecCtx->sample_rate);
@@ -1641,15 +1652,6 @@ int api_audio_capture_read_frame(char *handle)
 	{
         pthread_mutex_unlock(&obj->mutex);
     }
-    //printf("api_audio_capture_read_frame: packet->data=%x \n", packet->data);
-    if(packet->data)
-    {
-        av_free_packet(packet);
-    }
-    else{
-        av_free(packet);
-    }
-
     //printf("api_audio_capture_read_frame: end: sum=%d \n", sum);
     return sum;
 }
@@ -1862,6 +1864,8 @@ int api_audio_capture_read_frame2(char *handle, char *outbuf)
 	//printf("api_audio_capture_read_frame2: end: difftime= %d \n", difftime);
     //av_free(obj->pAudioFrame);//test
     //printf("api_audio_capture_read_frame2: ret= %d \n", ret);
+    //av_free_packet(&pkt);
+    //av_free(&pkt);
     return ret;
 }
 //windows: "dshow" ; char *device_name = "audio=麦克风 （Realtek High Definition Au";

@@ -22,8 +22,8 @@ from udpaudioclient import ShowThread as player
 
 LOSS_RATE = 0.2#0.4 #0.2  # 0.8 #0.6 #0.2
 EXCHANGE = 0# 1#0#1
-SHOW_WIDTH = 1920
-SHOW_HEIGHT = 1080
+SHOW_WIDTH = loadlib.WIDTH
+SHOW_HEIGHT = loadlib.HEIGHT
 SHOW_TYPE = 0# 1
 SHOW_POLL_TIME = 10  # 5
 SVC_REFS = 2#16#2
@@ -72,7 +72,7 @@ class AVClient(object):
 
     def GetParams(self, refs):
         ret = (3 * 1024 * 1024, 1400, 0, 10)
-        (h, w) = (loadlib.HEIGHT, loadlib.WIDTH)
+        (h, w) = (SHOW_HEIGHT, SHOW_WIDTH)
         if (w * h) <= 352 * 288:
             fec_level = 2
             if refs <= 2:

@@ -390,7 +390,9 @@ class ReadFrame(threading.Thread):
 if __name__ == '__main__':
     print('Start pycall.')
     call = ReadFrame(0)
-    call.init(1920, 1080)
+    (width, height) = (1280, 720)
+    #(width, height) = (1920, 1080)
+    call.init(width, height)
     call.start()
     #time.sleep(2)
     # idx = 0

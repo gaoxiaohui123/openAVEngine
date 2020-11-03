@@ -1901,6 +1901,7 @@ int api_capture_read_frame2(char *handle, char *outbuf)
     }
     if(ret <= 0)
     {
+        av_free_packet(&pkt);
         return ret;
     }
 	//
@@ -2039,7 +2040,7 @@ int api_capture_read_frame2(char *handle, char *outbuf)
             //printf("api_capture_read_frame2: ret2= %d \n", ret2);
       }
 	}
-
+    av_free_packet(&pkt);
 	obj->frame_num++;
     return ret;
 }

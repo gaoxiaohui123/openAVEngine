@@ -26,6 +26,7 @@
 //#define __STDC_CONSTANT_MACROS
 
 
+#define MAX_MIX_NUM 16
 
 typedef struct
 {
@@ -46,6 +47,7 @@ typedef struct
     uint64_t out_channel_layout;// = AV_CH_LAYOUT_STEREO;
     uint64_t frame_idx;
     char *tmpbuf;
+    char playbuf[8192 * MAX_MIX_NUM];
     int mix_num;
     int print;
     FILE *fp_pcm;
@@ -98,7 +100,7 @@ void  fill_audio(void *handle, Uint8 *stream, int len){
     //              const Uint8* src,
     //              Uint32       len,
     //              int          volume)
-    int mix_num = GetvalueInt(obj->json, "mix_num");
+    int mix_num = obj->mix_num;//GetvalueInt(obj->json, "mix_num");
     int maxvolume = SDL_MIX_MAXVOLUME / mix_num;
     for(int i = 0; i < mix_num; i++)
     {
@@ -171,6 +173,10 @@ void api_player_close(char *handle)
         if (obj->audiofifo)
         {
             av_audio_fifo_free(obj->audiofifo);
+        }
+        if(obj->audio_frame)
+        {
+            av_frame_free(&obj->audio_frame);
         }
         if(obj->fp_pcm)
         {
@@ -260,7 +266,7 @@ int api_player_init(char *handle, char *param)
     obj->audiofifo = av_audio_fifo_alloc(obj->out_sample_fmt, obj->out_channels, obj->mix_num);
     printf("api_player_init: obj->audiofifo= %x \n", obj->audiofifo);
     obj->tmpbuf = av_malloc((obj->out_buffer_size << 1) * obj->mix_num);
-    obj->audio_frame = av_frame_alloc();
+    //obj->audio_frame = av_frame_alloc();
 #if 0
     obj->audio_frame->nb_samples = obj->out_nb_samples;
     obj->audio_frame->channel_layout = obj->out_channel_layout;
@@ -308,7 +314,9 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
         long long *testp = (long long *)handle;
         AudioPlayerObj *obj = (AudioPlayerObj *)testp[0];
         obj->json = mystr2json(param);
-        obj->param = param;
+        obj->param = (void *)obj->json;//param;
+
+        obj->mix_num = GetvalueInt(obj->json, "mix_num");
 
         int out_framesize = obj->out_nb_samples;//obj->out_buffer_size;//
         int try_frame_size = av_samples_get_buffer_size(NULL, obj->out_channels, obj->out_nb_samples, obj->out_sample_fmt, 1);
@@ -325,8 +333,10 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
         {
             SDL_PauseAudio(0);
         }
+        //obj->audiofifo = av_audio_fifo_alloc(obj->out_sample_fmt, obj->out_channels, obj->mix_num);
         int fifo_size = av_audio_fifo_size(obj->audiofifo);
         ret = av_audio_fifo_realloc(obj->audiofifo, av_audio_fifo_size(obj->audiofifo) + convert_size);
+        //printf("audio_play_frame: fifo_size=%d, ret=%d \n", fifo_size, ret);
         if (ret < 0){
             printf("audio_play_frame: av_audio_fifo_realloc error\n");
             return -1;
@@ -339,11 +349,19 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
         }
         fifo_size = av_audio_fifo_size(obj->audiofifo);
         //printf("audio_play_frame: fifo_size=%d \n", fifo_size);
-        while (av_audio_fifo_size(obj->audiofifo) >= out_framesize)
+        while ((fifo_size = av_audio_fifo_size(obj->audiofifo)) >= out_framesize)
         {
+            //printf("audio_play_frame: fifo_size=%d, out_framesize=%d \n", fifo_size, out_framesize);
             int frame_size = FFMIN(av_audio_fifo_size(obj->audiofifo), out_framesize);
             if(1)
             {
+                //av_frame_unref(&obj->audio_frame);
+                if(obj->audio_frame)
+                {
+                    av_frame_free(&obj->audio_frame);
+                }
+                obj->audio_frame = av_frame_alloc();
+
                 obj->audio_frame->nb_samples = frame_size;
                 obj->audio_frame->channel_layout = obj->out_channel_layout;
                 obj->audio_frame->format = obj->out_sample_fmt;
@@ -374,8 +392,6 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
             {
                 SDL_Delay(1);
             }
-
-
             obj->audio_len = obj->out_buffer_size;
             obj->audio_pos[0] = *obj->audio_frame->data;
             //obj->audio_pos = obj->audio_frame->data[0];
@@ -383,6 +399,7 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
         }
         //av_free(obj->audio_frame);//test
         obj->frame_idx++;
+        deleteJson(obj->param);
     }
 
     return ret;
@@ -393,10 +410,11 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
     int ret;
     if(handle)
     {
+        //printf("audio_play_frame_mix: insize=%d \n", insize);
         long long *testp = (long long *)handle;
         AudioPlayerObj *obj = (AudioPlayerObj *)testp[0];
         obj->json = mystr2json(param);
-        obj->param = param;
+        obj->param = (void *)obj->json;
 
         if(!obj->frame_idx)
         {
@@ -419,7 +437,7 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
             obj->tmpbuf = av_malloc((obj->out_buffer_size << 1) * obj->mix_num);
             obj->mix_num = mix_num;
         }
-#if 1
+
         int out_framesize = obj->out_nb_samples;//obj->out_buffer_size;//
         int try_frame_size = av_samples_get_buffer_size(NULL, obj->out_channels, obj->out_nb_samples, obj->out_sample_fmt, 1);
         int factor = try_frame_size / obj->out_nb_samples;
@@ -455,10 +473,14 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
         //printf("audio_play_frame: fifo_size=%d \n", fifo_size);
         while (av_audio_fifo_size(obj->audiofifo) >= out_framesize)
         {
-
             //int frame_size = FFMIN(av_audio_fifo_size(obj->audiofifo), out_framesize);
             if(1)
             {
+                if(true)//obj->audio_frame &&
+                {
+                    //av_frame_free(&obj->audio_frame);
+                    obj->audio_frame = av_frame_alloc();
+                }
                 obj->audio_frame->nb_samples = frame_size;
                 obj->audio_frame->channel_layout = obj->out_channel_layout;
                 obj->audio_frame->format = obj->out_sample_fmt;
@@ -495,6 +517,15 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
             obj->audio_len = obj->out_buffer_size;
             //printf("audio_play_frame_mix: obj->audio_len=%d \n", obj->audio_len);
             uint8_t *p = obj->audio_frame->data[0];
+#if 1
+            memcpy((void *)obj->playbuf, obj->audio_frame->data[0], insize * mix_num);
+            p = (uint8_t *)obj->playbuf;
+            if(obj->audio_frame && true)
+            {
+                av_frame_free(&obj->audio_frame);
+                //obj->audio_frame = av_frame_alloc();
+            }
+#endif
             for(int i = 0; i < mix_num; i++)
             {
                 obj->audio_pos[i] = p;
@@ -508,21 +539,10 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
             //obj->audio_pos[0] = indata[0];
             //obj->audio_pos = obj->audio_frame->data[0];
         }
-#else
-        if(!obj->frame_idx)
-        {
-            SDL_PauseAudio(0);
-        }
-        obj->audio_len = obj->out_buffer_size;
-        obj->audio_pos[0] = indata[0];
 
-        while (obj->audio_len > 0)//Wait until finish
-        {
-            SDL_Delay(1);
-        }
-#endif
         //av_free(obj->audio_frame);//test
         obj->frame_idx++;
+        deleteJson(obj->param);
     }
 
     return ret;

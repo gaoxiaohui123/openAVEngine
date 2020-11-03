@@ -22,7 +22,7 @@ import json
 import errno
 
 yuvdir = '/home/gxh/works/datashare/'
-inputflag = 1#3#1#7#4#1#3#1#5#3#2#5#3#1#6#1#3#6#
+inputflag = 3#1#7#4#1#3#1#5#3#2#5#3#1#6#1#3#6#
 yuvfilename = yuvdir + 'for_ENC/352X288/foreman_cif.yuv'
 (WIDTH, HEIGHT) = (352, 288)
 

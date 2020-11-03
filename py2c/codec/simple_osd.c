@@ -309,6 +309,7 @@ int api_simple_osd_process(char *handle, char *data, char *param)
 			}
 		}
 	}
+	deleteJson(obj->json);
 	return ret;
 }
 #if 0

@@ -732,7 +732,6 @@ int api_audio_codec_one_frame(char *handle, char *data, char *param, char *outbu
         else
         {
             //AVPacket avpkt;
-
             //av_init_packet(&avpkt);
             /* decode until eof */
             obj->avpkt.data = data;
@@ -833,6 +832,7 @@ int api_audio_codec_one_frame(char *handle, char *data, char *param, char *outbu
                 }
             }
         }
+        deleteJson(obj->param);
     }
     return ret;
 }

@@ -112,7 +112,7 @@ class AudioCapture(threading.Thread):
         self.param.update({"capfile": self.capfile})
         self.param.update({"datatype": self.datatype})
         self.param.update({"process": self.process})
-        self.param.update({"print": 2})
+        self.param.update({"print": 0})
         param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
         ret = self.load.lib.api_audio_capture_init(self.handle, param_str)
         # print("init: ret= ", ret)
@@ -122,11 +122,11 @@ class AudioCapture(threading.Thread):
             self.status = False
         self.outbuf = create_string_buffer(self.frame_size << 1)  # redundancy
 
-
     def run(self):
         print("AudioCapture: run 0")
         while self.__running.isSet():
             self.__flag.wait()  # 为True时立即返回, 为False时阻塞直到内部的标识位为True后返回
+            ret = 0
             # ret = self.load.lib.api_audio_capture_read_frame(self.handle, 0)
             ret = self.load.lib.api_audio_capture_read_frame(self.handle)
             if ret > 0:
@@ -139,7 +139,6 @@ class AudioCapture(threading.Thread):
         self.Close()
         self.stop()
 
-
     def ReadFrame(self):
         data = ""
         ret = self.load.lib.api_audio_capture_read_frame2(self.handle, self.outbuf)
@@ -147,12 +146,10 @@ class AudioCapture(threading.Thread):
             data = self.outbuf
         return (data, ret)
 
-
     def Close(self):
         self.load.lib.api_audio_capture_close(self.handle)
         self.status = False
         return
-
 
     def stop(self):
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话

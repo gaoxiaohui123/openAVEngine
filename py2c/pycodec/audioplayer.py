@@ -198,6 +198,7 @@ class AudioPlayer(threading.Thread):
                 mix_flag = False
                 if self.data_offer != None and self.data_offer2 != None:
                     mix_flag = True
+                #print("audioplayer: run: mix_flag= ", mix_flag)
                 if mix_flag:
                     if True:
                         (ret, ret2) = (None, None)
@@ -276,6 +277,15 @@ if __name__ == '__main__':
         call1.init()
         call1.start()
     #time.sleep(2)
+    if True:
+        from mysdl import *
+
+        call = ReadFrame(0)
+        (width, height) = (1280, 720)
+        # (width, height) = (1920, 1080)
+        call.init(width, height)
+        call.start()
+
     idx = 0
     while idx >= 0 and idx < 4:
        try:
