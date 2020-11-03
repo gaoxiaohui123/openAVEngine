@@ -249,7 +249,7 @@ int api_simple_osd_process(char *handle, char *data, char *param)
 	else{
 	    height = obj->height;
 	}
-	int ret2 = correct_orgxy(&orgX, &orgY, width, height);
+	int ret2 = correct_orgxy(&obj->orgX, &obj->orgY, width, height);
     //
     //int width = obj->width;
     //int height = obj->height;
