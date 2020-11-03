@@ -334,6 +334,7 @@ class ExternalSDL(threading.Thread):
         self.__running.set()  # 将running设置为True
         self.pause()
         self.parent = parent
+        self.json = self.parent.config_frame.json
         self.status = 0
         self.preview = None
         self.winid = 0
@@ -350,14 +351,19 @@ class ExternalSDL(threading.Thread):
     def set_winid(self, win_hnd):
         if win_hnd > 0:
             self.winid = win_hnd
-    def creat_meeting(self, win_hnd):
+    def creat_preview(self, win_hnd):
         if win_hnd > 0:
             self.winid = win_hnd
         if self.preview == None:
+            multdevice = self.json.dict.get("multdevice")
+            control = self.json.dict.get("control")
+            general = self.json.dict.get("general")
+            if multdevice != None:
+                print("creat_preview: multdevice= ", multdevice)
             self.preview = ReadFrame(self.winid)
             self.preview.init(self.parent.width, self.parent.height)
             self.preview.start()
-    def close_meeting(self):
+    def close_preview(self):
         if self.preview != None:
             self.preview.stop()
             #time.sleep(2)
@@ -385,19 +391,19 @@ class ExternalSDL(threading.Thread):
             #self.lock.acquire()
             if status == 1:
                 #self.lock.release()
-                self.creat_meeting(0)
+                self.creat_preview(0)
                 self.pause()
                 #self.lock.acquire()
             elif status == 2:
                 #self.lock.release()
-                self.close_meeting()
+                self.close_preview()
                 #self.status = 0
                 self.set_status(0)
                 #self.pause()
                 #self.lock.acquire()
             #self.lock.release()
         if self.get_status():
-            self.close_meeting()
+            self.close_preview()
         self.stop()
         print("ExternalSDL: run over")
 
