@@ -1,12 +1,75 @@
 {
-    "multchan": {
+    "control": {
+        "mode": 0, 
+        "rect": [
+            {
+                "chanId": 0, 
+                "deviceId": 0, 
+                "pos": [
+                    0, 
+                    0, 
+                    1280, 
+                    720
+                ]
+            }
+        ]
+    }, 
+    "general": {
+        "mcu": {}, 
+        "mode": {
+            "modeId": 6, 
+            "modePos": [
+                {
+                    "chanId": 0, 
+                    "devideId": 0, 
+                    "pos": [
+                        0, 
+                        0, 
+                        1280, 
+                        720
+                    ]
+                }, 
+                {
+                    "chanId": 1, 
+                    "devideId": -1, 
+                    "pos": [
+                        0, 
+                        540, 
+                        320, 
+                        180
+                    ]
+                }
+            ]
+        }, 
+        "supprams": {
+            "compatible": 0, 
+            "osd": 5, 
+            "serverAddr": "127.0.0.1:10088", 
+            "spatiallayer": {
+                "name": "1", 
+                "value": 0
+            }, 
+            "temporallayer": {
+                "name": "2", 
+                "value": 1
+            }, 
+            "uploadlayers": [
+                0
+            ]
+        }
+    }, 
+    "multdevice": {
         "0": {
             "audios": {
-                "aec": 1, 
+                "aec": 0, 
                 "agc": 0, 
                 "audiofmt": {
                     "name": "default", 
                     "value": 0
+                }, 
+                "bitrate": {
+                    "name": "24000", 
+                    "value": 1
                 }, 
                 "channels": {
                     "name": "2", 
@@ -23,7 +86,7 @@
                     "value": 1
                 }, 
                 "recorder": {
-                    "name": "macro", 
+                    "name": "hw:1,0", 
                     "value": 1
                 }, 
                 "samplerate": {
@@ -38,7 +101,7 @@
                     "value": 1
                 }, 
                 "capture": {
-                    "name": "fb0", 
+                    "name": "video0:mjpeg", 
                     "value": 1
                 }, 
                 "codec": {
@@ -65,62 +128,9 @@
                     "name": "default", 
                     "value": 0
                 }, 
-                "channels": {
-                    "name": "2", 
-                    "value": 1
-                }, 
-                "codec": {
-                    "name": "AAC", 
-                    "value": 0
-                }, 
-                "denoise": 1, 
-                "detect": 0, 
-                "framesize": {
-                    "name": "1024", 
-                    "value": 1
-                }, 
-                "recorder": {
-                    "name": "macro", 
-                    "value": 1
-                }, 
-                "samplerate": {
-                    "name": "48000", 
-                    "value": 4
-                }, 
-                "vad": 0
-            }, 
-            "videos": {
                 "bitrate": {
-                    "name": "512kbps", 
+                    "name": "24000", 
                     "value": 1
-                }, 
-                "capture": {
-                    "name": "fb0", 
-                    "value": 1
-                }, 
-                "codec": {
-                    "name": "HCSVC", 
-                    "value": 0
-                }, 
-                "denoise": 1, 
-                "fec": 0, 
-                "framerate": {
-                    "name": "15fps", 
-                    "value": 1
-                }, 
-                "resolution": {
-                    "name": "1280x720", 
-                    "value": 1
-                }
-            }
-        }, 
-        "2": {
-            "audios": {
-                "aec": 0, 
-                "agc": 0, 
-                "audiofmt": {
-                    "name": "default", 
-                    "value": 0
                 }, 
                 "channels": {
                     "name": "2", 
@@ -137,7 +147,7 @@
                     "value": 1
                 }, 
                 "recorder": {
-                    "name": "macro", 
+                    "name": "hw:1,0", 
                     "value": 1
                 }, 
                 "samplerate": {
@@ -152,64 +162,7 @@
                     "value": 1
                 }, 
                 "capture": {
-                    "name": "fb0", 
-                    "value": 1
-                }, 
-                "codec": {
-                    "name": "HCSVC", 
-                    "value": 0
-                }, 
-                "denoise": 1, 
-                "fec": 0, 
-                "framerate": {
-                    "name": "15fps", 
-                    "value": 1
-                }, 
-                "resolution": {
-                    "name": "1280x720", 
-                    "value": 1
-                }
-            }
-        }, 
-        "3": {
-            "audios": {
-                "aec": 0, 
-                "agc": 0, 
-                "audiofmt": {
-                    "name": "default", 
-                    "value": 0
-                }, 
-                "channels": {
-                    "name": "2", 
-                    "value": 1
-                }, 
-                "codec": {
-                    "name": "AAC", 
-                    "value": 0
-                }, 
-                "denoise": 1, 
-                "detect": 0, 
-                "framesize": {
-                    "name": "1024", 
-                    "value": 1
-                }, 
-                "recorder": {
-                    "name": "macro", 
-                    "value": 1
-                }, 
-                "samplerate": {
-                    "name": "48000", 
-                    "value": 4
-                }, 
-                "vad": 0
-            }, 
-            "videos": {
-                "bitrate": {
-                    "name": "512kbps", 
-                    "value": 1
-                }, 
-                "capture": {
-                    "name": "fb0", 
+                    "name": "video0:mjpeg", 
                     "value": 1
                 }, 
                 "codec": {

@@ -104,7 +104,7 @@ class FrameBuffer(object):
         self.audio_frequence = frequence
 
 
-class ShowThread(threading.Thread):
+class PlayThread(threading.Thread):
     def __init__(self, way):
         threading.Thread.__init__(self)
         self.lock = threading.Lock()
@@ -164,26 +164,28 @@ class ShowThread(threading.Thread):
         if len(self.DataList) > 0:
             flag = len(self.DataList) > 10
             if flag:
-                print("ShowThread: 0: len(self.DataList)= ", len(self.DataList))
+                print("PlayThread: 0: len(self.DataList)= ", len(self.DataList))
             ret = self.DataList[0]
             del (self.DataList[0])
             if flag:
-                print("ShowThread: 1: len(self.DataList)= ", len(self.DataList))
+                print("PlayThread: 1: len(self.DataList)= ", len(self.DataList))
         self.lock.release()
         return ret
 
     def PopQueue2(self, idx):
         ret = None
         self.lock.acquire()
-
+        i = -1
         for i in range(len(self.DataList)):
             (id, data, recvTime) = self.DataList[i]
             if id == idx:
-                ret = self.DataList[idx]
+                #ret = self.DataList[idx]
+                ret = self.DataList[i]
+                break
         if ret != None:
-            del (self.DataList[idx])
+            del (self.DataList[i])
         if len(self.DataList) > 10:
-            print("ShowThread: PopQueue2: len(self.DataList)= ", len(self.DataList))
+            print("PlayThread: PopQueue2: len(self.DataList)= ", len(self.DataList))
 
         self.lock.release()
         return ret
@@ -226,8 +228,8 @@ class ShowThread(threading.Thread):
                 now_time = time.time()
                 (id, data, recvTime) = item
                 ###
-                # print("ShowThread start show: id= ", id)
-                # print("ShowThread start show: len(data)= ", len(data))
+                # print("PlayThread start show: id= ", id)
+                # print("PlayThread start show: len(data)= ", len(data))
                 if len(data) > 0:
                     thisFrmBuf = None
                     for frameBuff in self.FrameList:
@@ -253,8 +255,8 @@ class ShowThread(threading.Thread):
                         pre_play_time = thisFrmBuf.base_start_time * 1000 + difftime
                         delay = (now_time - thisFrmBuf.base_start_time) * 1000 - difftime  # (ms)
                         if id in [1]:
-                            # print("ShowThread start show: id= ", id)
-                            # print("ShowThread start show: int(delay)= ", int(delay))
+                            # print("PlayThread start show: id= ", id)
+                            # print("PlayThread start show: int(delay)= ", int(delay))
                             pass
                         # 理想状态delay == 0
                         # 延迟到达delay > 0
@@ -286,7 +288,7 @@ class ShowThread(threading.Thread):
                                     thisFrmBuf.base_start_time = now_time
                                     thisFrmBuf.search_count += 1
                                     if id in [1]:
-                                        # print("ShowThread start show: thisFrmBuf.search_count= ", thisFrmBuf.search_count)
+                                        # print("PlayThread start show: thisFrmBuf.search_count= ", thisFrmBuf.search_count)
                                         pass
                                     self.play_right_now3(data, id)
                                 else:
@@ -298,10 +300,10 @@ class ShowThread(threading.Thread):
                             difftime0 = recvTime1 - recvTime0
                             difftime1 = now_time1 - now_time0
                             if difftime0 > 100 or difftime1 > 100:
-                                print("ShowThread: run: (id, n, difftime0, difftime1)= ",
+                                print("PlayThread: run: (id, n, difftime0, difftime1)= ",
                                       (id, n, difftime0, difftime1))
                     thisFrmBuf.last_timestamp = recvTime
-                # print("ShowThread show")
+                # print("PlayThread show")
             else:
                 flag = False
                 # 循环检测，不另外使用定时器
@@ -326,24 +328,24 @@ class ShowThread(threading.Thread):
                         if id in [0, 1, 2, 3]:
                             test_item = []
                             test_item.append((int(strideTime), int(interval), n))
-                            # print("ShowThread start show: test_item= ", test_item)
+                            # print("PlayThread start show: test_item= ", test_item)
                         if delay0 <= 0:  # 过点了
                             self.play_right_now3(first_frame[0], thisFrmBuf.id)
                             del thisFrmBuf.framelist[0]
                             flag = True
                         else:
                             if id in [1]:
-                                # print("ShowThread start show: delay0= ", delay0)
+                                # print("PlayThread start show: delay0= ", delay0)
                                 pass
 
                 if flag == False:
                     time.sleep(0.01)
-                # print("ShowThread sleep")
+                # print("PlayThread sleep")
 
         #self.sdl_stop()
     def run(self):
         self.interval = float(1000.0 / (self.sdl.out_sample_rate / self.sdl.out_nb_samples))
-        print("ShowThread: run: self.interval= ", self.interval)
+        print("PlayThread: run: self.interval= ", self.interval)
         self.adjust = 20
         #多路同步播放
         while self.__running.isSet():
@@ -354,7 +356,7 @@ class ShowThread(threading.Thread):
             (data_size, mix_num) = (0, len(self.idMap))
             if mix_num > 0:
                 self.sdl.reset_mix_buf(mix_num)
-                #print("ShowThread: run: mix_num= ", mix_num)
+                #print("PlayThread: run: mix_num= ", mix_num)
 
             i = 0
             for idx in self.idMap:
@@ -368,8 +370,8 @@ class ShowThread(threading.Thread):
             if i > 0:
                 self.play_mix_now(data_size, i)
                 self.frame_idx += 1
-                #print("ShowThread: run: data_size= ", data_size)
-                #print("ShowThread: run: self.frame_idx= ", self.frame_idx)
+                #print("PlayThread: run: data_size= ", data_size)
+                #print("PlayThread: run: self.frame_idx= ", self.frame_idx)
                 if self.start_time == 0:
                     self.start_time = now_time
 
@@ -381,7 +383,7 @@ class ShowThread(threading.Thread):
                 cap_time = float(self.start_time + float(dx))
                 wait_time = ((cap_time - now_time) / 1000.0)
                 wait_time = wait_time if wait_time > 0.001 else 0.001
-                #print("ShowThread: run: wait_time= ", wait_time)
+                #print("PlayThread: run: wait_time= ", wait_time)
 
                 #wait_time = float((self.interval / 2) / 1000.0) #test
                 time.sleep(wait_time)
@@ -407,7 +409,7 @@ class ShowThread(threading.Thread):
                         self.lock.acquire()
                         listlen = len(self.DataList)
                         self.lock.release()
-                        print("ShowThread: (id, listlen, difftime)= ", (id, listlen, difftime))
+                        print("PlayThread: (id, listlen, difftime)= ", (id, listlen, difftime))
                 self.play_right_now(data, id)
                 # time.sleep(0.001)
                 pass
@@ -1236,8 +1238,8 @@ def RunClient(flag):
 
         (bitrate, mtu_size, buffer_shift) = (24000, 300, 10)
         print("RunClient: bitrate= ", bitrate)
-        # thread_show = ShowThread(6)
-        thread_show = ShowThread(2)
+        # thread_show = PlayThread(6)
+        thread_show = PlayThread(2)
         idx = 0
         (id0, sessionId0, actor0) = (0, 100, 2)
         (id1, sessionId1, actor1) = (1, 200, 2)

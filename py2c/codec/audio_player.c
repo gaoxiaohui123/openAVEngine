@@ -182,6 +182,11 @@ void api_player_close(char *handle)
         {
             fclose(obj->fp_pcm);
         }
+        if(obj->json)
+        {
+            api_json_free(obj->json);
+            obj->json = NULL;
+        }
         free(obj);
 	    testp[0] = 0;
         printf("api_player_close: ok \n");
@@ -400,6 +405,8 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
         //av_free(obj->audio_frame);//test
         obj->frame_idx++;
         deleteJson(obj->param);
+        obj->param = NULL;
+        obj->json = NULL;
     }
 
     return ret;
@@ -543,6 +550,8 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
         //av_free(obj->audio_frame);//test
         obj->frame_idx++;
         deleteJson(obj->param);
+        obj->param = NULL;
+        obj->json = NULL;
     }
 
     return ret;

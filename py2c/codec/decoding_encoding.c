@@ -833,6 +833,7 @@ int api_audio_codec_one_frame(char *handle, char *data, char *param, char *outbu
             }
         }
         deleteJson(obj->param);
+        obj->param = NULL;
     }
     return ret;
 }
@@ -1548,7 +1549,6 @@ int encode_open2(char *handle, char *param)
                 obj->f = fopen(filename, "wb");
                 //obj->f2 = fopen("/data/home/gxh/works/datashare/for_ENC/352X288/foreman_cif.yuv", "rb");
             }
-            //deleteJson(obj->param);
         }
     }
     return (int)ret;
@@ -1934,6 +1934,7 @@ int api_video_encode_one_frame(char *handle, char *data, char *param, char *outb
             av_free_packet(&pkt);
             obj->frame_idx += 1;
             deleteJson(obj->param);
+            obj->param = NULL;
         }
     }
     if(global_logfp)
@@ -2643,7 +2644,6 @@ int decode_open2(char *handle, char *param)
                 strcat(filename, ".txt");
                 obj->logfp = fopen(filename, "w");
             }
-            //deleteJson(obj->json);
         }
     }
     return (int)ret;
@@ -2696,6 +2696,7 @@ int api_video_decode_one_frame(char *handle, char *data, char *param, char *outb
                     fflush(obj->logfp);
                 }
                 deleteJson(obj->param);
+                obj->param = NULL;
                 return ret;
             }
             obj->width = obj->frame->width;
@@ -2728,6 +2729,7 @@ int api_video_decode_one_frame(char *handle, char *data, char *param, char *outb
 			//av_free_packet(&pkt);
             obj->frame_idx += 1;
             deleteJson(obj->param);
+            obj->param = NULL;
         }
     }
     return ret;

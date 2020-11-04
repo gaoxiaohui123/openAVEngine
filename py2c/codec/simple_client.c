@@ -1254,6 +1254,7 @@ int api_fec_decode(char *handle, char *data, char *param, char *outbuf, char *ou
             //printf("api_fec_decode: sum= %d \n", sum);
         }
         deleteJson(obj->json);
+        obj->json = NULL;
     }
     return ret;
 }

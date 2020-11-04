@@ -18,7 +18,7 @@ from udpclient import EncoderClient as videoenc
 from udpclient import ShowThread as display
 from udpaudioclient import DecoderClient as audiodec
 from udpaudioclient import EncoderClient as audioenc
-from udpaudioclient import ShowThread as player
+from udpaudioclient import PlayThread as player
 
 LOSS_RATE = 0.2#0.4 #0.2  # 0.8 #0.6 #0.2
 EXCHANGE = 0# 1#0#1
@@ -30,8 +30,8 @@ SVC_REFS = 2#16#2
 QOS_LEVEL = 1#0#1#3#2#1#0
 
 
-global_port0 = 8097
-global_port1 = 8098
+global_port0 = 10088 #8097
+global_port1 = 10089 #8098
 global_host = 'localhost'
 # global_host = '172.16.0.17'
 # global_host = '111.230.226.17'
@@ -106,8 +106,7 @@ class AVClient(object):
 
         (bitrate, mtu_size, fec_level, buffer_shift) = self.GetParams(SVC_REFS)
         print("RunClient: bitrate= ", bitrate)
-        # self.video_thread_show = ShowThread(6)
-        self.video_thread_show = display(2)
+        self.video_thread_show = display(0, SHOW_WIDTH, SHOW_HEIGHT)
         idx = 0
         (id0, sessionId0, actor0) = (0, 100, 2)
         (id1, sessionId1, actor1) = (1, 200, 2)

@@ -94,6 +94,11 @@ int api_image_denoise_close(char *handle)
         av_frame_free(&obj->frame);
         avcodec_close(obj->c);
         av_free(obj->c);
+        if(obj->json)
+        {
+            api_json_free(obj->json);
+            obj->json = NULL;
+        }
         //
         free(obj);
 	    testp[0] = 0;
@@ -119,6 +124,8 @@ int api_image_denoise(char *handle, char *data, char *param, char *outbuf, char 
         int insize = GetvalueInt(json, "insize");
 
         ret = api_video_denoise(obj->img_hnd, obj->frame->data, obj->frame->linesize, width, height);
+        deleteJson(json);
+        obj->param = NULL;
     }
     return ret;
 }

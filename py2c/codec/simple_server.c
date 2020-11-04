@@ -930,6 +930,7 @@ int api_fec_encode(char *handle, char *data, char *param, char *outbuf, char *ou
 
         }
         deleteJson(obj->json);
+        obj->json = NULL;
         //printf("3: api_fec_encode: obj->rand_order= %d \n", obj->rand_order);
     }
     return ret;

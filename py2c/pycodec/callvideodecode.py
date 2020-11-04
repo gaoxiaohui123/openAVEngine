@@ -25,8 +25,10 @@ import loadlib
 sys.path.append(".")
 
 class CallVideoDecode(object):
-    def __init__(self, id):
+    def __init__(self, id, width, height):
         self.load = loadlib.gload
+        self.width = width
+        self.height = height
         self.obj_id = id
         self.handle_size = 8
         self.handle = create_string_buffer(self.handle_size)
@@ -57,8 +59,8 @@ class CallVideoDecode(object):
 
     def setparam2(self):
         param = {}
-        self.width = loadlib.WIDTH
-        self.height = loadlib.HEIGHT
+        #self.width = loadlib.WIDTH
+        #self.height = loadlib.HEIGHT
         param.update({"oneframe": 1})
         self.frame_size = (self.width * self.height * 3) / 2
         outbuf = create_string_buffer(self.frame_size)

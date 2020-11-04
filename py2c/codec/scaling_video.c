@@ -33,6 +33,7 @@
 extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
 extern char* GetvalueStr(cJSON *json, char *key);
+extern cJSON* deleteJson(cJSON *json);
 
 static void fill_yuv_image(uint8_t *data[4], int linesize[4],
                            int width, int height, int frame_index)
@@ -365,6 +366,7 @@ int api_ff_scale(int id, char *data, char *param, char *outbuf, char *outparam[]
     //int src_w = GetvalueInt(json, "src_w");
     scale.sws_ctx = NULL;
     ret = FFScale(&scale);
+    deleteJson(json);
     return ret;
 }
 int main(int argc, char **argv)

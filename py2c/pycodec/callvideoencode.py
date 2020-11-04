@@ -25,7 +25,7 @@ import loadlib
 sys.path.append(".")
 
 class CallVideoEncode(object):
-    def __init__(self, id):
+    def __init__(self, id, width, height):
         self.load = loadlib.gload
         self.obj_id = id
         self.handle_size = 8
@@ -35,7 +35,7 @@ class CallVideoEncode(object):
         self.refresh_idr = 1
         self.lost_rate = 0.3
         self.code_rate = (1 - self.lost_rate)
-        (self.width, self.height) = (loadlib.WIDTH, loadlib.HEIGHT)
+        (self.width, self.height) = (width, height)
         self.max_refs = 16
         self.mtu_size = 1400 #150 #500 #200 #1100#1400
         self.frame_rate = 25 #15 #25

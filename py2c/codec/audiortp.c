@@ -172,6 +172,7 @@ int api_audio_raw2rtp_packet(char *handle, char *data, char *param, char *outbuf
         outparam[1] = obj->outparam[1];
 	    //char text[2048] = "";//2048/4=512//512*1400=700kB
 	    deleteJson(obj->json);
+	    obj->json = NULL;
 	}
     return ret;
 }
@@ -279,6 +280,7 @@ int api_audio_rtp_packet2raw(char *handle, char *data, char *param, char *outbuf
 	    //outparam[0] = text;
 
 	    deleteJson(obj->json);
+	    obj->json = NULL;
 	}
     return ret;
 }
@@ -981,6 +983,7 @@ int api_audio_resort_packet(char *handle, char *data, char *param, char *outbuf,
         {
         }
         deleteJson(obj->json);
+        obj->json = NULL;
     }
     return ret;
 }

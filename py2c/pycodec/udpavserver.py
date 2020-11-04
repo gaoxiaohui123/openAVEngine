@@ -25,8 +25,8 @@ from udpserver import EchoServerThread as videoserver
 from udpaudioserver import EchoServerThread as audioserver
 
 
-global_port0 = 8097
-global_port1 = 8098
+global_port0 = 10088 #8097
+global_port1 = 10089 #8098
 global_host = 'localhost'
 #global_host = '172.16.0.17'
 #global_host = '111.230.226.17'

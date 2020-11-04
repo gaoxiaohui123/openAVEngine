@@ -588,17 +588,20 @@ void api_sdl_close(char *handle)
         {
             free(obj->show_buffer);
         }
+        printf("api_sdl_close: free(obj->show_buffer) ok \n");
         if(obj->json)
         {
             api_json_free(obj->json);
             obj->json = NULL;
         }
+        printf("api_sdl_close: api_json_free(obj->json) ok \n");
         if(obj->osd_handle)
         {
             api_simple_osd_close(obj->osd_handle);
             free(obj->osd_handle);
             obj->osd_handle = NULL;
         }
+        printf("api_sdl_close: free(obj->osd_handle) ok \n");
         free(obj);
         testp[0] = 0;
         printf("api_sdl_close: ok \n");

@@ -9,6 +9,8 @@ import json
 import loadlib
 import threading
 import time
+import random
+import string
 from mysdl import *
 import loadlib
 
@@ -28,6 +30,8 @@ from PIL import Image
 from matplotlib import pyplot as plt
 from capture import VideoCapture
 from audiocapture import AudioCapture
+from session import AVSession as session
+
 
 
 #refer to:
@@ -413,16 +417,18 @@ class ClientFrame(object):
         self.preview = None
         self.meeting_frame = None
         self.canvas = None
+        self.clientList = []
+        self.session = None
         #self.lock = threading.Lock()
 
     def enter_meeting(self):
-        self.exit_meeting()
-        time.sleep(1)
-        self.openFrame()
+        #self.exit_meeting()
+        #time.sleep(1)
+        self.openFrame(1)
     def cap_preview(self):
         self.exit_preview()
         time.sleep(1)
-        self.openFrame()
+        self.openFrame(0)
     def exit_preview(self):
         if self.meeting_frame != None:
             self.meeting_frame.withdraw()
@@ -456,15 +462,15 @@ class ClientFrame(object):
         if True:
             count = 0
             status = 0
-            if self.preview != None:
-                status = self.preview.get_status()
+            if self.session != None:
+                status = self.session.get_status()
                 if status != 2:
-                    self.preview.set_status(2)
-                self.preview.resume()
-                self.preview.stop()
-                status = self.preview.get_status()
+                    self.session.set_status(2)
+                self.session.resume()
+                self.session.stop()
+                status = self.session.get_status()
             while status:
-                status = self.preview.get_status()
+                status = self.session.get_status()
                 time.sleep(0.1)
                 count += 1
                 if (count % 50) == 0:
@@ -472,7 +478,7 @@ class ClientFrame(object):
             #self.preview.resume()
             print("ClientFrame: exit_meeting: status= ", status)
             ##self.lock.acquire()
-            self.preview = None
+            self.session = None
             ##self.lock.release()
         print("ClientFrame: exit_meeting end")
 
@@ -526,6 +532,8 @@ class ClientFrame(object):
                 if self.meeting_frame != None:
                     if self.preview != None:
                         status = self.preview.get_status()
+                    elif self.session != None:
+                        status = self.session.get_status()
                     else:
                         status = 0
                 else:
@@ -556,8 +564,10 @@ class ClientFrame(object):
         return
     def on_meeting_closing(self):
         print("meeting frame close")
-        self.exit_preview()
-        self.exit_meeting()
+        if self.preview != None:
+            self.exit_preview()
+        if self.session != None:
+            self.exit_meeting()
         #time.sleep(2)
         ##self.lock.acquire()
         if False:
@@ -580,7 +590,7 @@ class ClientFrame(object):
         print("on_meeting_closing: over")
         #self.parent.config_frame.update()
         return
-    def openFrame(self):
+    def openFrame(self, type):
         ##self.parent.hide()
         if True:
             #self.status = True
@@ -617,17 +627,21 @@ class ClientFrame(object):
 
             self.meeting_frame.update()
 
-            if self.preview == None:
-                self.preview = ExternalSDL(self.parent)
-                self.preview.start()
-            self.preview.set_winid(self.winid)
-            self.preview.set_status(1)
-            self.preview.resume()
-            #time.sleep(20)
-            #self.draw()
-            #self.resume()
-            # button2 = tk.Button(self.meeting_frame, text='bmp', bitmap = 'error')
-            # button2.pack()
+            if type in [0]:
+                if self.preview == None:
+                    self.preview = ExternalSDL(self.parent)
+                    self.preview.start()
+                self.preview.set_winid(self.winid)
+                self.preview.set_status(1)
+                self.preview.resume()
+            elif type in [1]:
+                if self.session == None:
+                    params = self.parent.config_frame.json.dict
+                    self.session = session(self.winid, params)
+                    self.session.start()
+                    self.session.set_status(1)
+                    self.session.resume()
+
             self.meeting_frame.protocol("WM_DELETE_WINDOW", self.on_meeting_closing) #root.iconify #root.destroy #customized_function
             #self.meeting_frame.protocol("WM_DELETE_WINDOW", self.meeting_frame.iconify)
             self.refresh_frame()
@@ -1421,7 +1435,7 @@ class ConfigControlFrame(object):
         self.height = 690
         self.confWidth = parent.width
         self.confHeight = parent.height
-        self.modeNum = 7
+        self.modeNum = 8
         self.devicePos = (0, 1)
         #self.deviceNum = 2
     def SaveConfig(self):
@@ -1540,9 +1554,13 @@ class ConfigControlFrame(object):
                                       command=lambda: chanEvent(self.previewVar.get()), indicatoron=0, width=dw2 / 7,
                                       height=dh2 / 18)
             previewBtn.place(x=0, y=0)
-            if v in [1, 2, 3, 4]:
+            if v in [1]:
                 rect = (0, 0, self.confWidth, self.confHeight)
-                thisDict = {"chanId" : 0, "rect" : rect, "deviceId": 0}
+                thisDict = {"chanId": 0, "pos": rect, "deviceId": 0}
+                rectList.append(thisDict)
+            elif v in [2, 3, 4, 5]:
+                rect = (0, 0, self.confWidth, self.confHeight)
+                thisDict = {"chanId" : 0, "pos" : rect, "deviceId": 0}
                 rectList.append(thisDict)
                 id = 1
                 (orgx2, orgy2) = (0 , 0)
@@ -1557,7 +1575,7 @@ class ConfigControlFrame(object):
                 elif v in [4]:
                     rect = (0, (self.confHeight - self.confHeight / 4), self.confWidth / 4, self.confHeight / 4)
                     (orgx2, orgy2) = (dw2 - (dw2 / 4) , (dh2 - (dh2 / 4)))
-                thisDict = {"chanId": 1, "rect": rect, "deviceId": 1}
+                thisDict = {"chanId": 1, "pos": rect, "deviceId": 1}
                 rectList.append(thisDict)
                 previewBtn = tk.Radiobutton(previewFrame, text=str(id), value=(id + 1), variable=self.previewVar,
                                             # image=splitimage,
@@ -1565,10 +1583,10 @@ class ConfigControlFrame(object):
                                             width=dw2 / 7 / 4,
                                             height=dh2 / 18 / 4)
                 previewBtn.place(x=orgx2, y=orgy2)
-            elif v in [5, 6]:
+            elif v in [6, 7]:
                 (orgx2, orgy2) = (0, 0)
                 rect = (0, 0, self.confWidth, self.confHeight)
-                thisDict = {"chanId": 0, "rect": rect, "deviceId": 0}
+                thisDict = {"chanId": 0, "pos": rect, "deviceId": 0}
                 rectList.append(thisDict)
                 for i in range(4):
                     id = 1 + i
@@ -1577,7 +1595,7 @@ class ConfigControlFrame(object):
                     if v in [6]:
                         rect = ((self.confWidth - self.confWidth / 4), i * (self.confHeight / 4), self.confWidth / 4, self.confHeight / 4)
                         orgx2 = (dw2 - (dw2 / 4))
-                    thisDict = {"chanId": id, "rect": rect, "deviceId": id}
+                    thisDict = {"chanId": id, "pos": rect, "deviceId": id}
                     rectList.append(thisDict)
                     previewBtn = tk.Radiobutton(previewFrame, text=str(id), value=(id + 1), variable=self.previewVar,
                                                 # image=splitimage,
@@ -1586,7 +1604,7 @@ class ConfigControlFrame(object):
                                                 height=dh2 / 18 / 4)
                     previewBtn.place(x=orgx2, y=orgy2)
 
-            elif v in [7]:
+            elif v in [8]:
                 (orgx2, orgy2) = (0, 0)
                 for i in range(2):
                     for j in range(2):
@@ -1594,7 +1612,7 @@ class ConfigControlFrame(object):
                         orgx2 = j * (dw2 / 2)
                         orgy2 = i * (dh2 / 2)
                         rect = (j * (self.confWidth / 4), i * (self.confHeight / 4), self.confWidth / 4, self.confHeight / 4)
-                        thisDict = {"chanId": id, "rect": rect, "deviceId": id}
+                        thisDict = {"chanId": id, "pos": rect, "deviceId": id}
                         rectList.append(thisDict)
                         previewBtn = tk.Radiobutton(previewFrame, text=str(id), value=(id + 1),
                                                     variable=self.previewVar,
@@ -1729,6 +1747,10 @@ class ConfigDeviceFrame(object):
         name = self.audioSampleRateChosen.get()
         audios.update({"samplerate": {"value": value, "name": name}})
 
+        value = self.audioBitRateChosen.current()
+        name = self.audioBitRateChosen.get()
+        audios.update({"bitrate": {"value": value, "name": name}})
+
         value = self.audioChannelsChosen.current()
         name = self.audioChannelsChosen.get()
         audios.update({"channels": {"value": value, "name": name}})
@@ -1808,7 +1830,7 @@ class ConfigDeviceFrame(object):
         pw = self.parentFrame.winfo_width()
         ph = self.parentFrame.winfo_height()
         print("CreateDevice: (pw, ph)=", (pw, ph))
-        ah = 400
+        ah = 430
         # Create an audio container to hold labels
         frame30 = ttk.LabelFrame(self.parentFrame, text='音频设置', width=self.width, height=ah)
         self.audioFrame = frame30
@@ -1895,6 +1917,23 @@ class ConfigDeviceFrame(object):
         self.audioSampleRateChosen['values'] = (800, 16000, 32000, 441000, 48000, 96000)  # 设置下拉列表的值
         self.audioSampleRateChosen.current(value)  # 设置下拉列表默认显示的值，0为 numberChosen['values'] 的下标值
         self.audioSampleRateChosen.place(x=offsetx, y=offsety)
+        offsety += step
+
+        bitrate = None
+        value = 1
+        if audios != None:
+            bitrate = audios.get("bitrate")
+        if bitrate != None:
+            value = bitrate.get("value")
+            name = bitrate.get("name")
+        ttk.Label(frame30, text="码率", font=Font1, width=lsize).place(x=orgx, y=offsety)
+        self.audioBitRate = tk.StringVar()
+        self.audioBitRateChosen = ttk.Combobox(frame30, font=Font1, width=combSize,
+                                                  textvariable=self.audioBitRate,
+                                                  state='readonly')
+        self.audioBitRateChosen['values'] = (16000, 24000, 32000, 48000, 64000, 96000)  # 设置下拉列表的值
+        self.audioBitRateChosen.current(value)  # 设置下拉列表默认显示的值，0为 numberChosen['values'] 的下标值
+        self.audioBitRateChosen.place(x=offsetx, y=offsety)
         offsety += step
 
         channels = None
@@ -2224,7 +2263,7 @@ class ConfigDeviceFrame(object):
             self.parent.client.cap_preview()
 
         self.btnVideoView = tk.Button(frame31, text="预览", command=preview)
-        self.btnVideoView.place(x=orgx2, y=offsety)
+        self.btnVideoView.place(x=orgx2, y=(offsety - 10))
         offsety += step
         ret["audios"] = audios
         ret["videos"] = videos
@@ -2248,8 +2287,8 @@ class ConfigFrame(object):
         print("ConfigFrame: self.audioInfolist= ", self.audioInfolist)
         self.iv0_0 = 0
         self.iv0 = tk.IntVar()
-        self.json = JsonFile("config.json")
-        data = self.json.readfile("")
+        self.json = parent.json #JsonFile("config.json")
+        #data = self.json.readfile("")
         #if data != None and data != {}:
         #    for key, value in data.items():
         #        print("(key, value)= ", (key, value))
@@ -2617,6 +2656,8 @@ class Conference(object):
         #self.preview = ExternalSDL()
         #self.preview.start()
         #self.preview = None
+        self.json = JsonFile("config.json")
+        data = self.json.readfile("")
         self.client = None #ClientFrame(self.root)
         self.config_frame = None
         self.top = None
@@ -2751,37 +2792,54 @@ class Conference(object):
     def create_meeting(self):
         meeting_id = self.var_meeting_id.get()
         usr_name = self.var_usr_name.get()
-        print("create_meeting: (meeting_id, usr_name)= ", (meeting_id, usr_name))
-        # self.winid = self.image.winfo_id()
-        #self.winid = self.mainframe1.winfo_id()
-        #if self.preview == None:
-        #    self.preview = ReadFrame(self.winid)
-        #    self.preview.init()
-        #    self.preview.start()
-        #if self.meeting_frame != None:
-        #    self.meeting_frame.update()
-        #    self.meeting_frame.deiconify()
+        usr_pwd = self.var_usr_pwd.get()
+        if meeting_id == '':
+            meeting_id = random.randint(1,90000)
+            self.var_meeting_id.set(meeting_id)
+        if usr_name == '':
+            #usr_name = random.choice('abcdefghijklmnopqrstuvwxyz')
+            usr_name = ''.join(random.sample('zyxwvutsrqponmlkjihgfedcba', 9))
+            self.var_usr_name.set(usr_name)
+        print("create_meeting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
+        (self.meeting_id, self.usr_name, self.usr_pwd) = (meeting_id, usr_name, usr_pwd)
+        self.json.dict.update({"conference":{"sessionId": int(meeting_id), "ownerName":usr_name, "width":self.width, "height":self.height}})
+        #print("create_meeting: self.json.dict= ", self.json.dict)
+        self.root.update()
+
+        if self.client != None:
+            self.client.enter_meeting()
 
     def enter_meeting(self):
         meeting_id = self.var_meeting_id.get()
         usr_name = self.var_usr_name.get()
-        print("enter_meeting: (meeting_id, usr_name)= ", (meeting_id, usr_name))
+        usr_pwd = self.var_usr_pwd.get()
+        if meeting_id == '':
+            meeting_id = random.randint(1,90000)
+        if usr_name == '':
+            #usr_name = random.choice('abcdefghijklmnopqrstuvwxyz')
+            usr_name = random.sample('zyxwvutsrqponmlkjihgfedcba', 9)
+        print("create_meeting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
+        (self.meeting_id, self.usr_name, self.usr_pwd) = (meeting_id, usr_name, usr_pwd)
+        self.json.dict.update({"conference": {"sessionId": int(meeting_id), "ownerName": usr_name}})
+        self.root.update()
+
         if self.client != None:
             self.client.enter_meeting()
-        #self.exit_meeting()
-        #self.openFrame()
 
     def watch_meeting(self):
         meeting_id = self.var_meeting_id.get()
         usr_name = self.var_usr_name.get()
-        print("watch_meeting: (meeting_id, usr_name)= ", (meeting_id, usr_name))
+        usr_pwd = self.var_usr_pwd.get()
+        print("watch_meeting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
+        (self.meeting_id, self.usr_name, self.usr_pwd) = (meeting_id, usr_name, usr_pwd)
 
         return
 
     def exit_meeting(self):
         meeting_id = self.var_meeting_id.get()
         usr_name = self.var_usr_name.get()
-        print("exit_meeting: (meeting_id, usr_name)= ", (meeting_id, usr_name))
+        usr_pwd = self.var_usr_pwd.get()
+        print("exit_meeting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
         if self.client != None:
             self.client.exit_meeting()
         print("Conference: exit_meeting end")
@@ -2791,7 +2849,16 @@ class Conference(object):
     def setting(self):
         meeting_id = self.var_meeting_id.get()
         usr_name = self.var_usr_name.get()
-        #print("setting: (meeting_id, usr_name)= ", (meeting_id, usr_name))
+        usr_pwd = self.var_usr_pwd.get()
+        if meeting_id == '':
+            meeting_id = random.randint(1,90000)
+            self.var_meeting_id.set(meeting_id)
+        if usr_name == '':
+            #usr_name = random.choice('abcdefghijklmnopqrstuvwxyz')
+            usr_name = ''.join(random.sample('zyxwvutsrqponmlkjihgfedcba', 9))
+            self.var_usr_name.set(usr_name)
+        print("setting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
+        (self.meeting_id, self.usr_name, self.usr_pwd) = (meeting_id, usr_name, usr_pwd)
         if self.config_frame != None:
             self.config_frame.setting()
 

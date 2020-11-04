@@ -59,7 +59,7 @@ class AudioCapture(threading.Thread):
         self.out_buffer_size = self.frame_size
         self.max_buf_num = 8
         self.datatype = 2
-        self.process = 0#1
+        self.process = 1
         self.select_device = -1
 
     def get_device_info(self):

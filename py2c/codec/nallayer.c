@@ -990,6 +990,7 @@ int api_raw2rtp_packet(char *handle, char *data, char *param, char *outbuf, char
 	    free(svc_nalu->nal);
 	    free(obj->rtpSize);
 	    deleteJson(obj->json);
+	    obj->json = NULL;
 	    //
 	    //outparam[0] = "api_raw2rtp_packet";
 	}
@@ -1587,6 +1588,7 @@ int api_rtp_packet2raw(char *handle, char *data, char *param, char *outbuf, char
 	    free(svc_nalu->nal);
 	    free(obj->rtpSize);
 	    deleteJson(obj->json);
+	    obj->json = NULL;
 	}
     return ret;
 }
@@ -2658,6 +2660,7 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
         //printf("api_resort_packet: end: ret= %d \n", ret);
         //printf("api_resort_packet: 3 \n");
         deleteJson(obj->json);
+        obj->json = NULL;
         //printf("api_resort_packet: 4 \n");
     }
     return ret;

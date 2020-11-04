@@ -112,18 +112,18 @@ class FrameBuffer(object):
 
 
 class ShowThread(threading.Thread):
-    def __init__(self, way):
+    def __init__(self, winhnd, width, height):
         threading.Thread.__init__(self)
         self.lock = threading.Lock()
         self.show_lock = threading.Lock()
         self.load = loadlib.gload
-        self.winhnd = 0
-        self.sdl = MySDL(self.winhnd, SHOW_WIDTH, SHOW_HEIGHT)
+        self.winhnd = winhnd
+        self.sdl = MySDL(self.winhnd, width, height)
         self.sdl.init()
         self.sdl.start()
         self.DataList = []
         self.FrameList = []
-        self.way = way
+        self.way = 0
         self.show_type = SHOW_TYPE
         self.start_time = 0
         self.show_poll_time = SHOW_POLL_TIME
@@ -131,8 +131,8 @@ class ShowThread(threading.Thread):
         self.poll_times = 0
         self.idMap = []
         self.father = None
-        self.height = SHOW_HEIGHT
-        self.width = SHOW_WIDTH
+        self.height = height
+        self.width = width
         self.max_delay_time = 0
         self.max_delay_packet = -1
         array_type = c_char_p * 4
@@ -1963,8 +1963,7 @@ def RunClient(flag):
 
         (bitrate, mtu_size, fec_level, buffer_shift) = GetParams(SVC_REFS)
         print("RunClient: bitrate= ", bitrate)
-        # thread_show = ShowThread(6)
-        thread_show = ShowThread(2)
+        thread_show = ShowThread(0, SHOW_WIDTH, SHOW_HEIGHT)
         idx = 0
         (id0, sessionId0, actor0) = (0, 100, 2)
         (id1, sessionId1, actor1) = (1, 200, 2)

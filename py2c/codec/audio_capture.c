@@ -1249,6 +1249,11 @@ void api_audio_capture_close(char *handle)
             }
             pthread_mutex_destroy(&obj->mutex);
         }
+        if(obj->json)
+        {
+            api_json_free(obj->json);
+            obj->json = NULL;
+        }
         free(obj);
 	    testp[0] = 0;
         printf("api_audio_capture_close: ok \n");
