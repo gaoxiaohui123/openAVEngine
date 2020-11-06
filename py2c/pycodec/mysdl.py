@@ -227,7 +227,7 @@ class MySDL(threading.Thread):
     def sdl_show_run(self):
         self.load.lib.api_sdl_show_run(self.handle)
         self.load.lib.api_sdl_close(self.handle)
-        priint("sdl_show_run: over")
+        print("sdl_show_run: over")
 
     def run(self):
         print("MySDL: run 0")
@@ -395,12 +395,15 @@ if __name__ == '__main__':
     call.init(width, height)
     call.start()
     #time.sleep(2)
-    # idx = 0
-    # while idx >= 0 and idx < 4:
-    #    try:
-    #        idx = int(raw_input('please input to exit(eg: 0 ): '))
-    #    except:
-    #        idx = int(input('please input to exit(eg: 0 ): '))
-    #    print("idx= ", idx)
-    # call.stop()
+    idx = 0
+    while idx >= 0 and idx < 4:
+        try:
+            idx = int(raw_input('please input to exit(eg: 0 ): '))
+        except:
+            idx = int(input('please input to exit(eg: 0 ): '))
+        print("idx= ", idx)
+    call.stop()
+    for i in range(10):
+        print("test: wait exit: i=", i)
+        time.sleep(1)
     print('End pycall.')

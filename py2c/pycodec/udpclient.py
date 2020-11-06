@@ -350,7 +350,7 @@ class ShowThread(threading.Thread):
 
     def sdl_stop(self):
         self.sdl.sdl_stop()
-
+        self.sdl.stop()
     def run(self):
         show_flag = 0
         if len(self.idMap) == 1:
@@ -475,8 +475,9 @@ class ShowThread(threading.Thread):
                 if flag == False:
                     time.sleep(0.01)
                 # print("ShowThread sleep")
-
+        print("ShowThread: run : start to sdl_stop")
         self.sdl_stop()
+        print("ShowThread: run over")
 
     def run_0(self):
         while self.__running.isSet():
@@ -508,7 +509,9 @@ class ShowThread(threading.Thread):
 
         else:
             time.sleep(0.01)
+        print("ShowThread: run : start to sdl_stop")
         self.sdl_stop()
+        print("ShowThread: run over")
 
 
 class UdpClient(object):
@@ -567,14 +570,20 @@ class RecvCmdThread(threading.Thread):
             self.__flag.wait()  # 为True时立即返回, 为False时阻塞直到内部的标识位为True后返回
             try:
                 ##print("RecvCmdThread: start recvfrom")
-                recvData, (remoteHost, remotePort) = self.client.sock.recvfrom(CMD_SIZE)
+                #recvData, (remoteHost, remotePort) = self.client.sock.recvfrom(CMD_SIZE)
+                rdata = self.client.sock.recvfrom(CMD_SIZE)
+                if rdata[0] != '' and rdata[1] != None:
+                    recvData, (remoteHost, remotePort) = rdata
+                else:
+                    print("rdata= ", rdata)
+                    break
             # except:
             except IOError, error:  # python2
                 # except IOError as error:  # python3
                 print("RecvCmdThread: run: recvfrom error", error)
                 break
             else:
-                ##print("RecvCmdThread: len(recvData)= ", len(recvData))
+                #print("RecvCmdThread: len(recvData)= ", len(recvData))
                 self.client.recv_packet_num += 1
                 #self.ctime[0] = "0123456789012345"
                 itime = self.client.encode0.load.lib.api_get_time2(self.ll_handle, self.ctime)
@@ -643,13 +652,13 @@ class RecvCmdThread(threading.Thread):
     def stop(self):
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
-        try:
-            self.client.sock.shutdown(socket.SHUT_RDWR)
-            self.client.sock.close()
-        except:
-            print("RecvCmdThread: stop error")
-        else:
-            print("RecvCmdThread: stop ok")
+        #try:
+        #    self.client.sock.shutdown(socket.SHUT_RDWR)
+        #    self.client.sock.close()
+        #except:
+        #    print("RecvCmdThread: stop error")
+        #else:
+        #    print("RecvCmdThread: stop ok")
         print("RecvCmdThread: stop")
 
     def pause(self):
@@ -669,7 +678,7 @@ class DecodeFrameThread(threading.Thread):
         self.width = SHOW_WIDTH
         self.height = SHOW_HEIGHT
         #self.ref_idc_list = []
-
+        self.infobuf = create_string_buffer(1024)
         ###
         self.__flag = threading.Event()  # 用于暂停线程的标识
         self.__flag.set()  # 设置为True
@@ -786,8 +795,8 @@ class DecodeFrameThread(threading.Thread):
         rtpSize = pktSize
         enable_fec = 0
         if True:
-            ret2 = self.client.decode0.load.lib.api_get_extern_info(self.client.decode0.obj_id, data4,
-                                                                    self.client.decode0.outparam)
+            self.client.decode0.outparam[0] = c_char_p(self.infobuf.raw)
+            ret2 = self.client.decode0.load.lib.api_get_extern_info(data4, self.client.decode0.outparam)
             if ret2 > 0:
                 outjson = str2json(self.client.decode0.outparam[0])
                 if outjson != None:
@@ -911,7 +920,8 @@ class DecodeFrameThread(threading.Thread):
                 self.DecodeFrame(item)
             else:
                 time.sleep(0.01)
-
+        self.client.decode0.load.lib.api_video_decode_close(self.client.decode0.handle)
+        print("video DecodeFrame: run over")
 
 class RecvTaskManagerThread(threading.Thread):
     def __init__(self, client):
@@ -1042,6 +1052,9 @@ class RecvTaskManagerThread(threading.Thread):
                 self.ResortPacket(revcData, remoteHost, remotePort, recv_time)
             else:
                 time.sleep(0.002)  # 20ms
+        #先退出resort，以免内存被先释放
+        if self.frame_decode != None:
+            self.frame_decode.stop()
         print("RecvTaskManagerThread: exit")
 
     def stop(self):
@@ -1049,8 +1062,7 @@ class RecvTaskManagerThread(threading.Thread):
             self.log_fp.write("max_delay_time= " + str(self.max_delay_time) + "\n")
             self.log_fp.write("max_delay_packet= " + str(self.max_delay_packet) + "\n")
             self.log_fp.flush()
-        if self.frame_decode != None:
-            self.frame_decode.stop()
+
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
         print("RecvTaskManagerThread: stop")
@@ -1125,13 +1137,13 @@ class EchoClientThread(threading.Thread):
 
 
 class PacedSend(threading.Thread):
-    def __init__(self, sock):
+    def __init__(self, client):
         threading.Thread.__init__(self)
         self.lock = threading.Lock()
-        self.sock = sock
-        print("PacedSend: init: ", (self.sock.host, self.sock.port))
-        print("PacedSend: init: self.sock.encode0.bit_rate= ", self.sock.encode0.bit_rate)
-        print("PacedSend: init: self.sock.encode0.mtu_size= ", self.sock.encode0.mtu_size)
+        self.client = client
+        print("PacedSend: init: ", (self.client.host, self.client.port))
+        print("PacedSend: init: self.sock.encode0.bit_rate= ", self.client.encode0.bit_rate)
+        print("PacedSend: init: self.sock.encode0.mtu_size= ", self.client.encode0.mtu_size)
 
         self.DataList = []
         self.packet_interval = 0
@@ -1144,6 +1156,7 @@ class PacedSend(threading.Thread):
     def stop(self):
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
+
 
     def pause(self):
         self.__flag.clear()  # 设置为False, 让线程阻塞
@@ -1186,7 +1199,7 @@ class PacedSend(threading.Thread):
         return (buf, rtpSize)
 
     def run(self):
-        pktnumps = (self.sock.encode0.bit_rate >> 3) / self.sock.encode0.mtu_size
+        pktnumps = (self.client.encode0.bit_rate >> 3) / self.client.encode0.mtu_size
         self.packet_interval = 1000.0 / pktnumps  # ms
         print("PacedSend: run: self.packet_interval= ", self.packet_interval)
         while self.__running.isSet():
@@ -1207,25 +1220,30 @@ class PacedSend(threading.Thread):
                         # is_pass = loadlib.gload.lib.api_check_packet(data2, size, ssrc, lossRate)
                         # if is_pass:
                         #    break
-                    # self.encode0.load.lib.api_renew_time_stamp(self.encode0.obj_id, data2, self.outparam)
-                    sendDataLen = self.sock.sock.sendto(data2, (self.sock.host, self.sock.port))
-                    # print("sendDataLen= ", sendDataLen)
-                    # time.sleep(0.001)
-                    sum += sendDataLen
-                    if sendDataLen != size:
-                        print("warning: PacedSend: run: (size, sendDataLen)= ", (size, sendDataLen))
-                    time.sleep(0.0001)
-                    # time.sleep(0.0001)
-                    end_time = time.time()
-                    difftime = (end_time - start_time) * 1000
-                    # print("PacedSend: run: difftime= ", difftime)
+                    # self.encode0.load.lib.api_renew_time_stamp(data2)
+                    try:
+                        sendDataLen = self.client.sock.sendto(data2, (self.client.host, self.client.port))
+                    except IOError, err:
+                        print("PacedSend: run error: ", err)
+                        break
+                    else:
+                        # print("sendDataLen= ", sendDataLen)
+                        # time.sleep(0.001)
+                        sum += sendDataLen
+                        if sendDataLen != size:
+                            print("warning: PacedSend: run: (size, sendDataLen)= ", (size, sendDataLen))
+                        time.sleep(0.0001)
+                        # time.sleep(0.0001)
+                        end_time = time.time()
+                        difftime = (end_time - start_time) * 1000
+                        # print("PacedSend: run: difftime= ", difftime)
                 self.sum += sum
                 # print("PacedSend: run: self.sock.encode0.bit_rate= ", (self.sock.encode0.bit_rate))
                 pass
             else:
                 # print("PacedSend: run: self.sock.encode0.bit_rate= ", (self.sock.encode0.bit_rate))
                 time.sleep(0.004)  # 4ms
-
+        print("PacedSend: run over")
 
 class EncoderClient(EchoClientThread):
     def __init__(self, id, sessionId, actor, host, port):
@@ -1239,7 +1257,7 @@ class EncoderClient(EchoClientThread):
             filename = "../../mytest/enc_log_" + str(id) + ".txt"
             self.log_fp = open(filename, "w")
         except:
-            print("EncoderClient:open file fail !")
+            print("EncoderClient:open file fail: filename=", filename)
         ###下劃線表示私有變量： '__'
         self.ack = threading.Event()
         self.ack.set()
@@ -1366,7 +1384,7 @@ class EncoderClient(EchoClientThread):
         for csize in rtpSize:
             size = int(csize)
             data2 = data[sum:(sum + size)]
-            self.encode0.load.lib.api_renew_time_stamp(self.encode0.obj_id, data2, self.outparam)
+            self.encode0.load.lib.api_renew_time_stamp(data2)
             sendDataLen = self.sock.sendto(data2, (self.host, self.port))
             # print("sendDataLen= ", sendDataLen)
             # time.sleep(0.001)
@@ -1770,30 +1788,33 @@ class EncoderClient(EchoClientThread):
         if self.paced_send != None:
             self.paced_send.stop()
         self.cmd_master.stop()
-        self.fp.close()
-        self.sock.close()
-        print("EncoderClient: run exit")
+        #if self.log_fp != None:
+        #    self.fp.close()
+        ##self.sock.close()
+        ###需要保证paced_send已经停止
+        self.encode0.load.lib.api_video_encode_close(self.encode0.handle)
+        print("EncoderClient: run over")
 
     def stop(self):
         if self.capture != None:
-            self.capture.Close()
+            #self.capture.Close()
+            self.capture.stop()
         if self.paced_send != None:
             self.paced_send.stop()
         self.cmd_master.stop()
-
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
 
         try:
             self.sock.shutdown(socket.SHUT_RDWR)
             self.sock.close()
-        except:
-            print("EncoderClient: stop error")
+        except IOError, err:
+            print("EncoderClient: stop error: ", err)
         else:
             print("EncoderClient: stop ok")
         if self.log_fp != None:
             self.log_fp.close()
-        print("EncoderClient stop")
+        print("EncoderClient stop over")
 
     def pause(self):
         self.__flag.clear()  # 设置为False, 让线程阻塞
@@ -1864,7 +1885,13 @@ class DecoderClient(EchoClientThread):
                         str_cmd = json.dumps(cmd, encoding='utf-8', ensure_ascii=False, sort_keys=True)
                         sendDataLen = self.sock.sendto(str_cmd, (self.host, self.port))
 
-                recvData, (remoteHost, remotePort) = self.sock.recvfrom(DATA_SIZE)
+                #recvData, (remoteHost, remotePort) = self.sock.recvfrom(DATA_SIZE)
+                rdata = self.sock.recvfrom(DATA_SIZE)
+                if rdata[0] != '' and rdata[1] != None:
+                    recvData, (remoteHost, remotePort) = rdata
+                else:
+                    print("rdata= ", rdata)
+                    break
             except:
                 print("DecoderClient: run: recvfrom error")
                 break
@@ -1898,7 +1925,7 @@ class DecoderClient(EchoClientThread):
             self.log_fp.write("max_delay_time= " + str(self.max_delay_time) + "\n")
             self.log_fp.write("max_delay_packet= " + str(self.max_delay_packet) + "\n")
             self.log_fp.flush()
-        self.recv_task.stop()
+        #self.recv_task.stop()
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
         try:
@@ -2160,9 +2187,11 @@ def RunClient(flag):
             thread8.stop()
         if thread9 != None:
             thread9.stop()
-
+        ###test
+        #time.sleep(2)
         if thread_show != None:
             thread_show.stop()
+            pass
 
 
 if __name__ == "__main__":

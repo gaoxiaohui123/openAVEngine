@@ -12,6 +12,7 @@ try:
 except:
     pass
 
+import time
 import loadlib
 from udpclient import DecoderClient as vidodec
 from udpclient import EncoderClient as videoenc
@@ -499,7 +500,11 @@ def RunClient(flag):
 
         client.StopClientVideo()
         client.StopClientAudio()
-
+        print("RunClient: over")
+        for i in range(10):
+            print("test: wait exit: i=", i)
+            time.sleep(1)
+        return
 if __name__ == "__main__":
     print("start avclient")
     RunClient(True)

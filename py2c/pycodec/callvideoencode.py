@@ -57,7 +57,7 @@ class CallVideoEncode(object):
         (self.param, self.outbuf, self.outparam) = self.setparam()
         self.sizelist = []
         start_time = time.time()
-        ret = self.load.lib.api_initobj()
+        #ret = self.load.lib.api_initobj()
         #param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
         #ret = self.load.lib.api_video_encode_open(self.handle, param_str)
         #print("CallVideoEncode: init: open ret= ", ret)

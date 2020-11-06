@@ -22,8 +22,6 @@ import random
 import numpy as np
 import errno
 
-info_outparam_list = []
-time_outparam_list = []
 CMD_SIZE = 256
 DATA_SIZE = 1500
 SO_SNDBUF = 1024 * 1024
@@ -237,16 +235,17 @@ class RecvTaskManagerThread(threading.Thread):
                 #print('{} client_master.PushQueue time: {:.3f}ms'.format(time.ctime(), difftime * 1000))
             else:
                 time.sleep(0.001) #20ms
-
+        print("RecvTaskManagerThread: run over")
     def stop(self):
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
-        try:
-            self.sock.close()
-        except:
-            print("stop error")
-        else:
-            print("stop ok")
+        #try:
+        #    self.sock.close()
+        #except:
+        #    print("stop error")
+        #else:
+        #    print
+        print("RecvTaskManagerThread: stop")
 
     def pause(self):
         self.__flag.clear()  # 设置为False, 让线程阻塞
@@ -265,7 +264,7 @@ class SendTaskManagerThread(threading.Thread):
 
         array_type = c_char_p * 4
         self.outparam = array_type()
-
+        self.infobuf = create_string_buffer(1024)
         handle_size = 16
         self.ll_handle = create_string_buffer(handle_size)
         # self.ll_handle = (c_char * handle_size)()
@@ -292,10 +291,8 @@ class SendTaskManagerThread(threading.Thread):
         sockId = remoteHost + "_" + str(remotePort)
         (this_data, recv_time) = data
         #print("SendTaskManagerThread: PushQueue: start")
-        id = 12
-        if id not in info_outparam_list:
-            info_outparam_list.append(id)
-        ret = self.server.load.lib.api_get_extern_info(id, this_data, self.outparam)
+        self.outparam[0] = c_char_p(self.infobuf.raw)
+        ret = self.server.load.lib.api_get_extern_info(this_data, self.outparam)
         #print("SendTaskManagerThread: PushQueue: ret= ", ret)
         if ret > 0:
             #print("SendTaskManagerThread: PushQueue: ret= ", ret)
@@ -338,7 +335,7 @@ class SendTaskManagerThread(threading.Thread):
         (remoteHost, remotePort, target_sessionId, data) = task_data
         (this_data, recv_time) = data
 
-        ret = self.server.load.lib.api_get_extern_info(12, this_data, self.outparam)
+        ret = self.server.load.lib.api_get_extern_info(this_data, self.outparam)
         if ret > 0:
             print("send_ack: ret= ", ret)
             outjson = str2json(self.outparam[0])
@@ -439,6 +436,8 @@ class EchoServerThread(threading.Thread):
         array_type = c_char_p * 4
         self.outparam = array_type()
 
+        self.infobuf = create_string_buffer(1024)
+
         self.max_delay_time = 0
         self.max_delay_packet = -1
         self.log_fp = None
@@ -471,6 +470,9 @@ class EchoServerThread(threading.Thread):
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, SO_SNDBUF)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, SO_RCVBUF)
         self.sock.bind((self.host, self.port))  # 绑定同一个域名下的所有机器
+        if False:
+            self.sock.setblocking(False)
+            self.sock.settimeout(10)
         print("EchoServerThread: self.host= ", self.host)
         print("EchoServerThread: self.port= ", self.port)
         self.__flag = threading.Event()  # 用于暂停线程的标识
@@ -504,10 +506,8 @@ class EchoServerThread(threading.Thread):
         #print('{} rand_lost_packet: time: {:.3f}ms'.format(time.ctime(), difftime * 1000))
         return ret
     def save_info(self, data, remoteHost, remotePort):
-        id = 11
-        if id not in info_outparam_list:
-            info_outparam_list.append(id)
-        ret = self.load.lib.api_get_extern_info(id, data, self.outparam)
+        self.outparam[0] = c_char_p(self.infobuf.raw)
+        ret = self.load.lib.api_get_extern_info(data, self.outparam)
         if ret > 0:
             outjson = str2json(self.outparam[0])
             if outjson != None:
@@ -536,11 +536,28 @@ class EchoServerThread(threading.Thread):
     def run(self):
         while self.__running.isSet():
             self.__flag.wait()   # 为True时立即返回, 为False时阻塞直到内部的标识位为True后返回
+            recvData = None
             try:
-                recvData, (remoteHost, remotePort) = self.sock.recvfrom(DATA_SIZE)
+                #recvData, (remoteHost, remotePort) = self.sock.recvfrom(DATA_SIZE)
+                rdata = self.sock.recvfrom(DATA_SIZE)
+                if rdata[0] != '' and rdata[1] != None:
+                    recvData, (remoteHost, remotePort) = rdata
+                else:
+                    print("rdata= ", rdata)
+                    break
             except IOError, error:  # python2
             # except IOError as error:  # python3
-                print("run: recvfrom error= ", error)
+                if "timed out" in error:
+                    #print("EchoServerThread: run: timeout: recvfrom error= ", error)
+                    pass
+                elif error.errno == errno.EWOULDBLOCK:
+                    #print("EchoServerThread: run: EWOULDBLOCK: recvfrom error= ", error)
+                    pass
+                elif error.errno == errno.ENAMETOOLONG:
+                    #print("EchoServerThread: run: ENAMETOOLONG: recvfrom error= ", error)
+                    pass
+                else:
+                    print("EchoServerThread: run: recvfrom error= ", error)
             else:
                 self.recv_packet_num += 1
                 #ret = self.save_info(recvData, remoteHost, remotePort)
@@ -574,15 +591,18 @@ class EchoServerThread(threading.Thread):
             #print("len(revcData)= ", len(revcData))
 
         self.sock.close()
-
+        print("EchoServerThread: run over")
     def stop(self):
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
+        print("EchoServerThread: start stop")
         try:
             self.sock.shutdown(socket.SHUT_RDWR)
             self.sock.close()
-        except:
-            print("stop error")
+            pass
+        except IOError, error:  # python2
+        # except IOError as error:  # python3
+            print("stop error: ", error)
         else:
             print("stop ok")
         self.recv_task.stop()
@@ -593,7 +613,7 @@ class EchoServerThread(threading.Thread):
             self.log_fp.write("EchoServerThread: max_delay_packet= " + str(self.max_delay_packet) + "\n")
             self.log_fp.flush()
             self.log_fp.close()
-
+        print("EchoServerThread: stop over")
     def pause(self):
         self.__flag.clear()  # 设置为False, 让线程阻塞
 
@@ -616,6 +636,7 @@ def RunServer(flag):
         print("main: start stop...")
         thread.stop()
         #thread.join()
+        #time.sleep(5)
 
 if __name__ == "__main__":
     print("start server")

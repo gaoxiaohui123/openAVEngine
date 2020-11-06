@@ -178,7 +178,9 @@ class PlayThread(threading.Thread):
         i = -1
         for i in range(len(self.DataList)):
             (id, data, recvTime) = self.DataList[i]
-            if id == idx:
+            #if id == idx: #(idx & 0xFFFF):
+            if (id & 0xFFFF) == (idx & 0xFFFF):
+                #print("PopQueue2: (id, idx)=", (id, idx))
                 #ret = self.DataList[idx]
                 ret = self.DataList[i]
                 break
@@ -219,130 +221,6 @@ class PlayThread(threading.Thread):
 
     #def sdl_stop(self):
     #    self.sdl.sdl_stop()
-
-    def run_1(self):
-        while self.__running.isSet():
-            self.__flag.wait()  # 为True时立即返回, 为False时阻塞直到内部的标识位为True后返回
-            item = self.PopQueue()
-            if item != None:
-                now_time = time.time()
-                (id, data, recvTime) = item
-                ###
-                # print("PlayThread start show: id= ", id)
-                # print("PlayThread start show: len(data)= ", len(data))
-                if len(data) > 0:
-                    thisFrmBuf = None
-                    for frameBuff in self.FrameList:
-                        if frameBuff.id == id:
-                            thisFrmBuf = frameBuff
-                            break
-                    if thisFrmBuf == None:
-                        thisFrmBuf = FrameBuffer(id)
-                        self.FrameList.append(thisFrmBuf)
-                    if thisFrmBuf.last_timestamp and (recvTime < thisFrmBuf.last_timestamp):
-                        thisFrmBuf.time_offset += long(1 << 32) - 1
-                    if thisFrmBuf.base_timestamp == 0:
-                        thisFrmBuf.base_timestamp = recvTime
-                        thisFrmBuf.init_timestamp = recvTime
-                    else:
-                        pass
-                    if thisFrmBuf.base_start_time == 0:
-                        thisFrmBuf.base_start_time = now_time
-                        thisFrmBuf.init_start_time = now_time
-                        self.play_right_now3(data, id)
-                    else:
-                        difftime = (recvTime + thisFrmBuf.time_offset - thisFrmBuf.base_timestamp) / 90  # (ms)
-                        pre_play_time = thisFrmBuf.base_start_time * 1000 + difftime
-                        delay = (now_time - thisFrmBuf.base_start_time) * 1000 - difftime  # (ms)
-                        if id in [1]:
-                            # print("PlayThread start show: id= ", id)
-                            # print("PlayThread start show: int(delay)= ", int(delay))
-                            pass
-                        # 理想状态delay == 0
-                        # 延迟到达delay > 0
-                        # 早到delay < 0
-                        if delay >= 0:
-                            if len(thisFrmBuf.framelist) == 0:
-                                if ((delay) > 100) and False:
-                                    thisFrmBuf.base_timestamp = recvTime
-                                    thisFrmBuf.base_start_time = now_time
-                                # show right now ???
-                                self.play_right_now3(data, id)
-                                pass
-                            else:
-                                thisFrmBuf.framelist.append((data, recvTime, now_time))
-                        else:
-                            if len(thisFrmBuf.framelist) > 0:
-                                first_frame = thisFrmBuf.framelist[0]
-                                recvTime0 = first_frame[1]
-                                difftime = (recvTime0 + thisFrmBuf.time_offset - thisFrmBuf.base_timestamp) / 90  # (ms)
-                                pre_play_time0 = thisFrmBuf.base_start_time * 1000 + difftime  # (ms)
-                                delay0 = now_time * 1000 - pre_play_time0
-                                if delay0 >= 0:
-                                    self.play_right_now3(first_frame[0], id)
-                                    del thisFrmBuf.framelist[0]
-                                thisFrmBuf.framelist.append((data, recvTime, now_time))
-                            else:
-                                if ((-delay) > 100) and True:
-                                    thisFrmBuf.base_timestamp = recvTime
-                                    thisFrmBuf.base_start_time = now_time
-                                    thisFrmBuf.search_count += 1
-                                    if id in [1]:
-                                        # print("PlayThread start show: thisFrmBuf.search_count= ", thisFrmBuf.search_count)
-                                        pass
-                                    self.play_right_now3(data, id)
-                                else:
-                                    thisFrmBuf.framelist.append((data, recvTime, now_time))
-                        n = len(thisFrmBuf.framelist)
-                        if n > 10:
-                            (data0, recvTime0, now_time0) = thisFrmBuf.framelist[0]
-                            (data1, recvTime1, now_time1) = thisFrmBuf.framelist[n - 1]
-                            difftime0 = recvTime1 - recvTime0
-                            difftime1 = now_time1 - now_time0
-                            if difftime0 > 100 or difftime1 > 100:
-                                print("PlayThread: run: (id, n, difftime0, difftime1)= ",
-                                      (id, n, difftime0, difftime1))
-                    thisFrmBuf.last_timestamp = recvTime
-                # print("PlayThread show")
-            else:
-                flag = False
-                # 循环检测，不另外使用定时器
-                for thisFrmBuf in self.FrameList:
-                    n = len(thisFrmBuf.framelist)
-                    if n > 0:
-                        first_frame = thisFrmBuf.framelist[0]
-                        last_frame = thisFrmBuf.framelist[n - 1]
-                        recvTime0 = first_frame[1]
-                        recvTime1 = last_frame[1]
-                        saveTime0 = first_frame[2]
-                        saveTime1 = last_frame[2]
-                        difftime = (recvTime0 + thisFrmBuf.time_offset - thisFrmBuf.base_timestamp) / 90  # (ms)
-                        pre_play_time0 = thisFrmBuf.base_start_time * 1000 + difftime  # (ms)
-                        difftime = (recvTime1 + thisFrmBuf.time_offset - thisFrmBuf.base_timestamp) / 90  # (ms)
-                        pre_play_time1 = thisFrmBuf.base_start_time * 1000 + difftime  # (ms)
-                        now_time_ms = time.time() * 1000
-                        # pre_play_time1 = pre_play_time1 if pre_play_time1 > now_time_ms else now_time_ms
-                        strideTime = (pre_play_time1 - pre_play_time0)  # 分配播放跨度
-                        interval = strideTime / n
-                        delay0 = (pre_play_time0 - interval) - now_time_ms
-                        if id in [0, 1, 2, 3]:
-                            test_item = []
-                            test_item.append((int(strideTime), int(interval), n))
-                            # print("PlayThread start show: test_item= ", test_item)
-                        if delay0 <= 0:  # 过点了
-                            self.play_right_now3(first_frame[0], thisFrmBuf.id)
-                            del thisFrmBuf.framelist[0]
-                            flag = True
-                        else:
-                            if id in [1]:
-                                # print("PlayThread start show: delay0= ", delay0)
-                                pass
-
-                if flag == False:
-                    time.sleep(0.01)
-                # print("PlayThread sleep")
-
-        #self.sdl_stop()
     def run(self):
         self.interval = float(1000.0 / (self.sdl.out_sample_rate / self.sdl.out_nb_samples))
         print("PlayThread: run: self.interval= ", self.interval)
@@ -350,7 +228,6 @@ class PlayThread(threading.Thread):
         #多路同步播放
         while self.__running.isSet():
             self.__flag.wait()  # 为True时立即返回, 为False时阻塞直到内部的标识位为True后返回
-
             itime = self.load.lib.api_get_time2(self.ll_handle, self.ctime)
             now_time = char2long(self.ctime[0])
             (data_size, mix_num) = (0, len(self.idMap))
@@ -387,7 +264,9 @@ class PlayThread(threading.Thread):
 
                 #wait_time = float((self.interval / 2) / 1000.0) #test
                 time.sleep(wait_time)
-
+        print("ShowThread: run: player_stop")
+        self.sdl.player_stop()
+        print("ShowThread: run over")
 
     def run_0(self):
         #多路同步播放
@@ -475,7 +354,13 @@ class RecvCmdThread(threading.Thread):
             self.__flag.wait()  # 为True时立即返回, 为False时阻塞直到内部的标识位为True后返回
             try:
                 ##print("RecvCmdThread: start recvfrom")
-                recvData, (remoteHost, remotePort) = self.client.sock.recvfrom(CMD_SIZE)
+                #recvData, (remoteHost, remotePort) = self.client.sock.recvfrom(CMD_SIZE)
+                rdata = self.client.sock.recvfrom(CMD_SIZE)
+                if rdata[0] != '' and rdata[1] != None:
+                    recvData, (remoteHost, remotePort) = rdata
+                else:
+                    print("rdata= ", rdata)
+                    break
             # except:
             except IOError, error:  # python2
                 # except IOError as error:  # python3
@@ -653,7 +538,8 @@ class DecodeFrameThread(threading.Thread):
                 self.DecodeFrame(item)
             else:
                 time.sleep(0.01)
-
+        self.client.decode0.codecclose()
+        print("audio DecodeFrame: run over")
 
 class RecvTaskManagerThread(threading.Thread):
     def __init__(self, client):
@@ -691,7 +577,6 @@ class RecvTaskManagerThread(threading.Thread):
         sockId = remoteHost + "_" + str(remotePort)
         if len(revcData) == 0:
             print("error: ResortPacket: insize = 0")
-
         # 重排序，並取幀
         (ret, outbuf, outparam, frame_timestamp) = self.client.decode0.resort(revcData, len(revcData))
         #print("ResortPacket: ret", ret)
@@ -715,7 +600,6 @@ class RecvTaskManagerThread(threading.Thread):
                 if difftime > 500 and False:
                     id = self.client.decode0.obj_id
                     print("RecvTaskManagerThread: (id, difftime)= ", (id, difftime))
-
         else:
             # print("ResortPacket: ret= ", ret)
             pass
@@ -738,18 +622,18 @@ class RecvTaskManagerThread(threading.Thread):
             else:
                 time.sleep(0.002)  # 20ms
                 #print("TaskManagerThread: id= ", id)
-        print("RecvTaskManagerThread: exit")
+        if self.frame_decode != None:
+            self.frame_decode.stop()
+        print("audio RecvTaskManagerThread: over")
 
     def stop(self):
         if self.log_fp != None:
             self.log_fp.write("max_delay_time= " + str(self.max_delay_time) + "\n")
             self.log_fp.write("max_delay_packet= " + str(self.max_delay_packet) + "\n")
             self.log_fp.flush()
-        if self.frame_decode != None:
-            self.frame_decode.stop()
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
-        print("RecvTaskManagerThread: stop")
+        print("audio RecvTaskManagerThread: stop")
 
     def pause(self):
         self.__flag.clear()  # 设置为False, 让线程阻塞
@@ -822,13 +706,13 @@ class EchoClientThread(threading.Thread):
 
 
 class PacedSend(threading.Thread):
-    def __init__(self, sock):
+    def __init__(self, client):
         threading.Thread.__init__(self)
         self.lock = threading.Lock()
-        self.sock = sock
-        print("PacedSend: init: ", (self.sock.host, self.sock.port))
-        print("PacedSend: init: self.sock.encode0.bit_rate= ", self.sock.encode0.bit_rate)
-        print("PacedSend: init: self.sock.encode0.mtu_size= ", self.sock.encode0.mtu_size)
+        self.client = client
+        print("PacedSend: init: ", (self.client.host, self.client.port))
+        print("PacedSend: init: self.client.encode0.bit_rate= ", self.client.encode0.bit_rate)
+        print("PacedSend: init: self.client.encode0.mtu_size= ", self.client.encode0.mtu_size)
 
         self.DataList = []
         self.packet_interval = 0
@@ -839,8 +723,11 @@ class PacedSend(threading.Thread):
         self.__running.set()  # 将running设置为True
 
     def stop(self):
+        print("audio PacedSend: stop 0")
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
+        print("audio PacedSend: stop 1")
         self.__running.clear()  # 设置为Fals
+        print("audio PacedSend: stop 2")
 
     def pause(self):
         self.__flag.clear()  # 设置为False, 让线程阻塞
@@ -884,7 +771,7 @@ class PacedSend(threading.Thread):
         return (buf, rtpSize)
 
     def run(self):
-        pktnumps = (self.sock.encode0.bit_rate >> 3) / 100 #self.sock.encode0.mtu_size
+        pktnumps = (self.client.encode0.bit_rate >> 3) / 100 #self.client.encode0.mtu_size
         print("PacedSend: run: pktnumps= ", pktnumps)
         self.packet_interval = 1000.0 / pktnumps  # ms
         print("PacedSend: run: self.packet_interval= ", self.packet_interval)
@@ -894,9 +781,7 @@ class PacedSend(threading.Thread):
             if item != None:
                 sum = 0
                 (data, rtpSize, now_time) = item
-
                 # (data, rtpSize) = self.test_reverse(data, rtpSize)
-
                 for csize in rtpSize:
                     start_time = time.time()
                     size = int(csize)
@@ -906,31 +791,37 @@ class PacedSend(threading.Thread):
                         # is_pass = loadlib.gload.lib.api_check_packet(data2, size, ssrc, lossRate)
                         # if is_pass:
                         #    break
-                    # self.encode0.load.lib.api_renew_time_stamp(self.encode0.obj_id, data2, self.outparam)
+                    # self.encode0.load.lib.api_renew_time_stamp(data2)
                     #print("PacedSend: run: size= ", size)
-                    #print("PacedSend: run: self.sock.host= ", self.sock.host)
-                    #print("PacedSend: run: self.sock.port= ", self.sock.port)
-                    sendDataLen = self.sock.sock.sendto(data2, (self.sock.host, self.sock.port))
-                    ###redundancy
-                    sendDataLen = self.sock.sock.sendto(data2, (self.sock.host, self.sock.port))
-                    sendDataLen = self.sock.sock.sendto(data2, (self.sock.host, self.sock.port))
-                    # print("sendDataLen= ", sendDataLen)
-                    # time.sleep(0.001)
-                    sum += sendDataLen
-                    if sendDataLen != size:
-                        print("warning: PacedSend: run: (size, sendDataLen)= ", (size, sendDataLen))
-                    time.sleep(0.0001)
-                    # time.sleep(0.0001)
-                    end_time = time.time()
-                    difftime = (end_time - start_time) * 1000
-                    # print("PacedSend: run: difftime= ", difftime)
+                    #print("PacedSend: run: self.client.host= ", self.client.host)
+                    #print("PacedSend: run: self.client.port= ", self.client.port)
+                    try:
+                        sendDataLen = self.client.sock.sendto(data2, (self.client.host, self.client.port))
+                    except IOError, err:
+                        print("PacedSend: run error: ", err)
+                        break
+                    else:
+                        ###redundancy
+                        if False:
+                            sendDataLen = self.client.sock.sendto(data2, (self.client.host, self.client.port))
+                            sendDataLen = self.client.sock.sendto(data2, (self.client.host, self.client.port))
+                        # print("sendDataLen= ", sendDataLen)
+                        # time.sleep(0.001)
+                        sum += sendDataLen
+                        if sendDataLen != size:
+                            print("warning: PacedSend: run: (size, sendDataLen)= ", (size, sendDataLen))
+                        time.sleep(0.0001)
+                        # time.sleep(0.0001)
+                        end_time = time.time()
+                        difftime = (end_time - start_time) * 1000
+                        # print("PacedSend: run: difftime= ", difftime)
                 self.sum += sum
-                # print("PacedSend: run: self.sock.encode0.bit_rate= ", (self.sock.encode0.bit_rate))
+                # print("PacedSend: run: self.client.encode0.bit_rate= ", (self.client.encode0.bit_rate))
                 pass
             else:
-                # print("PacedSend: run: self.sock.encode0.bit_rate= ", (self.sock.encode0.bit_rate))
+                # print("PacedSend: run: self.client.encode0.bit_rate= ", (self.client.encode0.bit_rate))
                 time.sleep(0.004)  # 4ms
-
+        print("audio PacedSend: run over")
 
 class EncoderClient(EchoClientThread):
     def __init__(self, id, sessionId, actor, host, port):
@@ -1034,7 +925,7 @@ class EncoderClient(EchoClientThread):
         for csize in rtpSize:
             size = int(csize)
             data2 = data[sum:(sum + size)]
-            self.encode0.load.lib.api_renew_time_stamp(self.encode0.obj_id, data2, self.outparam)
+            self.encode0.load.lib.api_renew_time_stamp(data2)
             sendDataLen = self.sock.sendto(data2, (self.host, self.port))
             # print("sendDataLen= ", sendDataLen)
             # time.sleep(0.001)
@@ -1079,20 +970,28 @@ class EncoderClient(EchoClientThread):
                         self.send_data(outbuf, rtpSize)
                     sample_cnt = 0
             ###
+        print("audio EncoderClient: run exit")
         if self.paced_send != None:
             self.paced_send.stop()
-        self.cmd_master.stop()
-        self.fp.close()
-        self.sock.close()
-        print("EncoderClient: run exit")
+
+        if self.cmd_master != None:
+            self.cmd_master.stop()
+        self.encode0.codecclose()
+        #self.fp.close()
+        #self.sock.close()
+        print("audio EncoderClient: run over")
 
     def stop(self):
+        print("audio EncoderClient: stop paced_send 0")
         if self.capture != None:
-            self.capture.Close()
+            self.capture.stop()
         if self.paced_send != None:
             self.paced_send.stop()
+            self.paced_send = None
+        print("audio EncoderClient: stop paced_send 1")
         self.cmd_master.stop()
-
+        self.cmd_master = None
+        print("audio EncoderClient: stop cmd_master")
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
 
@@ -1105,7 +1004,7 @@ class EncoderClient(EchoClientThread):
             print("EncoderClient: stop ok")
         if self.log_fp != None:
             self.log_fp.close()
-        print("EncoderClient stop")
+        print("audio EncoderClient stop")
 
     def pause(self):
         self.__flag.clear()  # 设置为False, 让线程阻塞
@@ -1174,9 +1073,15 @@ class DecoderClient(EchoClientThread):
                         str_cmd = json.dumps(cmd, encoding='utf-8', ensure_ascii=False, sort_keys=True)
                         sendDataLen = self.sock.sendto(str_cmd, (self.host, self.port))
 
-                recvData, (remoteHost, remotePort) = self.sock.recvfrom(DATA_SIZE)
+                #recvData, (remoteHost, remotePort) = self.sock.recvfrom(DATA_SIZE)
+                rdata = self.sock.recvfrom(DATA_SIZE)
+                if rdata[0] != '' and rdata[1] != None:
+                    recvData, (remoteHost, remotePort) = rdata
+                else:
+                    print("rdata= ", rdata)
+                    break
             except:
-                print("DecoderClient: run: recvfrom error")
+                print("audio DecoderClient: run: recvfrom error")
                 break
             else:
                 #print("DecoderClient: run: len(recvData)= ", len(recvData))
@@ -1201,24 +1106,24 @@ class DecoderClient(EchoClientThread):
         self.recv_task.stop()
         # self.sock.shutdown(socket.SHUT_RDWR)
         self.sock.close()
-        print("DecoderClient: run exit")
+        print("audio DecoderClient: run over")
 
     def stop(self):
         if self.log_fp != None:
             self.log_fp.write("max_delay_time= " + str(self.max_delay_time) + "\n")
             self.log_fp.write("max_delay_packet= " + str(self.max_delay_packet) + "\n")
             self.log_fp.flush()
-        self.recv_task.stop()
+        #self.recv_task.stop()
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
         try:
             self.sock.shutdown(socket.SHUT_RDWR)
             self.sock.close()
         except:
-            print("DecoderClient: stop error")
+            print("audio DecoderClient: stop error")
         else:
-            print("DecoderClient: stop ok")
-        # print("DecoderClient stop")
+            print("audio DecoderClient: stop ok")
+        print("audo DecoderClient stop over")
 
 def RunClient(flag):
     if flag:

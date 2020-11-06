@@ -176,11 +176,6 @@ typedef struct {
     NALU_t *nal;//[MAX_RTP_NUM];
 }SVCNalu;
 
-static int global_rtp_obj_status = 0;
-//static RtpObj global_rtp_objs[MAX_OBJ_NUM];
-static char global_info_outparam[MAX_OBJ_NUM][MAX_OUTCHAR_SIZE];
-static char global_time_outparam[MAX_OBJ_NUM][MAX_OUTCHAR_SIZE];
-
 //extern cJSON* mystr2json(char *text);
 //extern int GetvalueInt(cJSON *json, char *key);
 //extern char* GetvalueStr(cJSON *json, char *key);
@@ -658,16 +653,7 @@ long long api_get_time_stamp_ll(void)
     //printf("get_time_stamp: time_stamp= %lld \n", time_stamp);
     return time_stamp;
 }
-//HCSVC_API
-//int api_get_time_stamp(int id, char *outparam[])
-//{
-//    int64_t time_stamp = get_sys_time();
-//    char *text = global_time_outparam[id];
-//    memset(global_time_outparam[id], 0, sizeof(char) * MAX_OUTCHAR_SIZE);
-//    sprintf(text, "%ld", time_stamp);
-//    outparam[0] = text;
-//    return (int)time_stamp;
-//}
+
 HCSVC_API
 int api_get_time(char *outparam[])
 {
@@ -699,12 +685,8 @@ int api_get_time2(char *handle, char *outparam[])
     return (int)time_stamp;
 }
 HCSVC_API
-//int api_renew_time_stamp(int id, char *data, char *outparam[])
 int api_renew_time_stamp(char *data)
 {
-
-    //char *text = global_time_outparam[id];
-    //memset(global_time_outparam[id], 0, sizeof(char) * MAX_OUTCHAR_SIZE);
     int64_t time_stamp = get_sys_time();
     //sprintf(text, "%ld", time_stamp);
     //outparam[0] = text;
@@ -725,74 +707,38 @@ int api_renew_time_stamp(char *data)
     }
     return (int)time_stamp;
 }
-#if 0
+
 HCSVC_API
-int api_get_time_stamp2(int id, char *data, char *outparam[])
-{
-
-    char *text = global_time_outparam[id];
-    memset(global_time_outparam[id], 0, sizeof(char) * MAX_OUTCHAR_SIZE);
-    int64_t time_stamp = get_sys_time();
-    sprintf(text, "%ld", time_stamp);
-    outparam[0] = text;
-    if(data != NULL)
-    {
-        RTP_FIXED_HEADER  *rtp_hdr = NULL;
-        EXTEND_HEADER *rtp_ext = NULL;
-        rtp_hdr = (RTP_FIXED_HEADER *)data;
-        if(rtp_hdr->extension)
-        {
-            rtp_ext = (EXTEND_HEADER *)&data[sizeof(RTP_FIXED_HEADER)];
-            int time_status = rtp_ext->nack.time_status;
-		    if(time_status == 0)
-		    {
-		        int64_t packet_time_stamp = rtp_ext->nack.time_info.time_stamp;
-		        //text = global_outparam[id + 1];
-		        //memset(global_outparam[id + 1], 0, sizeof(char) * MAX_OUTCHAR_SIZE);
-
-		        text = global_time_outparam[id];
-		        memset(global_time_outparam[id], 0, sizeof(char) * MAX_OUTCHAR_SIZE);
-
-		        sprintf(text, "%ld", packet_time_stamp);
-                outparam[1] = text;
-		    }
-        }
-    }
-    return (int)time_stamp;
-}
-#endif
-HCSVC_API
-int api_get_extern_info(int id, char *data, char *outparam[])
+int api_get_extern_info(char *data, char *outparam[])
 {
     int ret = 0;
     char *extend_info = get_extern_info(data);
     if(NULL != extend_info)
     {
-        char *text = global_info_outparam[id];
-        memset(global_info_outparam[id], 0, sizeof(char) * MAX_OUTCHAR_SIZE);
-        outparam[0] = text;
-        memcpy(text, extend_info, strlen(extend_info));
+        memcpy(outparam[0], extend_info, strlen(extend_info));
         ret = strlen(extend_info);
         free(extend_info);
     }
     return ret;
 }
 HCSVC_API
-int api_get_audio_extern_info(int id, char *data, char *outparam[])
+int api_get_audio_extern_info(char *data, char *outparam[])
 {
     int ret = 0;
     char *extend_info = get_audio_extern_info(data);
     if(NULL != extend_info)
     {
-        char *text = global_info_outparam[id];
-        memset(global_info_outparam[id], 0, sizeof(char) * MAX_OUTCHAR_SIZE);
-        outparam[0] = text;
-        memcpy(text, extend_info, strlen(extend_info));
+        memcpy(outparam[0], extend_info, strlen(extend_info));
         ret = strlen(extend_info);
         free(extend_info);
     }
     return ret;
 }
+//HCSVC_API
+//void api_get_info_test(char *outparam[])
+//{
+//    strcpy(outparam[0], "api_get_info_test");
+//}
 typedef struct {
     int spatial_idx;        //空域第几层
     int spatial_num;        //空域总共层数

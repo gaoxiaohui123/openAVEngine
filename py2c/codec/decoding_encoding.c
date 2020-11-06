@@ -43,14 +43,7 @@ extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
 extern char* GetvalueStr(cJSON *json, char *key);
 
-
-static int global_obj_status = 0;
-
-static CodecObj global_codec_objs[MAX_OBJ_NUM];
-
 FILE * global_logfp = NULL;
-
-
 
 /* check that a given sample format is supported by the encoder */
 static int check_sample_fmt(AVCodec *codec, enum AVSampleFormat sample_fmt)
@@ -357,7 +350,7 @@ int api_create_audio_codec_handle(char *handle)
     if(handle)
     {
         AudioCodecObj *obj = (AudioCodecObj *)calloc(1, sizeof(AudioCodecObj));
-        //CodecObj *obj = (CodecObj *)&global_codec_objs[id];
+
         ret = (long long)obj;
         //handle = (void *)obj;
         int handle_size = sizeof(long long);
@@ -388,9 +381,15 @@ int api_audio_codec_close(char *handle)
         {
             swr_free(&obj->audio_convert_ctx);
         }
-        av_frame_free(&obj->frame);
-        avcodec_close(obj->c);
-        av_free(obj->c);
+        if(obj->frame)
+        {
+            av_frame_free(&obj->frame);
+        }
+        if(obj->c)
+        {
+            avcodec_close(obj->c);
+            av_free(obj->c);
+        }
         if(obj->json)
         {
             api_json_free(obj->json);
@@ -846,7 +845,7 @@ int api_create_codec_handle(char *handle)
     if(handle)
     {
         CodecObj *obj = (CodecObj *)calloc(1, sizeof(CodecObj));
-        //CodecObj *obj = (CodecObj *)&global_codec_objs[id];
+
         ret = (long long)obj;
         //handle = (void *)obj;
         int handle_size = sizeof(long long);
@@ -926,30 +925,7 @@ void ResetObj(CodecObj *obj)
     obj->f = NULL;
     obj->f2 = NULL;
 }
-int initobj(int id)
-{
-    if (global_obj_status <= 0)
-    {
 
-        if(!global_logfp)
-        {
-            //global_logfp = fopen("./log_hcsvc_gxh.txt", "w");
-        }
-        avcodec_register_all();
-        av_log_set_level(AV_LOG_QUIET);//#include "libavutil/log.h"
-
-        for (int i = 0; i < MAX_OBJ_NUM; i++)
-        {
-            ResetObj(&global_codec_objs[i]);
-            //global_codec_objs[i].frame = av_frame_alloc();
-        }
-        global_obj_status += 1;
-    }
-    else
-    {
-    }
-    return global_obj_status;
-}
 int resetparam(void *hnd)
 {
     CodecObj *obj = (CodecObj *)hnd;
@@ -1478,7 +1454,7 @@ int encode_open2(char *handle, char *param)
         av_log_set_level(AV_LOG_QUIET);
 #if 0
         CodecObj *obj = (CodecObj *)calloc(1, sizeof(CodecObj));
-        //CodecObj *obj = (CodecObj *)&global_codec_objs[id];
+
         ret = (long long)obj;
         //handle = (void *)obj;
         int handle_size = sizeof(long long);
@@ -1590,11 +1566,18 @@ void encode_close(void *hnd)
     AVCodecContext *c = obj->c;
     AVFrame *frame = obj->frame;
     FILE *f = obj->f;
-    avcodec_close(c);
-    av_free(c);
-    //av_freep(&frame->data[0]);
-    av_frame_free(&frame);
-    //av_free(frame);
+    if(c)
+    {
+        avcodec_close(c);
+        av_free(c);
+    }
+    if(frame)
+    {
+        //av_freep(&frame->data[0]);
+        av_frame_free(&frame);
+        //av_free(frame);
+    }
+
     if(obj->json)
     {
         api_json_free(obj->json);
@@ -1720,13 +1703,11 @@ int api_video_encode_one_frame(char *handle, char *data, char *param, char *outb
     cJSON *json;
     //printf("param %s \n", param);
 
-    //initobj(id);
-
     //if (id < MAX_OBJ_NUM)
     {
         long long *testp = (long long *)handle;
         CodecObj *obj = (CodecObj *)testp[0];
-        //CodecObj *obj = (CodecObj *)&global_codec_objs[id];
+
 
         //encode_open2(id, param);
 
@@ -1953,7 +1934,7 @@ int api_video_encode_close(char *handle)
     {
         long long *testp = (long long *)handle;
         CodecObj *obj = (CodecObj *)testp[0];
-        //CodecObj *obj = (CodecObj *)&global_codec_objs[id];
+
         if(obj == NULL)//(obj->Obj_id != id)
         {
             return -1;
@@ -1972,6 +1953,7 @@ int api_video_encode_close(char *handle)
         ResetObj(obj);
         ret = (long long)api_free_codec_handle(handle);
     }
+    printf("api_video_encode_close: over");
     return (int)ret;
 }
 //======================================================================================
@@ -2528,16 +2510,16 @@ void decode_close(void *hnd)
     printf("decode_close: start close \n");
     avcodec_close(c);
     av_free(c);
-    printf("decode_close: 1 \n");
+    printf("video decode_close: 1 \n");
     ///av_freep(&frame->data[0]);
     av_frame_free(&frame);
     //av_free(frame);
-    printf("decode_close: 2 \n");
+    printf("video decode_close: 2 \n");
     if(obj->inbuf != NULL)
     {
         av_free(obj->inbuf);
     }
-    printf("decode_close: obj->inbuf \n");
+    printf("video decode_close: obj->inbuf \n");
     //parser close !!!
     //av_free_packet(&pkt);
     if(obj->json)
@@ -2561,6 +2543,7 @@ void decode_close(void *hnd)
         obj->logfp = NULL;
     }
     //cJSON_Delete(obj->param);
+    printf("video decode_close: over \n");
 }
 int decode_open2(char *handle, char *param)
 {
@@ -2593,7 +2576,7 @@ int decode_open2(char *handle, char *param)
         ret = id;
         ResetObj(obj);
 #endif
-        //(CodecObj *)&global_codec_objs[id];
+
         //if (obj->Obj_id < 0)
         {
             obj->json = mystr2json(param);
@@ -2661,14 +2644,11 @@ int api_video_decode_one_frame(char *handle, char *data, char *param, char *outb
     //char* ret = NULL;
     const char *tag = "string come from c code: api_video_decode_one_frame";
     cJSON *json;
-    //printf("global_obj_status %d \n", global_obj_status);
-
-    //initobj(id);
 
     //if (id < MAX_OBJ_NUM)
     {
         long long *testp = (long long *)handle;
-        CodecObj *obj = (CodecObj *)testp[0];//handle;//&global_codec_objs[id];
+        CodecObj *obj = (CodecObj *)testp[0];
 
         //decode_open2(id, param);
         //printf("api_video_decode_one_frame: obj= %x \n", obj);
@@ -2742,7 +2722,7 @@ int api_video_decode_close(char *handle)
     {
         long long *testp = (long long *)handle;
         CodecObj *obj = (CodecObj *)testp[0];
-        //CodecObj *obj = (CodecObj *)&global_codec_objs[id];
+
         if(obj == NULL)//(obj->Obj_id != id)
         {
             return -1;
@@ -2775,11 +2755,6 @@ int api_video_decode_close(char *handle)
         ret = (long long)api_free_codec_handle(handle);
     }
     return (int)ret;
-}
-HCSVC_API
-int api_initobj(int id)
-{
-    return initobj(id);
 }
 //===============================================
 

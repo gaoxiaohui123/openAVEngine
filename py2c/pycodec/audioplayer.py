@@ -123,6 +123,7 @@ class AudioPlayer(threading.Thread):
         self.frame_size = self.factor * self.out_nb_samples
         self.out_buffer_size = self.frame_size
         self.mix_num = 2#4
+        self.sdl_status = 1
 
         self.pcmfile = "/home/gxh/works/play_" + str(id) + ".pcm"
 
@@ -143,6 +144,7 @@ class AudioPlayer(threading.Thread):
         self.param.update({"out_buffer_size": self.out_buffer_size})
         self.param.update({"frame_size": self.frame_size})
         self.param.update({"pcmfile": self.pcmfile})
+        self.param.update({"sdl_status": self.sdl_status})
         self.param.update({"print": 0})
         param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
         ret = self.load.lib.api_player_init(self.handle, param_str)
@@ -277,7 +279,7 @@ if __name__ == '__main__':
         call1.init()
         call1.start()
     #time.sleep(2)
-    if True:
+    if False:
         from mysdl import *
 
         call = ReadFrame(0)

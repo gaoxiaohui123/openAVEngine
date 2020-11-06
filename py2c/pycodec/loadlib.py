@@ -380,6 +380,26 @@ def TestGetTime():
     print("TestGetTime: time1= ", time1)
     difftime = int(time1 - time0)
     print("TestGetTime: difftime= ", difftime)
+def TestGetTime2():
+    #"1234567890123456"指向某一固定地址，多线程会出现访问竞争
+    array_type = c_char_p * 1
+    outparam = array_type()
+    tmpbuf =  (c_ubyte * 16)()
+    tmpbuf = bytearray(16)
+    tmpbuf = "1234567890123456"
+    databuf = create_string_buffer(16)
+    tmpbuf = databuf.raw
+    outparam[0] = c_char_p(tmpbuf)
+    ret = gload.lib.api_get_time(outparam)
+    print("TestGetTime: ret= ", ret)
+    time0 = long(outparam[0])
+    print("TestGetTime: time0= ", time0)
+    time.sleep(1)
+    gload.lib.api_get_time(outparam)
+    time1 = long(outparam[0])
+    print("TestGetTime: time1= ", time1)
+    difftime = int(time1 - time0)
+    print("TestGetTime: difftime= ", difftime)
 def TestPcm2Wav():
     srcfile = "/home/gxh/works/aac_decode_0.pcm"
     dstfile = "/home/gxh/works/aac_decode_0.wav"
@@ -493,13 +513,14 @@ def TestCmd():
                     value = value.replace(" ", "")
                     infolist.append("hw:" + key + "," + value)
             print("infolist=", infolist)
+
 if __name__ == '__main__':
     print('Start pycall.')
     #TestApi()
     #TestDevice()
-    #TestGetTime()
+    TestGetTime2()
     #TestAudio()
-    TestPcm2Wav()
+    ##TestPcm2Wav()
     #TestCmd()
     print('End pycall.')
 

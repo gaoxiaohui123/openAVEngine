@@ -49,6 +49,7 @@ typedef struct
     char *tmpbuf;
     char playbuf[8192 * MAX_MIX_NUM];
     int mix_num;
+    int sdl_status;
     int print;
     FILE *fp_pcm;
 
@@ -160,8 +161,16 @@ void api_player_close(char *handle)
     {
         long long *testp = (long long *)handle;
         AudioPlayerObj *obj = (AudioPlayerObj *)testp[0];
-        SDL_CloseAudio();//Close SDL
-        SDL_Quit();
+        printf("api_player_close \n");
+
+        if(!obj->sdl_status)
+        {
+            SDL_CloseAudio();//Close SDL//注意：如果视频退出，则不要重复退出，否则，线程无法退出
+            printf("api_player_close: SDL_CloseAudio ok \n");
+            SDL_Quit();//注意：如果视频退出，则不要重复退出
+            printf("api_player_close: SDL_Quit ok \n");
+        }
+
         if(obj->audio_pos)
         {
             free(obj->audio_pos);
@@ -206,6 +215,7 @@ int api_player_init(char *handle, char *param)
     printf("api_player_init: obj->json= %x \n", obj->json);
     obj->param = param;
     obj->print = GetvalueInt(obj->json, "print");
+    obj->sdl_status = GetvalueInt(obj->json, "sdl_status");
     char *filename = GetvalueStr(obj->json, "pcmfile");
     if (strcmp(filename, ""))
     {
@@ -361,9 +371,10 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
             if(1)
             {
                 //av_frame_unref(&obj->audio_frame);
-                if(obj->audio_frame)
+                if(true)
                 {
-                    av_frame_free(&obj->audio_frame);
+                    //av_frame_free(&obj->audio_frame);
+                    obj->audio_frame = av_frame_alloc();
                 }
                 obj->audio_frame = av_frame_alloc();
 
@@ -399,6 +410,16 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
             }
             obj->audio_len = obj->out_buffer_size;
             obj->audio_pos[0] = *obj->audio_frame->data;
+#if 1
+            memcpy((void *)obj->playbuf, obj->audio_frame->data[0], insize);
+            if(obj->audio_frame && true)
+            {
+                av_frame_free(&obj->audio_frame);
+                obj->audio_frame = NULL;
+                //obj->audio_frame = av_frame_alloc();
+            }
+            obj->audio_pos[0] = (uint8_t *)obj->playbuf;
+#endif
             //obj->audio_pos = obj->audio_frame->data[0];
             //printf("audio_play_frame: obj->audio_len=%d \n", obj->audio_len);
         }
@@ -531,6 +552,7 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
             {
                 av_frame_free(&obj->audio_frame);
                 //obj->audio_frame = av_frame_alloc();
+                obj->audio_frame = NULL;
             }
 #endif
             for(int i = 0; i < mix_num; i++)

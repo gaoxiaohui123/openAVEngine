@@ -1207,12 +1207,28 @@ void api_audio_capture_close(char *handle)
         long long *testp = (long long *)handle;
         AudioCaptureObj *obj = (AudioCaptureObj *)testp[0];
 
-        swr_free(&obj->audio_convert_ctx);
-        av_free(obj->buffer);
+        if(obj->audio_convert_ctx)
+        {
+            swr_free(&obj->audio_convert_ctx);
+        }
+        if(obj->buffer)
+        {
+            av_free(obj->buffer);
+        }
+
         //av_free(out_buffer);
-        av_free(obj->pAudioFrame);
-        avcodec_close(obj->pCodecCtx);
-        avformat_close_input(&obj->pFormatCtx);
+        if(obj->pAudioFrame)
+        {
+            av_free(obj->pAudioFrame);
+        }
+        if(obj->pCodecCtx)
+        {
+            avcodec_close(obj->pCodecCtx);
+        }
+        if(obj->pFormatCtx)
+        {
+            avformat_close_input(&obj->pFormatCtx);
+        }
         if(obj->cap_buf)
         {
             for(int i = 0; i < obj->max_buf_num; i++)
@@ -1223,32 +1239,33 @@ void api_audio_capture_close(char *handle)
                 }
             }
             free(obj->cap_buf);
-            if(obj->tmp_buf0)
-            {
-                av_free(obj->tmp_buf0);
-            }
-            if(obj->tmp_buf1)
-            {
-                av_free(obj->tmp_buf1);
-            }
-            if(obj->tmp_buf2)
-            {
-                av_free(obj->tmp_buf2);
-            }
-            if(obj->process_hnd)
-            {
-                int ret2 = I2AudioProcessClose(obj->process_hnd);
-            }
-            if(obj->fp_pcm)
-            {
-                fclose(obj->fp_pcm);
-            }
-            if(obj->fp_cap)
-            {
-                fclose(obj->fp_cap);
-            }
-            pthread_mutex_destroy(&obj->mutex);
         }
+        if(obj->tmp_buf0)
+        {
+            av_free(obj->tmp_buf0);
+        }
+        if(obj->tmp_buf1)
+        {
+            av_free(obj->tmp_buf1);
+        }
+        if(obj->tmp_buf2)
+        {
+            av_free(obj->tmp_buf2);
+        }
+        if(obj->process_hnd)
+        {
+            int ret2 = I2AudioProcessClose(obj->process_hnd);
+        }
+        if(obj->fp_pcm)
+        {
+            fclose(obj->fp_pcm);
+        }
+        if(obj->fp_cap)
+        {
+            fclose(obj->fp_cap);
+        }
+        pthread_mutex_destroy(&obj->mutex);
+
         if(obj->json)
         {
             api_json_free(obj->json);

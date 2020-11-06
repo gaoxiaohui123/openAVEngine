@@ -149,6 +149,7 @@ class AudioCapture(threading.Thread):
     def Close(self):
         self.load.lib.api_audio_capture_close(self.handle)
         self.status = False
+        print("AudioCapture: Close over")
         return
 
     def stop(self):

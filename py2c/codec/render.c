@@ -565,6 +565,7 @@ void api_sdl_show_run(char *handle)
         }
         if(obj->win_id)
         {
+            printf("api_sdl_show_run: SDL_DestroyWindow \n");
             SDL_DestroyRenderer(obj->sdlRenderer);
             SDL_DestroyWindow(obj->screen);
         }
@@ -583,7 +584,10 @@ void api_sdl_close(char *handle)
         printf("api_sdl_close: obj->Obj_id= %x \n", obj->Obj_id);
 
         //SDL_Quit();
-        SDL_DestroyTexture(obj->sdlTexture);
+        if(obj->sdlTexture)
+        {
+            SDL_DestroyTexture(obj->sdlTexture);
+        }
         if(obj->show_buffer)
         {
             free(obj->show_buffer);
@@ -606,7 +610,6 @@ void api_sdl_close(char *handle)
         testp[0] = 0;
         printf("api_sdl_close: ok \n");
     }
-
 }
 HCSVC_API
 int api_sdl_init(char *handle, char *param)

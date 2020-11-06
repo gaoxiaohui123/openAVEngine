@@ -571,17 +571,13 @@ HCSVC_API
 int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char *outparam[]);
 HCSVC_API
 long long api_get_time_stamp_ll(void);
-//HCSVC_API
-//int api_get_time_stamp(int id, char *outparam[]);
+
 HCSVC_API
 int api_renew_time_stamp(char *data);
-//int api_renew_time_stamp(int id, char *data, char *outparam[]);
-//HCSVC_API
-//int api_get_time_stamp2(int id, char *data, char *outparam[]);
+
 HCSVC_API
-int api_get_extern_info(int id, char *data, char *outparam[]);
-HCSVC_API
-int api_initobj(int id);
+int api_get_extern_info(char *data, char *outparam[]);
+
 
 HCSVC_API
 void api_show_device();
@@ -667,7 +663,8 @@ HCSVC_API
 int api_simple_osd_init(char *handle, char *param);
 HCSVC_API
 int api_simple_osd_process(char *handle, char *data, char *param);
-
+//HCSVC_API
+//void api_get_info_test(char *outparam[]);
 
 #else
 #define api_video_encode_open i2_video_encode_open

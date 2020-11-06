@@ -417,13 +417,16 @@ class ClientFrame(object):
         self.preview = None
         self.meeting_frame = None
         self.canvas = None
-        self.clientList = []
         self.session = None
         #self.lock = threading.Lock()
 
+    def create_meeting(self):
+        self.exit_meeting()
+        time.sleep(1)
+        self.openFrame(1)
     def enter_meeting(self):
-        #self.exit_meeting()
-        #time.sleep(1)
+        self.exit_meeting()
+        time.sleep(1)
         self.openFrame(1)
     def cap_preview(self):
         self.exit_preview()
@@ -447,13 +450,13 @@ class ClientFrame(object):
                 time.sleep(0.1)
                 count += 1
                 if (count % 50) == 0:
-                    print("exit_meeting: (count, status)=", (count, status))
+                    print("exit_preview: (count, status)=", (count, status))
             #self.preview.resume()
-            print("ClientFrame: exit_meeting: status= ", status)
+            print("ClientFrame: exit_preview: status= ", status)
             ##self.lock.acquire()
             self.preview = None
             ##self.lock.release()
-        print("ClientFrame: exit_meeting end")
+        print("ClientFrame: exit_preview end")
 
         return
     def exit_meeting(self):
@@ -483,7 +486,7 @@ class ClientFrame(object):
         print("ClientFrame: exit_meeting end")
 
         return
-    def refresh_frame(self):
+    def refresh_frame(self, type):
         ##self.lock.acquire()
         if self.meeting_frame != None:
             ##self.lock.release()
@@ -530,12 +533,16 @@ class ClientFrame(object):
                     print("openFrame: (self.status, num)= ", (status, num))
                 ##self.lock.acquire()
                 if self.meeting_frame != None:
-                    if self.preview != None:
-                        status = self.preview.get_status()
-                    elif self.session != None:
-                        status = self.session.get_status()
-                    else:
-                        status = 0
+                    if type in [0]:
+                        if self.preview != None:
+                            status = self.preview.get_status()
+                        else:
+                            status = 0
+                    elif type in [1]:
+                        if self.session != None:
+                            status = self.session.get_status()
+                        else:
+                            status = 0
                 else:
                     status = 0
                 ##self.lock.release()
@@ -584,7 +591,6 @@ class ClientFrame(object):
             else:
                 self.parent.show()
         else:
-            pass
             self.meeting_frame = None
         ##self.lock.release()
         print("on_meeting_closing: over")
@@ -636,15 +642,18 @@ class ClientFrame(object):
                 self.preview.resume()
             elif type in [1]:
                 if self.session == None:
+                    print("openFrame: create session")
                     params = self.parent.config_frame.json.dict
                     self.session = session(self.winid, params)
+                    #self.session = session(0, params)
                     self.session.start()
-                    self.session.set_status(1)
-                    self.session.resume()
+                ###self.session.set_winid(self.winid)
+                self.session.set_status(1)
+                self.session.resume()
 
             self.meeting_frame.protocol("WM_DELETE_WINDOW", self.on_meeting_closing) #root.iconify #root.destroy #customized_function
             #self.meeting_frame.protocol("WM_DELETE_WINDOW", self.meeting_frame.iconify)
-            self.refresh_frame()
+            self.refresh_frame(type)
             #self.meeting_frame.mainloop()
 
         print("openFrame: over")
@@ -2803,11 +2812,13 @@ class Conference(object):
         print("create_meeting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
         (self.meeting_id, self.usr_name, self.usr_pwd) = (meeting_id, usr_name, usr_pwd)
         self.json.dict.update({"conference":{"sessionId": int(meeting_id), "ownerName":usr_name, "width":self.width, "height":self.height}})
-        #print("create_meeting: self.json.dict= ", self.json.dict)
+        print("create_meeting: self.json.dict= ", self.json.dict)
         self.root.update()
 
         if self.client != None:
-            self.client.enter_meeting()
+            #self.client = None
+            #self.client = ClientFrame(self)
+            self.client.create_meeting()
 
     def enter_meeting(self):
         meeting_id = self.var_meeting_id.get()
@@ -2817,14 +2828,15 @@ class Conference(object):
             meeting_id = random.randint(1,90000)
         if usr_name == '':
             #usr_name = random.choice('abcdefghijklmnopqrstuvwxyz')
-            usr_name = random.sample('zyxwvutsrqponmlkjihgfedcba', 9)
-        print("create_meeting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
+            usr_name = ''.join(random.sample('zyxwvutsrqponmlkjihgfedcba', 9))
+        print("enter_meeting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
         (self.meeting_id, self.usr_name, self.usr_pwd) = (meeting_id, usr_name, usr_pwd)
-        self.json.dict.update({"conference": {"sessionId": int(meeting_id), "ownerName": usr_name}})
+        self.json.dict.update({"conference":{"sessionId": int(meeting_id), "ownerName":usr_name, "width":self.width, "height":self.height}})
         self.root.update()
 
         if self.client != None:
-            self.client.enter_meeting()
+            #self.client.cap_preview()
+            pass
 
     def watch_meeting(self):
         meeting_id = self.var_meeting_id.get()
@@ -2900,7 +2912,14 @@ if __name__ == '__main__':
     (width, height) = (1280, 720)
     call = Conference(width, height)
     call.root_frame()
-
+    ###
+    #chanId = 0
+    #test = 0x10000
+    #chanId2 = test + chanId
+    #flag = chanId == (chanId2 & 0xFFFF)
+    #print("flag= ", flag)
+    #
+    #print("test= ", test)
     #call = Pyui()
     # call.FrameTest()
     #call.FrameCallSDL()

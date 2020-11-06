@@ -29,6 +29,7 @@ from udpaudioclient import DecoderClient as audiodec
 from udpaudioclient import EncoderClient as audioenc
 from udpaudioclient import PlayThread as player
 
+MAX_CHANID = 0x10000 #8#1#0x10000
 LOSS_RATE = 0.2#0.4 #0.2  # 0.8 #0.6 #0.2
 EXCHANGE = 0# 1#0#1
 SHOW_WIDTH = loadlib.WIDTH
@@ -72,7 +73,8 @@ class AVSession(threading.Thread):
         self.audio_thread_show = None #player(2)
         self.audio_thread_list = []
         ###
-        self.init()
+        #self.init_video()#注意：不能在主线程中创建SDL，否则退出后重启崩溃
+        self.init_audio()
         ###
         self.lock = threading.Lock()
         self.__flag = threading.Event()  # 用于暂停线程的标识
@@ -81,11 +83,10 @@ class AVSession(threading.Thread):
         self.__running.set()  # 将running设置为True
         self.pause()
         self.status = 0
-        self.preview = None
         self.winid = 0
-    def init(self):
+    def init_video(self):
         if self.multdevice != None:
-            print("creat_preview: self.multdevice= ", self.multdevice)
+            #print("AVSession: self.multdevice= ", self.multdevice)
             self.deviceList = []
             for key, value in self.multdevice.items():
                 self.deviceList.append(value)
@@ -117,10 +118,45 @@ class AVSession(threading.Thread):
         udpclient.SHOW_WIDTH = self.width
         udpclient.SHOW_HEIGHT = self.height
         self.video_thread_show = display(self.windId, self.width, self.height)
-        self.audio_thread_show = player(2)
         self.video_thread_show.start()
+        return
+    def init_audio(self):
+        if self.multdevice != None:
+            #print("AVSession: self.multdevice= ", self.multdevice)
+            self.deviceList = []
+            for key, value in self.multdevice.items():
+                self.deviceList.append(value)
+        if self.control != None:
+            mode = self.control["mode"]
+            rect = self.control["rect"]
+            if mode != None and rect != None:
+                # self.deviceNum = len(rect)
+                self.upList = []
+                for thisRect in rect:
+                    chanId = thisRect["chanId"]
+                    deviceId = thisRect["deviceId"]
+                    devicePos = thisRect["pos"]
+                    self.upList.append((chanId, deviceId, devicePos))
+        if self.general != None:
+            mode = self.general["mode"]
+            if mode != None:
+                self.modeId = mode["modeId"]
+                self.rects = mode["modePos"]
+                #print("AVSession: init: self.rects= ", self.rects)
+            supprams = self.general["supprams"]
+            if supprams != None:
+                spatiallayer = int(supprams["spatiallayer"]["name"])
+                print("AVSession: init: spatiallayer= ", spatiallayer)
+        if self.conferenceInfo != None:
+            self.width = self.conferenceInfo["width"]
+            self.height = self.conferenceInfo["height"]
+
+        self.audio_thread_show = player(2)
         self.audio_thread_show.start()
+        return
     def create_clients(self):
+        self.init_video()
+        #self.init_audio()#音频必须在主线程中启动，否则会崩溃
         #导播合成
         #无导播合成多屏
         #导播合成多屏
@@ -133,14 +169,17 @@ class AVSession(threading.Thread):
                 if deviceId >= 0:
                     deviceDict = self.deviceList[deviceId]
                     ###test
-                    self.create_down_clients(chanId + 1, devicePos)
+                    self.create_down_video((MAX_CHANID + chanId), devicePos)
+                    self.create_down_audio((MAX_CHANID + chanId), devicePos)
                     ###
-                    self.create_up_clients(chanId, devicePos, deviceDict)
+                    self.create_up_video(chanId, devicePos, deviceDict)
+                    self.create_up_audio(chanId, devicePos, deviceDict)
 
                 else:
-                    self.create_down_clients(chanId, devicePos)
+                    self.create_down_video(chanId, devicePos)
+                    self.create_down_audio(chanId, devicePos)
 
-    def create_up_clients(self, chanId, devicePos, deviceDict):
+    def create_up_video(self, chanId, devicePos, deviceDict):
         (id, sessionId, actor) = (chanId, 100, 1)
         conf = self.conferenceInfo
         sessionId = conf["sessionId"]
@@ -168,6 +207,17 @@ class AVSession(threading.Thread):
         self.video_thread_show.InsertId(video_thread.id)
         video_thread.start()
         self.video_thread_list.append(video_thread)
+
+    def create_up_audio(self, chanId, devicePos, deviceDict):
+        (id, sessionId, actor) = (chanId, 100, 1)
+        conf = self.conferenceInfo
+        sessionId = conf["sessionId"]
+        sup = self.general["supprams"]
+        spatiallayer = int(sup["spatiallayer"]["name"])
+        refs = int(sup["temporallayer"]["name"])
+        serverAddr = sup["serverAddr"]
+        host = serverAddr.split(":")[0]
+        port = int(serverAddr.split(":")[1])
         ###audio
         (bitrate, mtu_size, buffer_shift) = (24000, 300, 10)
         bitrate = int(deviceDict["audios"]["bitrate"]["name"])
@@ -182,7 +232,7 @@ class AVSession(threading.Thread):
         audio_thread.start()
         self.audio_thread_list.append(audio_thread)
 
-    def create_down_clients(self, chanId, devicePos):
+    def create_down_video(self, chanId, devicePos):
         (id, sessionId, actor) = (chanId, 100, 2)
         conf = self.conferenceInfo
         sessionId = conf["sessionId"]
@@ -203,6 +253,17 @@ class AVSession(threading.Thread):
         self.video_thread_show.InsertId(video_thread.id)
         video_thread.start()
         self.video_thread_list.append(video_thread)
+
+    def create_down_audio(self, chanId, devicePos):
+        (id, sessionId, actor) = (chanId, 100, 2)
+        conf = self.conferenceInfo
+        sessionId = conf["sessionId"]
+        sup = self.general["supprams"]
+        spatiallayer = int(sup["spatiallayer"]["name"])
+        refs = int(sup["temporallayer"]["name"])
+        serverAddr = sup["serverAddr"]
+        host = serverAddr.split(":")[0]
+        port = int(serverAddr.split(":")[1])
         ###audio
         (bitrate, mtu_size, buffer_shift) = (24000, 300, 10)
         port = port + 1
@@ -217,11 +278,21 @@ class AVSession(threading.Thread):
         self.audio_thread_list.append(audio_thread)
     def clients_stop(self):
         for video_thread in self.video_thread_list:
+            #print("clients_stop: video: 0")
             video_thread.stop()
-        self.video_thread_show.stop()
+            #print("clients_stop: video: 1")
         for audio_thread in self.audio_thread_list:
+            #print("clients_stop: audio: 0")
             audio_thread.stop()
-        self.audio_thread_show.stop()
+            #print("clients_stop: audio: 1")
+
+        print("clients_stop: video_thread_show")
+        if self.video_thread_show != None:
+            self.video_thread_show.stop()
+        print("clients_stop: audio_thread_show")
+        if self.audio_thread_show != None:
+            self.audio_thread_show.stop()
+        print("clients_stop: over")
     def get_status(self):
         ret = 0
         self.lock.acquire()
@@ -241,6 +312,8 @@ class AVSession(threading.Thread):
         self.create_clients()
     def close_session(self):
         self.clients_stop()
+        #time.sleep(2)
+        print("close_session")
         self.set_status(0)
 
     def stop(self):
@@ -264,7 +337,7 @@ class AVSession(threading.Thread):
                 self.close_session()
                 self.set_status(0)
         if self.get_status():
-            self.close_preview()
+            self.close_session()
         self.stop()
         print("AVSession: run over")
 

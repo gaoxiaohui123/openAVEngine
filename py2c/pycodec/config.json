@@ -1,4 +1,10 @@
 {
+    "conference": {
+        "height": 720, 
+        "ownerName": "mlnwzqxis", 
+        "sessionId": 72880, 
+        "width": 1280
+    }, 
     "control": {
         "mode": 0, 
         "rect": [
@@ -82,8 +88,8 @@
                 "denoise": 1, 
                 "detect": 0, 
                 "framesize": {
-                    "name": "1024", 
-                    "value": 1
+                    "name": "2048", 
+                    "value": 2
                 }, 
                 "recorder": {
                     "name": "hw:1,0", 
@@ -97,8 +103,8 @@
             }, 
             "videos": {
                 "bitrate": {
-                    "name": "512kbps", 
-                    "value": 1
+                    "name": "1000kbps", 
+                    "value": 3
                 }, 
                 "capture": {
                     "name": "video0:mjpeg", 
@@ -111,8 +117,8 @@
                 "denoise": 1, 
                 "fec": 0, 
                 "framerate": {
-                    "name": "15fps", 
-                    "value": 1
+                    "name": "25fps", 
+                    "value": 2
                 }, 
                 "resolution": {
                     "name": "1280x720", 

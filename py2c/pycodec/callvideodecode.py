@@ -48,7 +48,7 @@ class CallVideoDecode(object):
         self.param.update({"scale": self.scale})
         self.param.update({"color": self.color})
         start_time = time.time()
-        ret = self.load.lib.api_initobj()
+        #ret = self.load.lib.api_initobj()
         param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
         ret = self.load.lib.api_video_decode_open(self.handle, param_str)
         print("CallVideoDecode: init: open ret= ", ret)
@@ -83,6 +83,9 @@ class CallVideoDecode(object):
             #print("encodeframe: self.obj_id= ", self.obj_id)
             #print("outparam[0]= ", self.outparam[0])
         return (ret, self.outbuf, self.outparam)
+    def decodeclose(self):
+        #self.load.lib.api_video_decode_close()
+        pass
     def test_decode(self, yuvfilename, h264filename, sizelist):
         #yuvfilename = 'out.yuv'
         #h264filename = "test_py.h264"
