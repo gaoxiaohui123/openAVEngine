@@ -162,18 +162,19 @@ class LoadLib(object):
         thispath = os.path.abspath('./loadlib.py')
         print("thispath= ", thispath)
         try:
-            self.lib = ll("../libhcsvcapi.so")
-        except IOError, error: #python2
-        #except IOError as error:  # python3
+            self.lib = ll("./libhcsvcapi.so")
+        #except IOError, error: #python2
+        except IOError as error:  # python3
+            print("LoadLib: error=", error)
             self.lib = ll("../py2c/libhcsvcapi.so")
         ###
-        print("load my dll2")
-        try:
-            self.lib2 = ll("../libhcsvc.so")
-        except:
-            self.lib2 = ll("../py2c/libhcsvc.so")
-        ret = self.lib2.hcsvc_dll_init("../libhcsvcapi.so")
-        print("hcsvc_dll_init: ret= ", ret)
+        #print("load my dll2")
+        #try:
+        #    self.lib2 = ll("../libhcsvc.so")
+        #except:
+        #    self.lib2 = ll("../py2c/libhcsvc.so")
+        #ret = self.lib2.hcsvc_dll_init("../libhcsvcapi.so")
+        #print("hcsvc_dll_init: ret= ", ret)
         ###
         filename = 'test-0.h264'
         codec_id = -1
@@ -195,6 +196,13 @@ class LoadLib(object):
         self.lib.api_fec_client_main();
 
     def dlltest_init(self):
+        print("load my dll2")
+        try:
+           self.lib2 = ll("../libhcsvc.so")
+        except:
+           self.lib2 = ll("../py2c/libhcsvc.so")
+        ret = self.lib2.hcsvc_dll_init("../libhcsvcapi.so")
+        print("dlltest_init: ret= ", ret)
         frame_size = (WIDTH * HEIGHT * 3) / 2
         self.outbuf = create_string_buffer(frame_size)
         array_type = c_char_p * 4
@@ -400,6 +408,16 @@ def TestGetTime2():
     print("TestGetTime: time1= ", time1)
     difftime = int(time1 - time0)
     print("TestGetTime: difftime= ", difftime)
+def TeseGetCpuInfo():
+    array_type = c_char_p * 1
+    outparam = array_type()
+    databuf = create_string_buffer(1024)
+    tmpbuf = databuf.raw
+    outparam[0] = c_char_p(tmpbuf)
+    ret = gload.lib.api_get_cpu_info(outparam)
+    infolist = outparam[0].split(b';')
+    print("TeseGetCpuInfo: infolist=", infolist)
+    print("TeseGetCpuInfo: outparam[0]=", outparam[0])
 def TestPcm2Wav():
     srcfile = "/home/gxh/works/aac_decode_0.pcm"
     dstfile = "/home/gxh/works/aac_decode_0.wav"
@@ -518,7 +536,8 @@ if __name__ == '__main__':
     print('Start pycall.')
     #TestApi()
     #TestDevice()
-    TestGetTime2()
+    #TestGetTime2()
+    TeseGetCpuInfo()
     #TestAudio()
     ##TestPcm2Wav()
     #TestCmd()

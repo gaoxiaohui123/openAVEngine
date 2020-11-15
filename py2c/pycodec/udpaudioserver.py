@@ -4,13 +4,16 @@
 import sys
 
 # for python2
-try:
-    print (sys.getdefaultencoding())
-    reload(sys)
-    sys.setdefaultencoding('utf-8')
-    print (sys.getdefaultencoding())
-except:
+if sys.version_info >= (3, 0):
     pass
+else:
+    try:
+        print (sys.getdefaultencoding())
+        reload(sys)
+        sys.setdefaultencoding('utf-8')
+        print (sys.getdefaultencoding())
+    except:
+        pass
 
 import socket
 import threading
@@ -40,31 +43,41 @@ if len(sys.argv) > 1:
     global_host = sys.argv[1]
 
 
+def json2str(jsonobj):
+    if sys.version_info >= (3, 0):
+        json_str = json.dumps(jsonobj, ensure_ascii=False, sort_keys=False).encode('utf-8')
+    else:
+        json_str = json.dumps(jsonobj, encoding='utf-8', ensure_ascii=False, sort_keys=False)
+
+    return json_str
 def char2long(x):
     ret = 0
-    try:  # Add these 3 lines
-        ret = long(x)
-    except: # ValueError:
-        print("Something went wrong {!r}".format(x))
+    if sys.version_info >= (3, 0):
+        ret = int(x)
+    else:
+        try:  # Add these 3 lines
+            ret = long(x)
+        except: # ValueError:
+            print("Something went wrong {!r}".format(x))
     return ret
+
 def str2json(json_str):
     outjson = None
     try:
-        outjson = json.loads(json_str, encoding='utf-8')
+        if sys.version_info >= (3, 0):
+            outjson = json.loads(json_str.decode())
+        else:
+            outjson = json.loads(json_str, encoding='utf-8')
     except:
-        print("error: python version")
         try:
             outjson = json.loads(json_str)
         except:
-            print("not json")
+            print("ReadCmd: not cmd")
+            # print("not cmd: str_cmd=", str_cmd)
         else:
-            json_str2 = json.dumps(outjson, encoding='utf-8', ensure_ascii=False,
-                                      sort_keys=True)
-            #print("1: json_str2= ", json_str2)
+            pass
     else:
-        json_str2 = json.dumps(outjson, encoding='utf-8', ensure_ascii=False,
-                                  sort_keys=True)
-        #print("0: json_str2= ", json_str2)
+        pass
     return outjson
 
 class ClientManager(object):
@@ -76,13 +89,16 @@ class ClientManager(object):
     def ReadCmd(self, str_cmd):
         cmd = {}
         try:
-            cmd = json.loads(str_cmd, encoding='utf-8')
+            if sys.version_info >= (3, 0):
+                cmd = json.loads(str_cmd.decode())
+            else:
+                cmd = json.loads(str_cmd, encoding='utf-8')
         except:
             try:
                 cmd = json.loads(str_cmd)
             except:
-                #print("not cmd")
-                pass
+                print("ReadCmd: not cmd")
+                # print("not cmd: str_cmd=", str_cmd)
             else:
                 pass
         else:
@@ -99,9 +115,10 @@ class ClientManager(object):
         ret = -1
         actor = -1
         sessionId = -1
-        if len(data) <= CMD_SIZE:
+        n = len(data)
+        if n <= CMD_SIZE and ('{' in str(data[0:3])) and ('}' in str(data[n - 3:])):
             cmd = self.ReadCmd(data)
-            if cmd != {}:
+            if cmd not in [{}, None]:
                 if cmd.get("actor") != None:
                     actor = cmd.get("actor")
                 else:
@@ -115,7 +132,7 @@ class ClientManager(object):
         sockId = remoteHost + "_" + str(remotePort)
 
         if False:
-            test_str = json.dumps(self.clientQueue, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
+            test_str = json2str(self.clientQueue)
             print(test_str)
         self.lock.acquire()
         if self.clientQueue.get(sockId) == None and actor >= 0:
@@ -280,7 +297,7 @@ class SendTaskManagerThread(threading.Thread):
 
     def send_ack(self, task_data, jsonobj):
         (remoteHost, remotePort, target_sessionId, data) = task_data
-        json_str = json.dumps(jsonobj, encoding='utf-8', ensure_ascii=False, sort_keys=False)
+        json_str = json2str(jsonobj)
         sendDataLen = self.server.sock.sendto(json_str, (remoteHost, remotePort))
         if (self.ack_times % 10000) == 0:
             print("send_ack: (sendDataLen, self.ack_times): ", (sendDataLen, self.ack_times))
@@ -310,7 +327,7 @@ class SendTaskManagerThread(threading.Thread):
                         print("itime= ", itime)
                         return ret
                     seqnum = outjson["seqnum"]
-                    packet_time_stamp = long(outjson["packet_time_stamp"])
+                    packet_time_stamp = char2long(outjson["packet_time_stamp"])
                     #self.outparam[1] = "api_get_time_stamp2"
                     #self.server.load.lib.api_get_time_stamp2(12, this_data, self.outparam)
                     #c_time_ll = long(self.outparam[0])
@@ -329,7 +346,7 @@ class SendTaskManagerThread(threading.Thread):
                             rttlist.append((seqnum, packet_time_stamp, recv_time))
                             self.AckQueue[sockId] = rttlist
             else:
-                print("save_info: not json", SERVER_TYPE)
+                print("PushQueue: not json", SERVER_TYPE)
         return ret
 
     def send_ack_0(self, task_data):
@@ -344,17 +361,17 @@ class SendTaskManagerThread(threading.Thread):
                 time_status = outjson["time_status"]
                 if time_status == 0:
                     seqnum = outjson["seqnum"]
-                    packet_time_stamp = long(outjson["packet_time_stamp"])
-                    self.outparam[1] = "api_get_time_stamp2"
+                    packet_time_stamp = char2long(outjson["packet_time_stamp"])
+                    self.outparam[1] = b"api_get_time_stamp2"
                     self.server.load.lib.api_get_time_stamp2(12, this_data, self.outparam)
-                    c_time_ll = long(self.outparam[0])
+                    c_time_ll = char2long(self.outparam[0])
                     rtt = {}
                     rtt.update({"seqnum": seqnum})
                     rtt.update({"st0": packet_time_stamp})
                     rtt.update({"rt0": recv_time})
                     rtt.update({"st1": c_time_ll})
                     jsonobj = {"rtt": rtt}
-                    json_str = json.dumps(jsonobj, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+                    json_str = json2str(jsonobj)
                     sendDataLen = self.server.sock.sendto(json_str, (remoteHost, remotePort))
                     print("send_ack: sendDataLen: ", sendDataLen)
                     ret = len(json_str)
@@ -378,7 +395,7 @@ class SendTaskManagerThread(threading.Thread):
                         (remoteHost2, remotePort2, target_sessionId2, data2) = task_data2
                         if target_sessionId2 == target_sessionId:
                             (this_data, recv_time) = data
-
+                            #print("audio: SendTaskManagerThread: len(this_data)= ", len(this_data))
                             if True:
                                 #self.ctime[0] = "0123456789012345"
                                 #self.server.load.lib.api_get_time(self.ctime)
@@ -394,12 +411,12 @@ class SendTaskManagerThread(threading.Thread):
                                 # if diff_time > self.max_delay_time and self.recv_packet_num > 100:
                                 if diff_time > self.max_delay_time:
                                     self.max_delay_time = diff_time
-                                    print("send2send diff_time= ", diff_time)
+                                    print("audio: send2send diff_time= ", diff_time)
                             try:
                                 sendDataLen = self.server.sock.sendto(this_data, (remoteHost2, remotePort2))
                                 #
-                            except IOError, error:  # python2
-                            # except IOError as error:  # python3
+                            #except IOError, error:  # python2
+                            except IOError as error:  # python3
                                 print("(error, sendDataLen,remoteHost2, remotePort2): ", (error, sendDataLen, remoteHost2, remotePort2))
                             else:
                                 #print("(sendDataLen,remoteHost2, remotePort2): ", (sendDataLen, remoteHost2, remotePort2))
@@ -545,8 +562,8 @@ class EchoServerThread(threading.Thread):
                 else:
                     print("rdata= ", rdata)
                     break
-            except IOError, error:  # python2
-            # except IOError as error:  # python3
+            #except IOError, error:  # python2
+            except IOError as error:  # python3
                 if "timed out" in error:
                     #print("audio: EchoServerThread: run: timeout: recvfrom error= ", error)
                     pass
@@ -571,7 +588,7 @@ class EchoServerThread(threading.Thread):
                 if diff_time > self.max_delay_time:
                     self.max_delay_time = diff_time
                     self.max_delay_packet = self.recv_packet_num
-                    print("send2receive diff_time= ", diff_time)
+                    print("audio: EchoServerThread: send2receive diff_time= ", diff_time)
                     #if self.log_fp != None:
                     #    self.log_fp.write("max_delay_time= " + str(self.max_delay_time) + "\n")
                     #    self.log_fp.flush()

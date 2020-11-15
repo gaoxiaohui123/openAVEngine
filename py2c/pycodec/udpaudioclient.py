@@ -4,13 +4,16 @@
 import sys
 
 # for python2
-try:
-    print (sys.getdefaultencoding())
-    reload(sys)
-    sys.setdefaultencoding('utf-8')
-    print (sys.getdefaultencoding())
-except:
+if sys.version_info >= (3, 0):
     pass
+else:
+    try:
+        print (sys.getdefaultencoding())
+        reload(sys)
+        sys.setdefaultencoding('utf-8')
+        print (sys.getdefaultencoding())
+    except:
+        pass
 
 import os
 import socket
@@ -47,30 +50,40 @@ if len(sys.argv) > 1:
     global_host = sys.argv[1]
 
 
+def json2str(jsonobj):
+    if sys.version_info >= (3, 0):
+        json_str = json.dumps(jsonobj, ensure_ascii=False, sort_keys=False).encode('utf-8')
+    else:
+        json_str = json.dumps(jsonobj, encoding='utf-8', ensure_ascii=False, sort_keys=False)
+
+    return json_str
 def char2long(x):
     ret = 0
-    try:  # Add these 3 lines
-        ret = long(x)
-    except: # ValueError:
-        print("Something went wrong {!r}".format(x))
+    if sys.version_info >= (3, 0):
+        ret = int(x)
+    else:
+        try:  # Add these 3 lines
+            ret = long(x)
+        except: # ValueError:
+            print("Something went wrong {!r}".format(x))
     return ret
 def str2json(json_str):
+    outjson = None
     try:
-        outjson = json.loads(json_str, encoding='utf-8')
+        if sys.version_info >= (3, 0):
+            outjson = json.loads(json_str.decode())
+        else:
+            outjson = json.loads(json_str, encoding='utf-8')
     except:
-        print("error: python version")
         try:
             outjson = json.loads(json_str)
         except:
-            print("not json")
+            print("ReadCmd: not cmd")
+            # print("not cmd: str_cmd=", str_cmd)
         else:
-            json_str2 = json.dumps(outjson, encoding='utf-8', ensure_ascii=False,
-                                   sort_keys=True)
-            # print("1: json_str2= ", json_str2)
+            pass
     else:
-        json_str2 = json.dumps(outjson, encoding='utf-8', ensure_ascii=False,
-                               sort_keys=True)
-        # print("0: json_str2= ", json_str2)
+        pass
     return outjson
 
 
@@ -97,7 +110,11 @@ class FrameBuffer(object):
         self.audio_timestamp = 0
         self.audio_start_time = 0
         self.audio_frequence = 0
-
+    def __del__(self):
+        print("FrameBuffer del")
+        for thisobj in self.framelist:
+            del thisobj
+        del self.framelist
     def SetAudioBase(self, timestamp, play_time, frequence):
         self.audio_timestamp = timestamp
         self.audio_start_time = play_time
@@ -143,7 +160,23 @@ class PlayThread(threading.Thread):
         self.__flag.set()  # 设置为True
         self.__running = threading.Event()  # 用于停止线程的标识
         self.__running.set()  # 将running设置为True
-
+    def __del__(self):
+        print("PlayThread del")
+        for thisobj in self.DataList:
+            del thisobj
+        del self.DataList
+        for thisobj in self.FrameList:
+            del thisobj
+        del self.FrameList
+        for thisobj in self.idMap:
+            del thisobj
+        del self.idMap
+        if self.outbuf != None:
+            del self.outbuf
+        if self.sdl != None:
+            del self.sdl
+        if self.outparam != None:
+            del self.outparam
     def stop(self):
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
@@ -238,10 +271,17 @@ class PlayThread(threading.Thread):
             i = 0
             for idx in self.idMap:
                 item = self.PopQueue2(idx)
+                ###test
+                if self.idMap.index(idx) in [0]:
+                    pass
+                else:
+                    continue
+                ###需要做同步
                 if item != None:
                     (id, data, recvTime) = item
                     if (len(data) > 0):
                         data_size = len(data)
+                        #print("(id, i)= ", (id, i))
                         self.sdl.mix_buf[i] = data
                         i += 1
             if i > 0:
@@ -333,16 +373,24 @@ class RecvCmdThread(threading.Thread):
         self.__flag.set()  # 设置为True
         self.__running = threading.Event()  # 用于停止线程的标识
         self.__running.set()  # 将running设置为True
-
+    def __del__(self):
+        print("RecvCmdThread del")
+        if self.outparam != None:
+            del self.outparam
+        if self.ll_handle != None:
+            del self.ll_handle
     def ReadCmd(self, str_cmd):
         cmd = {}
         try:
-            cmd = json.loads(str_cmd, encoding='utf-8')
+            if sys.version_info >= (3, 0):
+                cmd = json.loads(str_cmd.decode())
+            else:
+                cmd = json.loads(str_cmd, encoding='utf-8')
         except:
             try:
                 cmd = json.loads(str_cmd)
             except:
-                print("not cmd")
+                print("ReadCmd: not cmd")
             else:
                 pass
         else:
@@ -362,8 +410,8 @@ class RecvCmdThread(threading.Thread):
                     print("rdata= ", rdata)
                     break
             # except:
-            except IOError, error:  # python2
-                # except IOError as error:  # python3
+            #except IOError, error:  # python2
+            except IOError as error:  # python3
                 print("RecvCmdThread: run: recvfrom error", error)
                 break
             else:
@@ -436,13 +484,13 @@ class RecvCmdThread(threading.Thread):
     def stop(self):
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
-        try:
-            self.client.sock.shutdown(socket.SHUT_RDWR)
-            self.client.sock.close()
-        except:
-            print("RecvCmdThread: stop error")
-        else:
-            print("RecvCmdThread: stop ok")
+        #try:
+        #    self.client.sock.shutdown(socket.SHUT_RDWR)
+        #    self.client.sock.close()
+        #except:
+        #    print("RecvCmdThread: stop error")
+        #else:
+        #    print("RecvCmdThread: stop ok")
         print("RecvCmdThread: stop")
 
     def pause(self):
@@ -466,7 +514,11 @@ class DecodeFrameThread(threading.Thread):
         self.__flag.set()  # 设置为True
         self.__running = threading.Event()  # 用于停止线程的标识
         self.__running.set()  # 将running设置为True
-
+    def __del__(self):
+        print("DecodeFrameThread del")
+        for thisobj in self.framelist:
+            del thisobj
+        del self.framelist
     def stop(self):
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
@@ -504,9 +556,9 @@ class DecodeFrameThread(threading.Thread):
         ret = len(data)
 
         if runflag and ret > 0:
-            self.client.decode0.outparam[0] = ""
-            self.client.decode0.outparam[1] = ""
-            param_str = json.dumps(self.client.decode0.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+            self.client.decode0.outparam[0] = b""
+            self.client.decode0.outparam[1] = b""
+            param_str = json2str(self.client.decode0.param)
             # print("param_str= ", param_str)
             # 獲取幀後，進行解包
             (osize, outbuf, outparam) = self.client.decode0.rtpunpacket(data, ret)
@@ -572,7 +624,16 @@ class RecvTaskManagerThread(threading.Thread):
         self.__flag.set()  # 设置为True
         self.__running = threading.Event()  # 用于停止线程的标识
         self.__running.set()  # 将running设置为True
-
+    def __del__(self):
+        print("RecvTaskManagerThread del")
+        if self.param != None:
+            del self.param
+        if self.outbuf != None:
+            del self.outbuf
+        if self.outparam != None:
+            del self.outparam
+        if self.ll_handle != None:
+            del self.ll_handle
     def ResortPacket(self, revcData, remoteHost, remotePort, recv_time):
         sockId = remoteHost + "_" + str(remotePort)
         if len(revcData) == 0:
@@ -647,7 +708,11 @@ class DataManager(object):
         self.lock = threading.Lock()
         self.id = id
         self.DataList = []
-
+    def __del__(self):
+        print("DataManager del")
+        for thisobj in self.DataList:
+            del thisobj
+        del self.DataList
     def PopQueue(self):
         ret = None
         self.lock.acquire()
@@ -693,7 +758,8 @@ class EchoClientThread(threading.Thread):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, SO_SNDBUF)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, SO_RCVBUF)
-
+    def __del__(self):
+        print("EchoClientThread del")
     def stop(self):
         self.status = False
         self.sock.shutdown(socket.SHUT_RDWR)
@@ -721,7 +787,11 @@ class PacedSend(threading.Thread):
         self.__flag.set()  # 设置为True
         self.__running = threading.Event()  # 用于停止线程的标识
         self.__running.set()  # 将running设置为True
-
+    def __del__(self):
+        print("PacedSend del")
+        for thisobj in self.DataList:
+            del thisobj
+        del self.DataList
     def stop(self):
         print("audio PacedSend: stop 0")
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
@@ -797,8 +867,9 @@ class PacedSend(threading.Thread):
                     #print("PacedSend: run: self.client.port= ", self.client.port)
                     try:
                         sendDataLen = self.client.sock.sendto(data2, (self.client.host, self.client.port))
-                    except IOError, err:
-                        print("PacedSend: run error: ", err)
+                    #except IOError, err:
+                    except IOError as error:  # python3
+                        print("PacedSend: run error: ", error)
                         break
                     else:
                         ###redundancy
@@ -867,10 +938,34 @@ class EncoderClient(EchoClientThread):
         self.start_time = 0
 
         self.paced_send = PacedSend(self)
-
+        ###
+        self.in_channels = 2
+        self.in_sample_rate = 48000
+        self.in_sample_fmt = "AV_SAMPLE_FMT_S16"
+        self.out_nb_samples = 1024
         self.frame_size = 1024 * 2 * 2
         self.outbuf = create_string_buffer(self.frame_size << 1)
-
+    def __del__(self):
+        print("EncoderClient del")
+        if self.ll_handle != None:
+            del self.ll_handle
+        if self.cmd_master != None:
+            del self.cmd_master
+        if self.data_master != None:
+            del self.data_master
+        if self.paced_send != None:
+            del self.paced_send
+        if self.encode0 != None:
+            del self.encode0
+        if self.show != None:
+            del self.show
+        if self.capture != None:
+            del self.capture
+        if self.outbuf != None:
+            del self.outbuf
+        if self.outparam != None:
+            del self.outparam
+        del self.sock
     def opendevice(self, devicetype):
         self.devicetype = devicetype
         if devicetype > 0:
@@ -880,24 +975,32 @@ class EncoderClient(EchoClientThread):
             else:
                 self.input_name = "alsa"
                 self.device_name = "default"
+                #self.out_channel_layout
+                #self.out_buffer_size
 
             self.capture = AudioCapture(self.id)
             self.capture.input_name = self.input_name
             self.capture.device_name = self.device_name
+            self.capture.in_channels = self.in_channels
+            self.capture.in_sample_rate = self.in_sample_rate
+            self.capture.in_sample_fmt = self.in_sample_fmt
+            self.capture.out_channels = self.in_channels
+            self.capture.out_sample_fmt = self.in_sample_fmt
+            self.capture.out_sample_rate = self.in_sample_rate
             self.capture.datatype = 3
             self.capture.init()
             self.capture.start()
 
     def opencodec(self):
-
+        self.encode0.init()
         # self.encode0.param.update({"fec": 1})
-        param_str = json.dumps(self.encode0.param, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
+        param_str = json2str(self.encode0.param)
         # self.encode0.load.lib.api_video_encode_open(self.encode0.obj_id, param_str)
         #ret = self.encode0.load.lib.api_video_encode_open(self.encode0.handle, param_str)
         #print("opencodec: init: open ret= ", ret)
         ###
         cmd = {"actor": self.actor, "sessionId": self.sessionId}
-        str_cmd = json.dumps(cmd, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+        str_cmd = json2str(cmd)
         sendDataLen = self.sock.sendto(str_cmd, (self.host, self.port))
         ##print("sendDataLen= ", sendDataLen)
         if self.paced_send != None:
@@ -942,12 +1045,10 @@ class EncoderClient(EchoClientThread):
             except:
                 print("self.client.decode0.outparam[1] not json")
             else:
-                json_str2 = json.dumps(outjson, encoding='utf-8', ensure_ascii=False,
-                                       sort_keys=True)
+                json_str2 = json2str(outjson)
                 print("1: json_str2= ", json_str2)
         else:
-            json_str2 = json.dumps(outjson, encoding='utf-8', ensure_ascii=False,
-                                   sort_keys=True)
+            json_str2 = json2str(outjson)
             print("0: json_str2= ", json_str2)
         return outjson
 
@@ -987,10 +1088,10 @@ class EncoderClient(EchoClientThread):
             self.capture.stop()
         if self.paced_send != None:
             self.paced_send.stop()
-            self.paced_send = None
+            #self.paced_send = None
         print("audio EncoderClient: stop paced_send 1")
         self.cmd_master.stop()
-        self.cmd_master = None
+        #self.cmd_master = None
         print("audio EncoderClient: stop cmd_master")
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
@@ -1049,10 +1150,27 @@ class DecoderClient(EchoClientThread):
 
         ###
         cmd = {"actor": self.actor, "sessionId": self.sessionId}
-        str_cmd = json.dumps(cmd, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+        str_cmd = json2str(cmd)
         sendDataLen = self.sock.sendto(str_cmd, (self.host, self.port))
         # print("sendDataLen= ", sendDataLen)
-
+    def __del__(self):
+        print("DecoderClient del")
+        if self.ll_handle != None:
+            del self.ll_handle
+        if self.data_master != None:
+            del self.data_master
+        if self.recv_task != None:
+            del self.recv_task
+        if self.decode0 != None:
+            del self.decode0
+        if self.show != None:
+            del self.show
+        if self.outparam != None:
+            del self.outparam
+        del self.sock
+    def opencodec(self):
+        self.decode0.init()
+        pass
     def run(self):
         self.start_time = 0
         while self.__running.isSet():
@@ -1070,7 +1188,7 @@ class DecoderClient(EchoClientThread):
                     if (difftime > 20):  # heartbeat
                         self.start_time = now_time
                         cmd = {"actor": self.actor, "sessionId": self.sessionId}
-                        str_cmd = json.dumps(cmd, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+                        str_cmd = json2str(cmd)
                         sendDataLen = self.sock.sendto(str_cmd, (self.host, self.port))
 
                 #recvData, (remoteHost, remotePort) = self.sock.recvfrom(DATA_SIZE)

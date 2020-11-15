@@ -6,3 +6,4 @@
 *.la
 *.m4
 .idea/
+./py2c/pycodec/build/

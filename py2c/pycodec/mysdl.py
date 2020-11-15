@@ -3,6 +3,7 @@
 
 import sys
 import os
+import gc
 from ctypes import *
 import json
 import loadlib
@@ -10,6 +11,40 @@ import threading
 import time
 from capture import VideoCapture
 
+def json2str(jsonobj):
+    if sys.version_info >= (3, 0):
+        json_str = json.dumps(jsonobj, ensure_ascii=False, sort_keys=False).encode('utf-8')
+    else:
+        json_str = json.dumps(jsonobj, encoding='utf-8', ensure_ascii=False, sort_keys=False)
+
+    return json_str
+def char2long(x):
+    ret = 0
+    if sys.version_info >= (3, 0):
+        ret = int(x)
+    else:
+        try:  # Add these 3 lines
+            ret = long(x)
+        except: # ValueError:
+            print("Something went wrong {!r}".format(x))
+    return ret
+def str2json(json_str):
+    #outjson = None
+    try:
+        outjson = json.loads(json_str, encoding='utf-8')
+    except:
+        print("error: python version")
+        try:
+            outjson = json.loads(json_str)
+        except:
+            print("not json")
+        else:
+            json_str2 = json2str(outjson)
+            # print("1: json_str2= ", json_str2)
+    else:
+        json_str2 = json2str(outjson)
+        # print("0: json_str2= ", json_str2)
+    return outjson
 class MySDL(threading.Thread):
     def __init__(self, id, width, height):
         threading.Thread.__init__(self)
@@ -19,6 +54,8 @@ class MySDL(threading.Thread):
         self.status = True
         self.width = width
         self.height = height
+        self.screen_width = width
+        self.screen_height = height
         self.osd = 1
         self.orgX = 0
         self.orgY = 0
@@ -27,6 +64,8 @@ class MySDL(threading.Thread):
         self.showlist = []
         self.showmap = {}
         self.layerlist = []
+        self.shownum = 0
+        self.stacklist = []
         self.__flag = threading.Event()  # 用于暂停线程的标识
         self.__flag.set()  # 设置为True
         self.__running = threading.Event()  # 用于停止线程的标识
@@ -34,12 +73,24 @@ class MySDL(threading.Thread):
 
         self.handle_size = 8
         self.handle = create_string_buffer(self.handle_size)
-
+        self.param = {}
+        self.outbuf = None
+    def __del__(self):
+        print("MySDL del")
+        if self.param != None:
+            del self.param
+        if self.outbuf != None:
+            del self.outbuf
+        if self.handle != None:
+            del self.handle
+        del self.load
+        del self.lock
+        gc.collect()
     def init(self):
         self.param = {}
         self.param.update({"name": "decode"})
-        self.param.update({"screen_w": self.width})
-        self.param.update({"screen_h": self.height})
+        self.param.update({"screen_w": self.screen_width})
+        self.param.update({"screen_h": self.screen_height})
         #self.param.update({"pixel_w": loadlib.WIDTH})
         #self.param.update({"pixel_h": loadlib.HEIGHT})
         self.param.update({"pixel_w": self.width})
@@ -57,7 +108,7 @@ class MySDL(threading.Thread):
         self.param.update({"color": self.color})
         self.param.update({"print": 0})
 
-        param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+        param_str = json2str(self.param)
         ret = self.load.lib.api_sdl_init(self.handle, param_str)
     def sdl_status(self):
         return self.load.lib.api_sdl_status(self.handle)
@@ -119,7 +170,7 @@ class MySDL(threading.Thread):
                 param.update({"rect_h": rect[3]})
                 show_flag = 0
                 param.update({"show_flag": show_flag})
-                param_str = json.dumps(param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+                param_str = json2str(param)
                 #self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
                 self.load.lib.api_split_screen(self.handle, data, param_str, self.width)
                 refreshlist.append(idx0)
@@ -136,7 +187,7 @@ class MySDL(threading.Thread):
                 param.update({"rect_w": rect[2]})
                 param.update({"rect_h": rect[3]})
                 param.update({"show_flag": show_flag})
-                param_str = json.dumps(param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+                param_str = json2str(param)
                 #self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
                 self.load.lib.api_split_screen(self.handle, data, param_str, self.width)
                 refreshlist.append(idx1)
@@ -154,8 +205,9 @@ class MySDL(threading.Thread):
         self.param.update({"rect_h": rect[3]})
         #show_flag = 0 #注意：不合理的渲染，会导致“倒帧”；
         self.param.update({"show_flag": show_flag})
-        param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+        param_str = json2str(self.param)
         self.lock.acquire()
+        idx = -1
         if rect not in self.showlist:
             self.showlist.append(rect)
             idx = self.showlist.index(rect)
@@ -183,7 +235,23 @@ class MySDL(threading.Thread):
         else:
             # print("sdl_refresh: rect= ", rect)
             #self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
+            n = len(self.showlist)
+            if n > 1:
+                if (self.shownum % n) == (n - 1) and False:
+                    self.param.update({"show_flag": 1})
+                    param_str = json2str(self.param)
+            if idx in self.stacklist or len(self.stacklist) == n:
+                # 注意：同一区域，同时推入多帧，可能会导致显示乱序，视觉上出现“倒帧”
+                self.param.update({"show_flag": 1})
+                param_str = json2str(self.param)
+                self.stacklist = []
+            else:
+                self.stacklist.append(idx)
             self.load.lib.api_split_screen(self.handle, data, param_str, self.width)
+            #print("sdl_refresh: param_str= ", param_str)
+            #print("sdl_refresh: show_flag= ", show_flag)
+            #print("sdl_refresh: len(self.showlist)= ", len(self.showlist))
+            self.shownum += 1
         self.lock.release()
         return True
 
@@ -197,7 +265,7 @@ class MySDL(threading.Thread):
         self.param.update({"rect_w": rect[2]})
         self.param.update({"rect_h": rect[3]})
         self.param.update({"show_flag": show_flag})
-        param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+        param_str = json2str(self.param)
         self.lock.acquire()
         print("sdl_refresh_0")
         #self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
@@ -251,28 +319,60 @@ class ReadFrame(threading.Thread):
         self.__running = threading.Event()  # 用于停止线程的标识
         self.__running.set()  # 将running设置为True
         self.yuvfilename = loadlib.yuvfilename
-
-    def init(self, width, height):
-        self.sdl = MySDL(self.id, width, height)
+        self.input_name = "v4l2"
+        self.device_name = "/dev/video0"
+        self.input_format = "mjpeg"
+        self.denoise = 2
+        self.devicetype = 3#2#1
+        self.select_device = -1
+        self.sdl = None
+        self.cap = None
+    def __del__(self):
+        print("ReadFrame del")
+        if self.sdl != None:
+            del self.sdl
+        if self.cap != None:
+            del self.cap
+        del self.load
+        gc.collect()
+    def init(self, screen_width, screen_height, cap_width, cap_height):
+        self.sdl = MySDL(self.id, screen_width, screen_height)
+        (self.sdl.width, self.sdl.height) = (cap_width, cap_height)
         self.sdl.init()
         self.cap = VideoCapture()
         # self.cap.input_name = "x11grab"
         # self.cap.device_name = ":0.0"
-        devicetype = 1  # 2#1
-        if devicetype == 1:
+
+        if self.devicetype == 1:
             self.cap.input_name = "v4l2"
             self.cap.device_name = "/dev/video0"
-        else:
+            self.cap.input_format = "mjpeg"
+            self.cap.select_device = self.select_device
+        elif self.devicetype == 2:
+            self.cap.input_name = "v4l2"
+            self.cap.device_name = "/dev/video0"
+            self.cap.input_format = "raw"
+            self.cap.select_device = self.select_device
+        elif self.devicetype == 3:
             self.cap.input_name = "x11grab"
             self.cap.device_name = ":0.0"
-
+            self.cap.input_format = "raw"
+            self.cap.select_device = self.select_device
+        else:
+            self.cap.input_name = self.input_name
+            self.cap.device_name = self.device_name
+            self.cap.input_format = self.input_format
+            self.cap.denoise = self.denoise
+            self.cap.select_device = -1
         self.cap.framerate = 0  # 15#25#0
 
-        (self.cap.width, self.cap.height) = (width, height)
-        (self.cap.cap_width, self.cap.cap_height) = (self.cap.width, self.cap.height)
+        (self.cap.cap_width, self.cap.cap_height) = (cap_width, cap_height)
+        (self.cap.width, self.cap.height) = (cap_width, cap_height)
         self.cap.init()
+        self.cap.setDaemon(True)
         self.cap.start()
         # time.sleep(1)
+        self.sdl.setDaemon(True)
         self.sdl.start()
     def init2(self):
         self.sdl = MySDL(self.id, 1920, 1080)
@@ -315,10 +415,9 @@ class ReadFrame(threading.Thread):
         while self.__running.isSet():
             self.__flag.wait()  # 为True时立即返回, 为False时阻塞直到内部的标识位为True后返回
             if True:
-                #ret = self.load.lib.api_capture_read_frame(self.handle, self.outbuf)
-                #ret = self.load.lib.api_capture_read_frame(self.handle, 0)
                 data = self.cap.ReadFrame()
                 ret = len(data)
+                #print("ReadFrame: cach miss: ret= ", ret)
                 if ret > 0:
                     misscnt = 0
                     #print("ReadFrame: ret= ", ret)
@@ -385,14 +484,16 @@ class ReadFrame(threading.Thread):
         self.sdl.stop()
         print("ReadFrame: run: self.sdl.stop ok")
         self.stop()
+        #del self.cap
+        #del self.sdl
         print("ReadFrame: run: over")
 
 if __name__ == '__main__':
     print('Start pycall.')
     call = ReadFrame(0)
-    (width, height) = (1280, 720)
-    #(width, height) = (1920, 1080)
-    call.init(width, height)
+    #(width, height) = (1280, 720)
+    (width, height) = (1920, 1080)
+    call.init(width, height, width, height)
     call.start()
     #time.sleep(2)
     idx = 0

@@ -961,7 +961,7 @@ int api_list_devices(char *input_name0, char *device_name0)
     //AVInputFormat *iformat = av_find_input_format("dshow");
 
     if (inputFmt == NULL)    {
-        printf("can not find_input_format\n");
+        printf("api_list_devices: can not find_input_format: input_name0=%s \n", input_name0);
         return -1;
     }
     int64_t time1 = get_sys_time();
@@ -981,7 +981,7 @@ int api_list_devices(char *input_name0, char *device_name0)
 
 	time0 = get_sys_time();
     if (avformat_open_input ( &pFormatCtx, device_name0, inputFmt, &options) < 0){
-        printf("api_list_devices: can not open_input_file\n");
+        printf("api_list_devices: can not open_input_file: device_name0=%s \n", device_name0);
         ret = -1;
     }
     time1 = get_sys_time();
@@ -1114,7 +1114,7 @@ int api_capture_init(char *handle, char *param)
     obj->max_buf_num = GetvalueInt(obj->json, "max_buf_num");
     printf("api_capture_init: obj->max_buf_num=%d \n", obj->max_buf_num);
     obj->frame_size = (3 * obj->width * obj->height) >> 1;
-    int cap_frame_size = obj->cap_width * obj->cap_height * 3;
+    int cap_frame_size = obj->cap_width * obj->cap_height * 4;//3;
     if(obj->max_buf_num > 0)
     {
         int frame_size = cap_frame_size;
@@ -1139,17 +1139,24 @@ int api_capture_init(char *handle, char *param)
     int64_t time0 = get_sys_time();
     obj->inputFmt = av_find_input_format (obj->input_name);
     if (obj->inputFmt == NULL)    {
-        printf("can not find_input_format\n");
+        printf("api_capture_init: can not find_input_format: obj->input_name=%s \n", obj->input_name);
         return -1;
     }
     int64_t time1 = get_sys_time();
     int difftime = (int)(time1 - time0);
     printf("api_capture_init: difftime=%d \n", difftime);
 
-    printf("api_capture_init 1 \n");
+    printf("api_capture_init: 1 \n");
     if(!strcmp(obj->input_name, "x11grab"))
     {
-        get_screen_wxh(&obj->cap_width, &obj->cap_height);
+        int screen_width = 0;
+        int screen_height = 0;
+        get_screen_wxh(&screen_width, &screen_height);
+        if(screen_width * screen_height > 0)
+        {
+            obj->cap_width = screen_width;
+            obj->cap_height = screen_height;
+        }
     }
     AVDictionary* options = NULL;
     char text[16] = "";
@@ -1174,7 +1181,10 @@ int api_capture_init(char *handle, char *param)
 	}
     time0 = get_sys_time();
     if (avformat_open_input ( &obj->pFormatCtx, obj->device_name, obj->inputFmt, &options) < 0){
-        printf("can not open_input_file\n");         return -1;
+        printf("api_capture_init: can not find_input_format: obj->input_name=%s \n", obj->input_name);
+        printf("api_capture_init: can not open_input_file: obj->device_name=%s \n", obj->device_name);
+        printf("api_capture_init: can not open_input_file: obj->input_format=%s \n", obj->input_format);
+        return -1;
     }
     time1 = get_sys_time();
     difftime = (int)(time1 - time0);
@@ -1311,27 +1321,30 @@ void api_capture_close(char *handle)
                 if(obj->cap_buf[i])
                 {
                     av_free(obj->cap_buf[i]);
+                    obj->cap_buf[i] = NULL;
                 }
             }
             free(obj->cap_buf);
-            if(obj->tmp_buf)
-            {
-                av_free(obj->tmp_buf);
-            }
-            if(obj->img_hnd)
-            {
-                if(obj->denoise == 1)
-                {
-                    I2VideoDenoiseClose(obj->img_hnd);
-                }
-                else{
-                    I2VideoDenoiseClose2(obj->img_hnd);
-                }
-
-                free(obj->img_hnd);
-            }
-            pthread_mutex_destroy(&obj->mutex);
+            obj->cap_buf = NULL;
+            printf("api_capture_close: obj->cap_buf freed \n");
         }
+        if(obj->tmp_buf)
+        {
+            av_free(obj->tmp_buf);
+            obj->tmp_buf = NULL;
+        }
+        if(obj->img_hnd)
+        {
+            if(obj->denoise == 1)
+            {
+                I2VideoDenoiseClose(obj->img_hnd);
+            }
+            else{
+                I2VideoDenoiseClose2(obj->img_hnd);
+            }
+             free(obj->img_hnd);
+        }
+        pthread_mutex_destroy(&obj->mutex);
         if(obj->scale_handle)
         {
             //
@@ -1682,6 +1695,8 @@ int adapt_scale2(char *handle, char *outbuffer)
         {
             printf("adapt_scale2: obj->pFrame->data[0]=%x \n", obj->pFrame->data[0]);
 	        printf("adapt_scale2: obj->pFrameYUV->data[0]=%x \n", obj->pFrameYUV->data[0]);
+	        printf("adapt_scale2: obj->pCodecCtx->pix_fmt=%d \n", obj->pCodecCtx->pix_fmt);
+
             obj->img_convert_ctx = sws_getContext(  obj->pCodecCtx->width,
 	                                                obj->pCodecCtx->height,
 	                                                obj->pCodecCtx->pix_fmt,
@@ -1701,7 +1716,7 @@ int adapt_scale2(char *handle, char *outbuffer)
 				    obj->pFrameYUV->data,
 				    linesize);
         ret = crop_frame(handle, obj->pFrameYUV, outbuffer);
-
+        //printf("adapt_scale2: ret=%d \n", ret);
 	}
     return ret;
 }
@@ -1810,7 +1825,7 @@ int api_capture_read_frame(char *handle, char *outbuf)
 		}
     }
     //printf("api_capture_read_frame: obj->cap_read_error_cnt=%d \n", obj->cap_read_error_cnt);
-	//printf("api_capture_read_frame: packet->size=%d \n", packet->size);//
+	//printf("api_capture_read_frame: ret=%d \n", ret);//
 	//printf("api_capture_read_frame: packet->duration=%d \n", packet->duration);
 	av_free_packet(packet);
 	return ret;
@@ -1919,8 +1934,8 @@ int api_capture_read_frame2(char *handle, char *outbuf)
 	int difftime = (int)(time1 - time0);
 	if(obj->print)
 	    printf("api_capture_read_frame2: difftime1= %d \n", difftime);
-	//printf("api_capture_read_frame: obj->pFrame->width=%d \n", obj->pFrame->width);
-	//printf("api_capture_read_frame: obj->pFrame->height=%d \n", obj->pFrame->height);
+	//printf("api_capture_read_frame2: obj->pFrame->width=%d \n", obj->pFrame->width);
+	//printf("api_capture_read_frame2: obj->pFrame->height=%d \n", obj->pFrame->height);
 	if(got_picture){
 	    int flag = obj->pCodecCtx->pix_fmt == obj->pixformat;
 	    //printf("api_capture_read_frame: obj->pCodecCtx->pix_fmt=%d \n", obj->pCodecCtx->pix_fmt);
@@ -1988,7 +2003,7 @@ int api_capture_read_frame2(char *handle, char *outbuf)
 
     if(difftime > 1000)
     {
-        int sum_time = (difftime / 1000);//s
+        float sum_time = (difftime / 1000.0);//s
         if((obj->frame_num % step) == (step - 1))
         {
             obj->cap_framerate = (int)((float)step / (float)sum_time);

@@ -4,13 +4,16 @@
 import sys
 
 # for python2
-try:
-    print (sys.getdefaultencoding())
-    reload(sys)
-    sys.setdefaultencoding('utf-8')
-    print (sys.getdefaultencoding())
-except:
+if sys.version_info >= (3, 0):
     pass
+else:
+    try:
+        print (sys.getdefaultencoding())
+        reload(sys)
+        sys.setdefaultencoding('utf-8')
+        print (sys.getdefaultencoding())
+    except:
+        pass
 
 import socket
 import threading
@@ -38,32 +41,41 @@ if len(sys.argv) > 2:
 if len(sys.argv) > 1:
     global_host = sys.argv[1]
 
+def json2str(jsonobj):
+    if sys.version_info >= (3, 0):
+        json_str = json.dumps(jsonobj, ensure_ascii=False, sort_keys=False).encode('utf-8')
+    else:
+        json_str = json.dumps(jsonobj, encoding='utf-8', ensure_ascii=False, sort_keys=False)
 
+    return json_str
 def char2long(x):
     ret = 0
-    try:  # Add these 3 lines
-        ret = long(x)
-    except: # ValueError:
-        print("Something went wrong {!r}".format(x))
+    if sys.version_info >= (3, 0):
+        ret = int(x)
+    else:
+        try:  # Add these 3 lines
+            ret = long(x)
+        except: # ValueError:
+            print("Something went wrong {!r}".format(x))
     return ret
+
 def str2json(json_str):
     outjson = None
     try:
-        outjson = json.loads(json_str, encoding='utf-8')
+        if sys.version_info >= (3, 0):
+            outjson = json.loads(json_str.decode())
+        else:
+            outjson = json.loads(json_str, encoding='utf-8')
     except:
-        print("error: python version")
         try:
             outjson = json.loads(json_str)
         except:
-            print("not json")
+            print("ReadCmd: not cmd")
+            # print("not cmd: str_cmd=", str_cmd)
         else:
-            json_str2 = json.dumps(outjson, encoding='utf-8', ensure_ascii=False,
-                                      sort_keys=True)
-            #print("1: json_str2= ", json_str2)
+            pass
     else:
-        json_str2 = json.dumps(outjson, encoding='utf-8', ensure_ascii=False,
-                                  sort_keys=True)
-        #print("0: json_str2= ", json_str2)
+        pass
     return outjson
 
 class ClientManager(object):
@@ -71,17 +83,22 @@ class ClientManager(object):
         self.server = server
         self.lock = threading.Lock()
         self.clientQueue = {}
+    def __del__(self):
+        print("ClientManager del")
 
     def ReadCmd(self, str_cmd):
         cmd = {}
         try:
-            cmd = json.loads(str_cmd, encoding='utf-8')
+            if sys.version_info >= (3, 0):
+                cmd = json.loads(str_cmd.decode())
+            else:
+                cmd = json.loads(str_cmd, encoding='utf-8')
         except:
             try:
                 cmd = json.loads(str_cmd)
             except:
-                #print("not cmd")
-                pass
+                print("ReadCmd: not cmd")
+                # print("not cmd: str_cmd=", str_cmd)
             else:
                 pass
         else:
@@ -98,9 +115,13 @@ class ClientManager(object):
         ret = -1
         actor = -1
         sessionId = -1
-        if len(data) <= CMD_SIZE:
+        #print("video:ClientManager: PushQueue: len(data)= ", len(data))
+        n = len(data)
+        if n <= CMD_SIZE and ('{' in str(data[0:3])) and ('}' in str(data[n - 3:])):
             cmd = self.ReadCmd(data)
-            if cmd != {}:
+            if cmd not in [{}, None]:
+                #print("PushQueue: data[0:3]=", data[0:3])
+                #print("PushQueue: data=", data)
                 if cmd.get("actor") != None:
                     actor = cmd.get("actor")
                 else:
@@ -118,9 +139,10 @@ class ClientManager(object):
             print(test_str)
         self.lock.acquire()
         if self.clientQueue.get(sockId) == None and actor >= 0:
-            print("ClientManager: PushQueue: cmd: actor= ", actor)
+            print("video:ClientManager: PushQueue: cmd: actor= ", actor)
             head_dict = {"actor": actor, "sessionId" : sessionId}
             self.clientQueue.update({sockId: head_dict})
+            print("video: PushQueue: head_dict=", head_dict)
             ret = 0
         elif actor < 0:
             #print("ClientManager: PushQueue: data")
@@ -138,7 +160,7 @@ class ClientManager(object):
                         difftime = int(recv_time1 - recv_time0)
                         if difftime > 40:
                             type = SERVER_TYPE
-                            print("ClientManager: PushQueue: (type, sockId, len(datalist), difftime)= ", (type, sockId, len(datalist), difftime))
+                            ##print("ClientManager: PushQueue: (type, sockId, len(datalist), difftime)= ", (type, sockId, len(datalist), difftime))
                     self.clientQueue[sockId]["data"] = datalist
                 ret = 0
         self.lock.release()
@@ -156,6 +178,7 @@ class ClientManager(object):
             if this_actor != None and this_sessionId != None:
                 if this_actor == 1 and this_actor == actor: #share
                     if sessionId < 0 or sessionId == this_sessionId:
+                        #print("video: GetClient: this_sessionId=", this_sessionId)
                         dataList = value.get("data")
                         if dataList != None:
                             # if len(dataList) > 0:
@@ -182,7 +205,8 @@ class DataManager(object):
     def __init__(self):
         self.lock = threading.Lock()
         self.DataList = []
-
+    def __del__(self):
+        print("DataManager del")
     def PopQueue(self):
         ret = None
         self.lock.acquire()
@@ -219,6 +243,8 @@ class RecvTaskManagerThread(threading.Thread):
         self.__flag.set()  # 设置为True
         self.__running = threading.Event()  # 用于停止线程的标识
         self.__running.set()  # 将running设置为True
+    def __del__(self):
+        print("RecvTaskManagerThread del")
     def run(self):
         while self.__running.isSet():
             self.__flag.wait()   # 为True时立即返回, 为False时阻塞直到内部的标识位为True后返回
@@ -275,11 +301,12 @@ class SendTaskManagerThread(threading.Thread):
         self.flag.set()  # 设置为True
         self.__running = threading.Event()  # 用于停止线程的标识
         self.__running.set()  # 将running设置为True
-
+    def __del__(self):
+        print("SendTaskManagerThread del")
 
     def send_ack(self, task_data, jsonobj):
         (remoteHost, remotePort, target_sessionId, data) = task_data
-        json_str = json.dumps(jsonobj, encoding='utf-8', ensure_ascii=False, sort_keys=False)
+        json_str = json2str(jsonobj)
         sendDataLen = self.server.sock.sendto(json_str, (remoteHost, remotePort))
         if (self.ack_times % 10000) == 0:
             print("send_ack: (sendDataLen, self.ack_times): ", (sendDataLen, self.ack_times))
@@ -295,7 +322,7 @@ class SendTaskManagerThread(threading.Thread):
         ret = self.server.load.lib.api_get_extern_info(this_data, self.outparam)
         #print("SendTaskManagerThread: PushQueue: ret= ", ret)
         if ret > 0:
-            #print("SendTaskManagerThread: PushQueue: ret= ", ret)
+            #print("video:SendTaskManagerThread: PushQueue: self.outparam[0]= ", self.outparam[0])
             outjson = str2json(self.outparam[0])
             if outjson != None:
                 time_status = outjson["time_status"]
@@ -309,7 +336,10 @@ class SendTaskManagerThread(threading.Thread):
                         print("itime= ", itime)
                         return ret
                     seqnum = outjson["seqnum"]
-                    packet_time_stamp = long(outjson["packet_time_stamp"])
+                    if sys.version_info >= (3, 0):
+                        packet_time_stamp = int(outjson["packet_time_stamp"])
+                    else:
+                        packet_time_stamp = long(outjson["packet_time_stamp"])
                     #self.outparam[1] = "api_get_time_stamp2"
                     #self.server.load.lib.api_get_time_stamp2(12, this_data, self.outparam)
                     #c_time_ll = long(self.outparam[0])
@@ -328,7 +358,7 @@ class SendTaskManagerThread(threading.Thread):
                             rttlist.append((seqnum, packet_time_stamp, recv_time))
                             self.AckQueue[sockId] = rttlist
             else:
-                print("save_info: not json: ", SERVER_TYPE)
+                print("PushQueue: not json: ", SERVER_TYPE)
         return ret
 
     def send_ack_0(self, task_data):
@@ -343,17 +373,23 @@ class SendTaskManagerThread(threading.Thread):
                 time_status = outjson["time_status"]
                 if time_status == 0:
                     seqnum = outjson["seqnum"]
-                    packet_time_stamp = long(outjson["packet_time_stamp"])
+                    if sys.version_info >= (3, 0):
+                        packet_time_stamp = int(outjson["packet_time_stamp"])
+                    else:
+                        packet_time_stamp = long(outjson["packet_time_stamp"])
                     self.outparam[1] = "api_get_time_stamp2"
                     self.server.load.lib.api_get_time_stamp2(12, this_data, self.outparam)
-                    c_time_ll = long(self.outparam[0])
+                    if sys.version_info >= (3, 0):
+                        c_time_ll = int(self.outparam[0])
+                    else:
+                        c_time_ll = long(self.outparam[0])
                     rtt = {}
                     rtt.update({"seqnum": seqnum})
                     rtt.update({"st0": packet_time_stamp})
                     rtt.update({"rt0": recv_time})
                     rtt.update({"st1": c_time_ll})
                     jsonobj = {"rtt": rtt}
-                    json_str = json.dumps(jsonobj, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+                    json_str = json2str(jsonobj)
                     sendDataLen = self.server.sock.sendto(json_str, (remoteHost, remotePort))
                     print("send_ack: sendDataLen: ", sendDataLen)
                     ret = len(json_str)
@@ -367,9 +403,13 @@ class SendTaskManagerThread(threading.Thread):
             start_time = time.time()
             task_data_list = self.server.client_master.GetClient(actor, sessionId)
             has_send = False
+            #print("video: SendTaskManagerThread: (actor, sessionId)= ", (actor, sessionId))
+            #if len(task_data_list) > 0:
+            #    print("video: SendTaskManagerThread: len(task_data_list)= ", len(task_data_list))
             for task_data in task_data_list:
             #if task_data != None:
                 (remoteHost, remotePort, target_sessionId, data) = task_data
+                #print("video: SendTaskManagerThread: target_sessionId= ", target_sessionId)
                 if target_sessionId >= 0:
                     self.PushQueue(task_data)
                     task_data_list2 = self.server.client_master.GetClient(2, target_sessionId)
@@ -377,7 +417,7 @@ class SendTaskManagerThread(threading.Thread):
                         (remoteHost2, remotePort2, target_sessionId2, data2) = task_data2
                         if target_sessionId2 == target_sessionId:
                             (this_data, recv_time) = data
-
+                            #print("video: SendTaskManagerThread: len(this_data)= ", len(this_data))
                             if True:
                                 #self.ctime[0] = "0123456789012345"
                                 #self.server.load.lib.api_get_time(self.ctime)
@@ -393,12 +433,12 @@ class SendTaskManagerThread(threading.Thread):
                                 # if diff_time > self.max_delay_time and self.recv_packet_num > 100:
                                 if diff_time > self.max_delay_time:
                                     self.max_delay_time = diff_time
-                                    print("send2send diff_time= ", diff_time)
+                                    print("video: send2send diff_time= ", diff_time)
                             try:
                                 sendDataLen = self.server.sock.sendto(this_data, (remoteHost2, remotePort2))
-                                #print("(sendDataLen,remoteHost2, remotePort2): ", (sendDataLen,remoteHost2, remotePort2))
-                            except IOError, error:  # python2
-                            # except IOError as error:  # python3
+                                #print("video: (sendDataLen,remoteHost2, remotePort2): ", (sendDataLen,remoteHost2, remotePort2))
+                            #except IOError, error:  # python2
+                            except IOError as error:  # python3
                                 print("(error, sendDataLen,remoteHost2, remotePort2): ", (error, sendDataLen, remoteHost2, remotePort2))
                             else:
                                 time.sleep(0.0001)
@@ -486,6 +526,8 @@ class EchoServerThread(threading.Thread):
         self.recv_task.start()
         self.send_task = SendTaskManagerThread(self)
         self.send_task.start()
+    def __del__(self):
+        print("EchoServerThread del")
     def rand_lost_packet(self, rate):
         ret = True
         start_time = time.time()
@@ -545,8 +587,8 @@ class EchoServerThread(threading.Thread):
                 else:
                     print("rdata= ", rdata)
                     break
-            except IOError, error:  # python2
-            # except IOError as error:  # python3
+            #except IOError, error:  # python2
+            except IOError as error:  # python3
                 if "timed out" in error:
                     #print("EchoServerThread: run: timeout: recvfrom error= ", error)
                     pass
@@ -575,7 +617,7 @@ class EchoServerThread(threading.Thread):
                 if diff_time > self.max_delay_time:
                     self.max_delay_time = diff_time
                     self.max_delay_packet = self.recv_packet_num
-                    print("send2receive diff_time= ", diff_time)
+                    print("video: EchoServerThread: send2receive diff_time= ", diff_time)
                     #if self.log_fp != None:
                     #    self.log_fp.write("max_delay_time= " + str(self.max_delay_time) + "\n")
                     #    self.log_fp.flush()
@@ -600,8 +642,8 @@ class EchoServerThread(threading.Thread):
             self.sock.shutdown(socket.SHUT_RDWR)
             self.sock.close()
             pass
-        except IOError, error:  # python2
-        # except IOError as error:  # python3
+        #except IOError, error:  # python2
+        except IOError as error:  # python3
             print("stop error: ", error)
         else:
             print("stop ok")

@@ -59,8 +59,8 @@ class AVSession(threading.Thread):
         threading.Thread.__init__(self)
         self.windId = windId
         self.params = params
-        self.width = 1280
-        self.height = 720
+        self.screen_width = 1280
+        self.screen_height = 720
         self.conferenceInfo = params.get("conference")
         self.multdevice = params.get("multdevice")
         self.control = params.get("control")
@@ -73,6 +73,9 @@ class AVSession(threading.Thread):
         self.audio_thread_show = None #player(2)
         self.audio_thread_list = []
         ###
+        #self.deviceList = []
+        self.upList = []
+        self.init_params()
         #self.init_video()#注意：不能在主线程中创建SDL，否则退出后重启崩溃
         self.init_audio()
         ###
@@ -84,73 +87,104 @@ class AVSession(threading.Thread):
         self.pause()
         self.status = 0
         self.winid = 0
-    def init_video(self):
+    def __del__(self):
+        print("AVSession del")
+        if self.video_thread_show != None:
+            del self.video_thread_show
+        if self.audio_thread_show != None:
+            del self.audio_thread_show
+        for thisobj in self.video_thread_list:
+            del thisobj
+        del self.video_thread_list
+        for thisobj in self.audio_thread_list:
+            del thisobj
+        del self.audio_thread_list
+        for thisobj in self.upList:
+            del thisobj
+        del self.upList
+        for thisobj in self.rectList:
+            del thisobj
+        del self.rectList
+        if self.conferenceInfo != None:
+            del self.conferenceInfo
         if self.multdevice != None:
-            #print("AVSession: self.multdevice= ", self.multdevice)
-            self.deviceList = []
-            for key, value in self.multdevice.items():
-                self.deviceList.append(value)
+            del self.multdevice
         if self.control != None:
+            del self.control
+        if self.general != None:
+            del self.general
+
+    def init_params(self):
+        self.rectList = []
+        if self.general != None and self.general.get("mode") != None:
+            if self.general.get("mode") != None:
+                modeId = self.general["mode"]["modeId"]
+                modePos = self.general["mode"]["modePos"]
+                for thisRect in modePos:
+                    chanId = thisRect["chanId"]
+                    deviceId = thisRect["deviceId"]
+                    devicePos = thisRect["pos"]
+                    self.upList.append((chanId, deviceId, devicePos))
+                    self.rectList.append(devicePos)
+                    if deviceId >= 0:
+                        deviceDict = self.multdevice[str(deviceId)]
+                        if deviceDict != None:
+                            videos = deviceDict["videos"]
+                            if videos != None:
+                                scapture = videos["capture"]["name"]
+                                sresolution = videos["resolution"]["name"]
+                                if sresolution not in ["其他"]:
+                                    swidth = sresolution.split("x")[0]
+                                    sheight = sresolution.split("x")[1]
+                                    (self.width, self.height) = (int(swidth), int(sheight))
+        elif self.control != None:
             mode = self.control["mode"]
             rect = self.control["rect"]
             if mode != None and rect != None:
                 # self.deviceNum = len(rect)
-                self.upList = []
+                #self.upList = []
                 for thisRect in rect:
                     chanId = thisRect["chanId"]
                     deviceId = thisRect["deviceId"]
                     devicePos = thisRect["pos"]
                     self.upList.append((chanId, deviceId, devicePos))
+                    self.rectList.append(devicePos)
+                    if deviceId >= 0:
+                        deviceDict = self.multdevice[str(deviceId)]
+                        if deviceDict != None:
+                            videos = deviceDict["videos"]
+                            if videos != None:
+                                scapture = videos["capture"]["name"]
+                                sresolution = videos["resolution"]["name"]
+                                if sresolution not in ["其他"]:
+                                    swidth = sresolution.split("x")[0]
+                                    sheight = sresolution.split("x")[1]
+                                    (self.width, self.height) = (int(swidth), int(sheight))
         if self.general != None:
             mode = self.general["mode"]
             if mode != None:
-                self.modeId = mode["modeId"]
-                self.rects = mode["modePos"]
-                #print("AVSession: init: self.rects= ", self.rects)
+                if mode.get("modeId") != None:
+                    self.modeId = mode["modeId"]
+                if mode.get("modePos") != None:
+                    self.rects = mode["modePos"]
+                # print("AVSession: init: self.rects= ", self.rects)
             supprams = self.general["supprams"]
             if supprams != None:
                 spatiallayer = int(supprams["spatiallayer"]["name"])
-                print("AVSession: init: spatiallayer= ", spatiallayer)
+                print("AVSession: init_video: spatiallayer= ", spatiallayer)
         if self.conferenceInfo != None:
-            self.width = self.conferenceInfo["width"]
-            self.height = self.conferenceInfo["height"]
-
-        udpclient.SHOW_WIDTH = self.width
-        udpclient.SHOW_HEIGHT = self.height
-        self.video_thread_show = display(self.windId, self.width, self.height)
+            self.screen_width = self.conferenceInfo["width"]
+            self.screen_height = self.conferenceInfo["height"]
+    def init_video(self):
+        udpclient.SHOW_WIDTH = self.screen_width
+        udpclient.SHOW_HEIGHT = self.screen_height
+        print("AVSession: init_video: (self.width, self.height)= ", (self.width, self.height))
+        self.video_thread_show = display(self.windId, self.screen_width, self.screen_height, self.width, self.height)
+        if len(self.rectList) > 0:
+            self.video_thread_show.SetRects(self.rectList)
         self.video_thread_show.start()
         return
     def init_audio(self):
-        if self.multdevice != None:
-            #print("AVSession: self.multdevice= ", self.multdevice)
-            self.deviceList = []
-            for key, value in self.multdevice.items():
-                self.deviceList.append(value)
-        if self.control != None:
-            mode = self.control["mode"]
-            rect = self.control["rect"]
-            if mode != None and rect != None:
-                # self.deviceNum = len(rect)
-                self.upList = []
-                for thisRect in rect:
-                    chanId = thisRect["chanId"]
-                    deviceId = thisRect["deviceId"]
-                    devicePos = thisRect["pos"]
-                    self.upList.append((chanId, deviceId, devicePos))
-        if self.general != None:
-            mode = self.general["mode"]
-            if mode != None:
-                self.modeId = mode["modeId"]
-                self.rects = mode["modePos"]
-                #print("AVSession: init: self.rects= ", self.rects)
-            supprams = self.general["supprams"]
-            if supprams != None:
-                spatiallayer = int(supprams["spatiallayer"]["name"])
-                print("AVSession: init: spatiallayer= ", spatiallayer)
-        if self.conferenceInfo != None:
-            self.width = self.conferenceInfo["width"]
-            self.height = self.conferenceInfo["height"]
-
         self.audio_thread_show = player(2)
         self.audio_thread_show.start()
         return
@@ -161,47 +195,99 @@ class AVSession(threading.Thread):
         #无导播合成多屏
         #导播合成多屏
         #导播多流
-        if len(self.upList) > 0 and len(self.deviceList) > 0: #导播多流
+        if len(self.upList) > 0 and (self.multdevice != None): #len(self.deviceList) > 0: #导播多流
             for thisUp in self.upList:
                 chanId = thisUp[0]
-                deviceId = thisUp[1]
+                deviceId = int(thisUp[1])
                 devicePos = thisUp[2]
                 if deviceId >= 0:
-                    deviceDict = self.deviceList[deviceId]
+                    deviceDict = self.multdevice[str(deviceId)] #self.deviceList[deviceId]
+                    print("create_clients: deviceDict= ", deviceDict)
                     ###test
-                    self.create_down_video((MAX_CHANID + chanId), devicePos)
-                    self.create_down_audio((MAX_CHANID + chanId), devicePos)
+                    if False:
+                        self.create_down_video((MAX_CHANID + chanId), devicePos)
+                        self.create_down_audio((MAX_CHANID + chanId), devicePos)
                     ###
                     self.create_up_video(chanId, devicePos, deviceDict)
                     self.create_up_audio(chanId, devicePos, deviceDict)
-
                 else:
                     self.create_down_video(chanId, devicePos)
                     self.create_down_audio(chanId, devicePos)
 
     def create_up_video(self, chanId, devicePos, deviceDict):
+        print("create_up_video: chanId= ", chanId)
         (id, sessionId, actor) = (chanId, 100, 1)
         conf = self.conferenceInfo
         sessionId = conf["sessionId"]
         sup = self.general["supprams"]
         spatiallayer = int(sup["spatiallayer"]["name"])
         refs = int(sup["temporallayer"]["name"])
+        print("create_up_video: refs=", refs)
         serverAddr = sup["serverAddr"]
         host = serverAddr.split(":")[0]
         port = int(serverAddr.split(":")[1])
         ###video
-        (bitrate, mtu_size, fec_level, buffer_shift) = self.GetParams(refs)
+        (bitrate, mtu_size, fec_level, buffer_shift) = self.GetParams(refs, self.width, self.height)
         video_thread = videoenc(id, sessionId, actor, host, port)
+        ###
+        osd_enable = sup["osd"]
+        fecenable = 1
+        if deviceDict != None:
+            thisDevice = deviceDict["videos"]
+            if thisDevice != None:
+                sresolution = thisDevice["resolution"]["name"]
+                if sresolution not in ["其他"]:
+                    swidth = sresolution.split("x")[0]
+                    sheight = sresolution.split("x")[1]
+                    video_thread.width = int(swidth)
+                    video_thread.height = int(sheight)
+                (bitrate, mtu_size, fec_level, buffer_shift) = self.GetParams(refs, video_thread.width, video_thread.height)
+                sbitrate = thisDevice["bitrate"]["name"]
+                if sbitrate not in ["default", "其他"]:
+                    sbitrate = sbitrate.replace("kbps","")
+                    ibitrate = int(sbitrate)
+                    bitrate = ibitrate * 1024
+                    print("create_up_video: ibitrate= ", ibitrate)
+                scapture = thisDevice["capture"]["name"]
+                print("create_up_video: scapture= ", scapture)
+                if "video" in scapture:
+                    video_thread.input_name = "v4l2"
+                    video_thread.device_name = "/dev/" + str(scapture.split(":")[0])
+                    video_thread.input_format = str(scapture.split(":")[1])
+                elif "fb" in scapture:
+                    video_thread.input_name = "x11grab"
+                    video_thread.device_name = ":0.0"
+                    video_thread.input_format = "raw"
+                else:
+                    pass
+                print("create_up_video: video_thread.input_name= ", video_thread.input_name)
+                print("create_up_video: video_thread.device_name= ", video_thread.device_name)
+                print("create_up_video: video_thread.input_format= ", video_thread.input_format)
+                scodec = thisDevice["codec"]["name"]
+                fecenable = thisDevice["fec"]
+                denoise = thisDevice["denoise"]
+                if denoise:
+                    video_thread.denoise = 2
+                sframerate = thisDevice["framerate"]["name"]
+                if "fps" in sframerate:
+                    sframerate = sframerate.replace("fps", "")
+                    video_thread.framerate = int(sframerate)
+                    #video_thread.encode0.frame_rate: fixed 25
+
+        print("create_up_video: bitrate= ", bitrate)
+        print("create_up_video: fecenable= ", fecenable)
+        ###
+        (video_thread.encode0.width, video_thread.encode0.height) = (video_thread.width, video_thread.height)
         video_thread.encode0.refs = refs  # 16
         video_thread.fec_level = fec_level  # 1#0#2#0#1#2#3#0#4 #3 #2#0
-        video_thread.encode0.enable_fec = 1
+        video_thread.encode0.enable_fec = fecenable
         video_thread.encode0.lost_rate = LOSS_RATE  # 0.2 #0.3
         video_thread.encode0.code_rate = (1 - video_thread.encode0.lost_rate)
         bitrate = int(video_thread.encode0.code_rate * bitrate)
         video_thread.encode0.bit_rate = bitrate
         video_thread.encode0.mtu_size = mtu_size
         video_thread.encode0.setparam()
-        video_thread.opendevice(1)
+        video_thread.opendevice(4)
         video_thread.opencodec()
         video_thread.show = self.video_thread_show
         self.video_thread_show.InsertId(video_thread.id)
@@ -223,9 +309,35 @@ class AVSession(threading.Thread):
         bitrate = int(deviceDict["audios"]["bitrate"]["name"])
         port = port + 1
         audio_thread = audioenc(id, sessionId, actor, host, port)
+        ###
+        if deviceDict != None:
+            thisDevice = deviceDict["audios"]
+            if thisDevice != None:
+                sbitrate = thisDevice["bitrate"]["name"]
+                if sbitrate not in ["default", "其他"]:
+                    #sbitrate = sbitrate.replace("kbps", "")
+                    bitrate = int(sbitrate)
+                    print("create_up_audio: bitrate= ", bitrate)
+                srecorder = thisDevice["recorder"]["name"]
+                if srecorder not in ["default"]:
+                    pass
+                ccodec = thisDevice["codec"]["name"]
+                cchannels = thisDevice["channels"]["name"]
+                channels = int(cchannels)
+                caudiofmt = thisDevice["audiofmt"]["name"]
+                cframesize = thisDevice["framesize"]["name"]
+                framesize = int(cframesize)
+                csamplerate = thisDevice["samplerate"]["name"]
+                samplerate = int(csamplerate)
+
+                audio_thread.in_channels = channels
+                audio_thread.in_sample_rate = samplerate
+                #audio_thread.in_sample_fmt = "AV_SAMPLE_FMT_S16"
+                #audio_thread.out_nb_samples
+                audio_thread.encode0.out_nb_samples = framesize
         audio_thread.encode0.bit_rate = bitrate
         audio_thread.encode0.mtu_size = mtu_size
-        audio_thread.opendevice(1)
+        audio_thread.opendevice(2)
         audio_thread.opencodec()
         audio_thread.show = self.audio_thread_show
         self.audio_thread_show.InsertId(audio_thread.id)
@@ -239,16 +351,20 @@ class AVSession(threading.Thread):
         sup = self.general["supprams"]
         spatiallayer = int(sup["spatiallayer"]["name"])
         refs = int(sup["temporallayer"]["name"])
+        osd_enable = sup["osd"]
         serverAddr = sup["serverAddr"]
         host = serverAddr.split(":")[0]
         port = int(serverAddr.split(":")[1])
-        ###video
-        (bitrate, mtu_size, fec_level, buffer_shift) = self.GetParams(refs)
+
+        (bitrate, mtu_size, fec_level, buffer_shift) = self.GetParams(refs, self.width, self.height)
         video_thread = vidodec(id, sessionId, actor, host, port)
+        ###video
+        (video_thread.decode0.width, video_thread.decode0.height) = (self.width, self.height)
         video_thread.decode0.min_distance = 2
         video_thread.decode0.delay_time = 100
         video_thread.decode0.buf_size = (1 << buffer_shift)  # 1024#必须是2的指数
         video_thread.decode0.mtu_size = mtu_size
+        video_thread.opencodec()
         video_thread.show = self.video_thread_show
         self.video_thread_show.InsertId(video_thread.id)
         video_thread.start()
@@ -272,19 +388,23 @@ class AVSession(threading.Thread):
         audio_thread.decode0.delay_time = 100
         audio_thread.decode0.buf_size = (1 << buffer_shift)  # 1024#必须是2的指数
         audio_thread.decode0.mtu_size = mtu_size
+        #audio_thread.opencodec()
         audio_thread.show = self.audio_thread_show
         self.audio_thread_show.InsertId(audio_thread.id)
         audio_thread.start()
         self.audio_thread_list.append(audio_thread)
     def clients_stop(self):
-        for video_thread in self.video_thread_list:
-            #print("clients_stop: video: 0")
-            video_thread.stop()
-            #print("clients_stop: video: 1")
+
         for audio_thread in self.audio_thread_list:
             #print("clients_stop: audio: 0")
             audio_thread.stop()
             #print("clients_stop: audio: 1")
+
+        for video_thread in self.video_thread_list:
+            #print("clients_stop: video: 0")
+            video_thread.stop()
+            #print("clients_stop: video: 1")
+
 
         print("clients_stop: video_thread_show")
         if self.video_thread_show != None:
@@ -341,9 +461,9 @@ class AVSession(threading.Thread):
         self.stop()
         print("AVSession: run over")
 
-    def GetParams(self, refs):
+    def GetParams(self, refs, width, height):
         ret = (3 * 1024 * 1024, 1400, 0, 10)
-        (h, w) = (SHOW_HEIGHT, SHOW_WIDTH)
+        (h, w) = (width, height)
         if (w * h) <= 352 * 288:
             fec_level = 2
             if refs <= 2:
@@ -358,17 +478,17 @@ class AVSession(threading.Thread):
             fec_level = 3
             if refs <= 2:
                 fec_level = 0
-            ret = (1000 * 1024, 600, fec_level, 10)
+            ret = (1200 * 1024, 600, fec_level, 10)
         elif (w * h) <= 1280 * 720:
             fec_level = 1
             if refs <= 2:
                 fec_level = 0
-            ret = (int(1.5 * 1024 * 1024), 800, fec_level, 11)
+            ret = (int(2.0 * 1024 * 1024), 800, fec_level, 11)
         elif (w * h) <= 1920 * 1080:
             fec_level = 1
             if refs <= 2:
                 fec_level = 0
-            ret = (2.5 * 1024 * 1024, 1100, fec_level, 12)
+            ret = (3.0 * 1024 * 1024, 1100, fec_level, 12)
         else:
             fec_level = 0
             ret = (6 * 1024 * 1024, 1400, fec_level, 13)

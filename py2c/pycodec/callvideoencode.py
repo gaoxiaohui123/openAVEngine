@@ -24,6 +24,13 @@ import loadlib
 
 sys.path.append(".")
 
+def json2str(jsonobj):
+    if sys.version_info >= (3, 0):
+        json_str = json.dumps(jsonobj, ensure_ascii=False, sort_keys=False).encode('utf-8')
+    else:
+        json_str = json.dumps(jsonobj, encoding='utf-8', ensure_ascii=False, sort_keys=False)
+
+    return json_str
 class CallVideoEncode(object):
     def __init__(self, id, width, height):
         self.load = loadlib.gload
@@ -47,6 +54,7 @@ class CallVideoEncode(object):
         self.bit_rate = 640*1024 #524288
         self.max_b_frames = 0
         self.thread_count = 1
+        self.adapt_cpu = 1;
         #
         self.osd = 1
         self.orgX = 0
@@ -63,6 +71,17 @@ class CallVideoEncode(object):
         #print("CallVideoEncode: init: open ret= ", ret)
         difftime = time.time() - start_time
         print('{} CallVideoEncode: init time: {:.3f}ms'.format(time.ctime(), difftime * 1000))
+        self.outbuf = None
+    def __del__(self):
+        print("CallVideoEncode del")
+        if self.param != None:
+            del self.param
+        if self.outbuf != None:
+            del self.outbuf
+        if self.sizelist != None:
+            del self.sizelist
+        if self.handle != None:
+            del self.handle
     def get_cpx(self):
         ret = "superfast"
         #return ret
@@ -116,9 +135,10 @@ class CallVideoEncode(object):
         self.param.update({"orgY": self.orgY})
         self.param.update({"scale": self.scale})
         self.param.update({"color": self.color})
+        self.param.update({"adapt_cpu": self.adapt_cpu})
         self.param.update({"print": 0})
         ##param.update({"sdp": 1})
-        frame_size = (width * height * 3) / 2
+        frame_size = int((width * height * 3) / 2)
         self.outbuf = create_string_buffer(frame_size)
         array_type = c_char_p * 4
         self.outparam = array_type()
@@ -133,9 +153,9 @@ class CallVideoEncode(object):
         ret = 0
         if len(data) > 0:
             self.param.update({"frame_idx": i})
-            param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
+            param_str = json2str(self.param)
             ###
-            self.outparam[0] = "test1"
+            self.outparam[0] = b"test1"
             ###
             ret = self.load.lib.api_video_encode_one_frame(self.obj_id, data, param_str, self.outbuf, self.outparam)
 
@@ -160,7 +180,7 @@ class CallVideoEncode(object):
         (param, outbuf, outparam) = self.setparam()
 
         start_time = time.time()
-        param_str = json.dumps(param, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
+        param_str = json2str(param)
         self.load.lib.api_video_encode_open(self.obj_id, param_str)
         difftime = time.time() - start_time
         print('{} test_encode:api_video_encode_open: time: {:.3f}ms'.format(time.ctime(), difftime * 1000))
@@ -226,9 +246,9 @@ class CallVideoEncode(object):
                     else:
                         param.update({"pic_type": ref_idx})
 
-                    param_str = json.dumps(param, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
+                    param_str = json2str(param)
                     ###
-                    outparam[0] = "test1"
+                    outparam[0] = b"test1"
                     ###
                     start_time = time.time()
                     ret = self.load.lib.api_video_encode_one_frame(self.obj_id, data, param_str, outbuf, outparam)
@@ -251,7 +271,7 @@ class CallVideoEncode(object):
                         #outparam[0] = ""
                         #outparam[1] = ""
                         param.update({"insize": ret})
-                        param_str = json.dumps(param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+                        param_str = json2str(param)
                         ret2 = self.load.lib.api_raw2rtp_packet(self.obj_id, data2, param_str, outbuf, outparam)
                         #print("outparam[0]= ", outparam[0])
                         self.seqnum = int(outparam[1])
@@ -267,7 +287,7 @@ class CallVideoEncode(object):
                             for packet_size in rtpSize:
                                 sizelist.append(int(packet_size))
                             param.update({"inSize": sizelist})
-                            param_str = json.dumps(param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+                            param_str = json2str(param)
                             ret = self.load.lib.api_fec_encode(self.obj_id + 10, data3, param_str, outbuf, outparam)
                             if ret > 0:
                                 print("encode raw size= ", ret)
@@ -282,7 +302,7 @@ class CallVideoEncode(object):
                                     for packet_size in pktSize:
                                         sizelist.append(int(packet_size))
                                     param.update({"inSize": sizelist})
-                                    param_str = json.dumps(param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+                                    param_str = json2str(param)
                                     ret = self.load.lib.api_fec_decode(self.obj_id + 10 + 1, data4, param_str, outbuf, outparam)
                                     if ret > 0 and True:
                                         print("decode raw size= ", ret)
@@ -628,9 +648,9 @@ def cut_stream(yuvfilename0, yuvfilename2, streamlist0, streamlist1, streamlist2
         param1.update({"insize": 0})
         param2.update({"insize": 0})
         start_time = time.time()
-        param_str0 = json.dumps(param0, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
-        param_str1 = json.dumps(param1, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
-        param_str2 = json.dumps(param2, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
+        param_str0 = json2str(param0)
+        param_str1 = json2str(param1)
+        param_str2 = json2str(param2)
         decode0.load.lib.decode_open2(decode0.obj_id, param_str0)
         decode1.load.lib.decode_open2(decode1.obj_id, param_str1)
         decode2.load.lib.decode_open2(decode2.obj_id, param_str2)
@@ -685,13 +705,13 @@ def cut_stream(yuvfilename0, yuvfilename2, streamlist0, streamlist1, streamlist2
                         data0 = data1
 
                     param0.update({"insize": frame_size0})
-                    param_str0 = json.dumps(param0, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
+                    param_str0 = json2str(param0)
 
                     param1.update({"insize": frame_size1})
-                    param_str1 = json.dumps(param1, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
+                    param_str1 = json2str(param1)
 
                     param2.update({"insize": frame_size2})
-                    param_str2 = json.dumps(param2, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
+                    param_str2 = json2str(param2)
 
                     start_time = time.time()
                     ret0 = decode0.load.lib.api_video_decode_one_frame(decode0.obj_id, data0, param_str0, outbuf0, outparam0)

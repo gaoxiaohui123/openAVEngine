@@ -222,7 +222,11 @@ int api_player_init(char *handle, char *param)
         obj->fp_pcm = fopen(filename, "wb");
     }
     obj->mix_num = GetvalueInt(obj->json, "mix_num");
-    obj->audio_pos = calloc(1, sizeof(uint8_t *) * obj->mix_num);
+    obj->audio_pos = calloc(1, sizeof(uint8_t *) * MAX_MIX_NUM);//obj->mix_num);
+    for(int i = 0; i < MAX_MIX_NUM; i++)
+    {
+        obj->audio_pos[i] = NULL;
+    }
 
     obj->out_sample_rate = GetvalueInt(obj->json, "out_sample_rate");
 
@@ -243,7 +247,6 @@ int api_player_init(char *handle, char *param)
 	{
         obj->out_sample_fmt = AV_SAMPLE_FMT_S16;
 	}
-
 
 	cformat = GetvalueStr(obj->json, "out_channel_layout");
 	if (!strcmp(cformat, "AV_CH_LAYOUT_STEREO"))
@@ -408,7 +411,7 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
             {
                 SDL_Delay(1);
             }
-            obj->audio_len = obj->out_buffer_size;
+            //obj->audio_len = obj->out_buffer_size;
             obj->audio_pos[0] = *obj->audio_frame->data;
 #if 1
             memcpy((void *)obj->playbuf, obj->audio_frame->data[0], insize);
@@ -420,6 +423,7 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
             }
             obj->audio_pos[0] = (uint8_t *)obj->playbuf;
 #endif
+            obj->audio_len = obj->out_buffer_size;
             //obj->audio_pos = obj->audio_frame->data[0];
             //printf("audio_play_frame: obj->audio_len=%d \n", obj->audio_len);
         }
@@ -449,8 +453,14 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
             SDL_PauseAudio(0);
         }
         int mix_num = GetvalueInt(obj->json, "mix_num");
+        if(mix_num > MAX_MIX_NUM)
+        {
+            mix_num = MAX_MIX_NUM;
+            printf("audio_play_frame_mix: too many mix_num= %d \n", mix_num);
+        }
         if(mix_num != obj->mix_num)
         {
+            obj->mix_num = mix_num;
             if(obj->tmpbuf)
             {
                 av_free(obj->tmpbuf);
@@ -463,7 +473,6 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
             }
             obj->audiofifo = av_audio_fifo_alloc(obj->out_sample_fmt, obj->out_channels, obj->mix_num);
             obj->tmpbuf = av_malloc((obj->out_buffer_size << 1) * obj->mix_num);
-            obj->mix_num = mix_num;
         }
 
         int out_framesize = obj->out_nb_samples;//obj->out_buffer_size;//
@@ -542,7 +551,7 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
             }
             //printf("audio_play_frame: ok \n");
 
-            obj->audio_len = obj->out_buffer_size;
+            //obj->audio_len = obj->out_buffer_size;
             //printf("audio_play_frame_mix: obj->audio_len=%d \n", obj->audio_len);
             uint8_t *p = obj->audio_frame->data[0];
 #if 1
@@ -567,6 +576,7 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
             }
             //obj->audio_pos[0] = indata[0];
             //obj->audio_pos = obj->audio_frame->data[0];
+            obj->audio_len = obj->out_buffer_size;
         }
 
         //av_free(obj->audio_frame);//test

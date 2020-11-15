@@ -11,7 +11,13 @@ import time
 from audiocapture import AudioCapture
 from callaudiocodec import CallAudioCodec
 
+def json2str(jsonobj):
+    if sys.version_info >= (3, 0):
+        json_str = json.dumps(jsonobj, ensure_ascii=False, sort_keys=False).encode('utf-8')
+    else:
+        json_str = json.dumps(jsonobj, encoding='utf-8', ensure_ascii=False, sort_keys=False)
 
+    return json_str
 class DataOffer(object):
     def __init__(self, id):
         self.id = id
@@ -45,6 +51,7 @@ class DataOffer(object):
         id1 = id + 0
         #(id0, id1) = ((id + 1), (id + 0))
         self.encode = CallAudioCodec(id0, 0)
+        self.encode.init()
         self.decode = CallAudioCodec(id1, 1)
         ###
         self.cap = AudioCapture(self.id)
@@ -126,11 +133,22 @@ class AudioPlayer(threading.Thread):
         self.sdl_status = 1
 
         self.pcmfile = "/home/gxh/works/play_" + str(id) + ".pcm"
+        self.pcmfile = ""
 
         #self.init()
         self.data_offer = None
         self.data_offer2 = None
         ###
+        self.param = {}
+        self.outbuf = None
+    def __del__(self):
+        print("AudioPlayer del")
+        if self.param != None:
+            del self.param
+        if self.outbuf != None:
+            del self.outbuf
+        if self.handle != None:
+            del self.handle
     def init(self):
         self.param = {}
         self.param.update({"mix_num": self.mix_num})
@@ -146,7 +164,7 @@ class AudioPlayer(threading.Thread):
         self.param.update({"pcmfile": self.pcmfile})
         self.param.update({"sdl_status": self.sdl_status})
         self.param.update({"print": 0})
-        param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+        param_str = json2str(self.param)
         ret = self.load.lib.api_player_init(self.handle, param_str)
         print("init: ret= ", ret)
         if ret >= 0:
@@ -173,17 +191,18 @@ class AudioPlayer(threading.Thread):
         self.__flag.set()  # 设置为True, 让线程停止阻塞
     def reset_mix_buf(self, mix_num):
         if mix_num > self.mix_num:
+            self.mix_num = mix_num
             array_type = c_char_p * self.mix_num
             self.mix_buf = array_type()
     def play_one_frame(self, data, data_size):
         self.param.update({"mix_num": 1})
-        param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+        param_str = json2str(self.param)
         #ret = self.load.lib.audio_play_frame(self.handle, self.outbuf, self.frame_size)
         ret = self.load.lib.audio_play_frame(self.handle, param_str, data, data_size)
         return ret
     def play_one_frame_mix(self, data_size, mix_num):
         self.param.update({"mix_num": mix_num})
-        param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+        param_str = json2str(self.param)
         #ret = self.load.lib.audio_play_frame(self.handle, self.outbuf, self.frame_size)
         ret = self.load.lib.audio_play_frame_mix(self.handle, param_str, self.mix_buf, data_size)
         return ret

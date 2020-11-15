@@ -4,13 +4,16 @@
 import sys
 
 # for python2
-try:
-    print (sys.getdefaultencoding())
-    reload(sys)
-    sys.setdefaultencoding('utf-8')
-    print (sys.getdefaultencoding())
-except:
+if sys.version_info >= (3, 0):
     pass
+else:
+    try:
+        print (sys.getdefaultencoding())
+        reload(sys)
+        sys.setdefaultencoding('utf-8')
+        print (sys.getdefaultencoding())
+    except:
+        pass
 
 import socket
 import threading
@@ -54,10 +57,10 @@ def RunServer(flag):
         if thread1 != None:
             thread1.start()
         while idx >= 0 and idx < 4:
-            try:
-                idx = int(raw_input('please input to exit(eg: 0 ): '))
-            except:
+            if sys.version_info >= (3, 0):
                 idx = int(input('please input to exit(eg: 0 ): '))
+            else:
+                idx = int(raw_input('please input to exit(eg: 0 ): '))
             print("idx= ", idx)
             #thread.status = False if idx == 0 else True
         print("main: start stop...")

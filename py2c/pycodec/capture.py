@@ -3,6 +3,7 @@
 
 import sys
 import os
+import gc
 from ctypes import *
 import json
 import loadlib
@@ -10,7 +11,13 @@ import threading
 import time
 from postprocess import PostProcess
 
+def json2str(jsonobj):
+    if sys.version_info >= (3, 0):
+        json_str = json.dumps(jsonobj, ensure_ascii=False, sort_keys=False).encode('utf-8')
+    else:
+        json_str = json.dumps(jsonobj, encoding='utf-8', ensure_ascii=False, sort_keys=False)
 
+    return json_str
 class VideoCapture(threading.Thread):
     def __init__(self):
         threading.Thread.__init__(self)
@@ -38,7 +45,7 @@ class VideoCapture(threading.Thread):
         self.max_buf_num = 4  # 8#3
         self.ratio = 3  # 1
         self.denoise = 2#0#2  # 1#0#1#0#1
-        self.select_device = 1#0#-1  # 2#1#0#1#-1
+        self.select_device = 1#1#0#-1  # 2#1#0#1#-1
         self.osd = 1
         self.orgX = 0
         self.orgY = 0
@@ -47,20 +54,36 @@ class VideoCapture(threading.Thread):
         self.process = None
         # self.process = PostProcess(1)
         # self.init()
-
+        self.param = {}
+        self.outbuf = None
+    def __del__(self):
+        print("VideoCapture del")
+        if self.param != None:
+            del self.param
+        if self.outbuf != None:
+            del self.outbuf
+        if self.handle != None:
+            del self.handle
+        del self.load
+        gc.collect()
     def get_device_info(self):
         infolist = []
-        cmd = "select_video_capture"
-        self.outbuf2 = create_string_buffer(10240)
-        ret = self.load.lib.api_get_dev_info(cmd, self.outbuf2)
+        cmd = b"select_video_capture"
+        outbuf2 = create_string_buffer(10240)
+        ret = self.load.lib.api_get_dev_info(cmd, outbuf2)
+        #print("get_device_info: ret=", ret)
         if ret > 0:
-            data = self.outbuf2.raw
+            data = outbuf2.raw
             data2 = data[0:ret]
-            try:
-                result = json.loads(data2, encoding='utf-8')
-            except:
-                result = json.loads(data2)
+            result = None
+            if sys.version_info >= (3, 0):
+                print("data2= ", data2)
+                # 在json字符串中不能出现单引号
+                result = json.loads(data2.decode())
             else:
+                result = json.loads(data2)
+            if result != None:
+                print("get_device_info: result=", result)
                 # for key, value in result.items():
                 for key in result.keys():
                     # print("key=", key)
@@ -158,9 +181,14 @@ class VideoCapture(threading.Thread):
         return
 
     def init(self):
+        print("VideoCapture: init: self.select_device= ", self.select_device)
+        print("VideoCapture: init: self.input_name= ", self.input_name)
+        print("VideoCapture: init: self.device_name= ", self.device_name)
+        print("VideoCapture: init: self.input_format= ", self.input_format)
         # self.load.lib.api_list_devices(self.input_name, self.device_name)
         # if self.select_device >= 0:
-        self.get_device(self.select_device)
+        if self.select_device >= 0:
+            self.get_device(self.select_device)
         self.param = {}
         # self.param.update({"input_name": "video4linux2"}) #x11grab #v4l2
         self.param.update({"input_name": self.input_name})
@@ -169,6 +197,7 @@ class VideoCapture(threading.Thread):
         # self.param.update({"device_name": ":0.0"}) #
         if self.input_name not in ["v4l2", "video4linux2"]:
             self.input_format = "raw"
+            self.denoise = 0
         self.param.update({"input_format": self.input_format})
         self.param.update({"pixformat": "AV_PIX_FMT_YUV420P"})
         self.param.update({"scale_type": "SWS_BILINEAR"})  # SWS_BICUBIC
@@ -186,14 +215,14 @@ class VideoCapture(threading.Thread):
         self.param.update({"scale": self.scale})
         self.param.update({"color": self.color})
         self.param.update({"print": 0})
-        param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+        param_str = json2str(self.param)
         ret = self.load.lib.api_capture_init(self.handle, param_str)
         if ret >= 0:
             self.status = True
         else:
             self.status = False
 
-        self.frame_size = (self.width * self.height * 3) / 2
+        self.frame_size = int((self.width * self.height * 3) / 2)
         self.outbuf = create_string_buffer(self.frame_size)
 
     def run(self):
@@ -213,6 +242,7 @@ class VideoCapture(threading.Thread):
     def ReadFrame(self):
         data = ""
         ret = self.load.lib.api_capture_read_frame2(self.handle, self.outbuf)
+        #print("ReadFrame: ret=", ret)
         if ret > 0:
             data = self.outbuf
             if self.process != None:

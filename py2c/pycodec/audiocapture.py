@@ -9,7 +9,13 @@ import loadlib
 import threading
 import time
 
+def json2str(jsonobj):
+    if sys.version_info >= (3, 0):
+        json_str = json.dumps(jsonobj, ensure_ascii=False, sort_keys=False).encode('utf-8')
+    else:
+        json_str = json.dumps(jsonobj, encoding='utf-8', ensure_ascii=False, sort_keys=False)
 
+    return json_str
 class AudioCapture(threading.Thread):
     def __init__(self, id):
         threading.Thread.__init__(self)
@@ -47,7 +53,7 @@ class AudioCapture(threading.Thread):
         self.filename = "./dukou_ref3.wav"
 
         self.pcmfile = "/home/gxh/works/cap_resample_" + str(id) + ".pcm"
-        #self.pcmfile = ""
+        self.pcmfile = ""
         self.capfile = "/home/gxh/works/cap_" + str(id) + ".pcm"
         self.capfile = ""
         self.out_channels = 2
@@ -61,19 +67,37 @@ class AudioCapture(threading.Thread):
         self.datatype = 2
         self.process = 1
         self.select_device = -1
+        self.param = {}
+        self.outbuf = None
 
+    def __del__(self):
+        print("AudioCapture del")
+        if self.param != None:
+            del self.param
+        if self.outbuf != None:
+            del self.outbuf
+        if self.handle != None:
+            del self.handle
     def get_device_info(self):
         infolist = []
-        cmd = "select_audio_recorder"
-        self.outbuf2 = create_string_buffer(10240)
-        ret = self.load.lib.api_get_dev_info(cmd, self.outbuf2)
-        data = self.outbuf2.raw
+        cmd = b"select_audio_recorder"
+        outbuf2 = create_string_buffer(10240)
+        ret = self.load.lib.api_get_dev_info(cmd, outbuf2)
+        if ret <= 0:
+            print("AudioCapture: get_device_info: ret=", ret)
+            return infolist
+        data = outbuf2.raw
         data2 = data[0:ret]
-        try:
-            result = json.loads(data2)
-        except:
-            result = json.loads(data2, encoding='utf-8')
+        result = None
+        if sys.version_info >= (3, 0):
+            #data2 = data2.replace(b"\'", b"\"")
+            print("data2= ", data2)
+            #在json字符串中不能出现单引号
+            #result = json.loads(data2, encoding='utf-8')
+            result = json.loads(data2.decode())
         else:
+            result = json.loads(data2)
+        if result != None:
             for key, value in result.items():
                 if ("card" in key) and ("device" in value):
                     key = key.replace("card", "")
@@ -81,7 +105,7 @@ class AudioCapture(threading.Thread):
                     key = key.replace(" ", "")
                     value = value.replace(" ", "")
                     infolist.append("hw:" + key + "," + value)
-        print("infolist=", infolist)
+        print("AudioCapture: get_device_info: infolist=", infolist)
         return infolist
     def get_device(self, id):
         infolist = self.get_device_info()
@@ -99,6 +123,7 @@ class AudioCapture(threading.Thread):
         self.param.update({"device_name": self.device_name})
         self.param.update({"in_channels": self.in_channels})
         self.param.update({"in_sample_rate": self.in_sample_rate})
+        self.param.update({"in_sample_fmt": self.in_sample_fmt})
         self.param.update({"out_channels": self.out_channels})
         self.param.update({"out_nb_samples": self.out_nb_samples})
         self.param.update({"out_sample_fmt": self.out_sample_fmt})
@@ -113,7 +138,7 @@ class AudioCapture(threading.Thread):
         self.param.update({"datatype": self.datatype})
         self.param.update({"process": self.process})
         self.param.update({"print": 0})
-        param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+        param_str = json2str(self.param)
         ret = self.load.lib.api_audio_capture_init(self.handle, param_str)
         # print("init: ret= ", ret)
         if ret >= 0:

@@ -302,7 +302,7 @@ int split_screen(char *handle, char *show_buffer, SDL_Rect rect, int width, int 
 
             if(difftime > 1000)
             {
-                int sum_time = (difftime / 1000);//s
+                float sum_time = (difftime / 1000.0);//s
                 if((obj->frame_num % step) == (step - 1))
                 {
                     obj->frame_rate = (int)((float)step / (float)sum_time);

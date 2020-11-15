@@ -24,6 +24,23 @@ import loadlib
 
 sys.path.append(".")
 
+def json2str(jsonobj):
+    if sys.version_info >= (3, 0):
+        json_str = json.dumps(jsonobj, ensure_ascii=False, sort_keys=False).encode('utf-8')
+    else:
+        json_str = json.dumps(jsonobj, encoding='utf-8', ensure_ascii=False, sort_keys=False)
+
+    return json_str
+def char2long(x):
+    ret = 0
+    if sys.version_info >= (3, 0):
+        ret = int(x)
+    else:
+        try:  # Add these 3 lines
+            ret = long(x)
+        except: # ValueError:
+            print("Something went wrong {!r}".format(x))
+    return ret
 class CallAudioCodec(object):
     def __init__(self, id, type):
         self.load = loadlib.gload
@@ -48,7 +65,10 @@ class CallAudioCodec(object):
         self.out_channels = 2
         self.out_nb_samples = 2048#1024
         self.out_channel_layout = "AV_CH_LAYOUT_STEREO"
-        self.init()
+        self.param = {}
+        self.outbuf = None
+        if type > 0:
+            self.init()
         ###
         self.mtu_size = 300
         self.start_time = 0
@@ -61,6 +81,18 @@ class CallAudioCodec(object):
         self.pkt_buf = create_string_buffer(self.mtu_size)
         self.resort_buf = create_string_buffer(self.mtu_size)
 
+    def __del__(self):
+        print("CallAudioCodec del")
+        if self.param != None:
+            del self.param
+        if self.outbuf != None:
+            del self.outbuf
+        if self.pkt_buf != None:
+            del self.pkt_buf
+        if self.resort_buf != None:
+            del self.resort_buf
+        if self.handle != None:
+            del self.handle
     def init(self):
         self.param = {}
         self.param.update({"codec_type": self.codec_type})
@@ -73,7 +105,7 @@ class CallAudioCodec(object):
         self.param.update({"out_channel_layout": self.out_channel_layout})
         self.param.update({"filename": self.filename})
         self.param.update({"print": 0})
-        param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+        param_str = json2str(self.param)
         ret = self.load.lib.api_audio_codec_init(self.handle, param_str)
         if ret > 0:
             print("CallAudioCodec: init: ok: ", self.codec_type)
@@ -90,9 +122,9 @@ class CallAudioCodec(object):
         ret = 0
         if len(data) > 0:
             self.param.update({"insize": insize})
-            param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
+            param_str = json2str(self.param)
             ###
-            self.outparam[0] = ""
+            self.outparam[0] = b""
             ret = self.load.lib.api_audio_codec_one_frame(self.handle, data, param_str, self.outbuf, self.outparam)
 
         return (ret, self.outbuf, self.outparam)
@@ -110,8 +142,12 @@ class CallAudioCodec(object):
         else:
             difftime = now_time - self.start_time
             frame_num = int(difftime * 1000) / int(interval)
-            long_timestamp = long(difftime * 1000 * 27000 / 1000)
-            MAX_UINT = ((long(1) << 32) - 1)
+            if sys.version_info >= (3, 0):
+                long_timestamp = int(difftime * 1000 * 27000 / 1000)
+                MAX_UINT = ((int(1) << 32) - 1)
+            else:
+                long_timestamp = long(difftime * 1000 * 27000 / 1000)
+                MAX_UINT = ((long(1) << 32) - 1)
             timestamp = int(long_timestamp)
             if long_timestamp > MAX_UINT:
                 timestamp = int(long_timestamp - MAX_UINT)
@@ -128,9 +164,9 @@ class CallAudioCodec(object):
             timestamp = self.createtimestamp()
             self.param.update({"timestamp": timestamp})
             self.param.update({"seqnum": self.seqnum})
-            param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
+            param_str = json2str(self.param)
             ###
-            self.outparam[0] = ""
+            self.outparam[0] = b""
             self.pkt_buf[0:insize] = data[0:insize]
             ret = self.load.lib.api_audio_raw2rtp_packet(self.handle, self.pkt_buf, param_str, self.outbuf, self.outparam)
             if ret > 0:
@@ -141,9 +177,9 @@ class CallAudioCodec(object):
         if insize > 0:
             #print("rtpunpacket:insize= ", insize)
             self.param.update({"insize": insize})
-            param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
+            param_str = json2str(self.param)
             ###
-            self.outparam[0] = ""
+            self.outparam[0] = b""
             #print("rtpunpacket:param_str= ", param_str)
             self.pkt_buf[0:insize] = data[0:insize]
             ret = self.load.lib.api_audio_rtp_packet2raw(self.handle, self.pkt_buf, param_str, self.outbuf, self.outparam)
@@ -159,14 +195,14 @@ class CallAudioCodec(object):
 
         if insize > 0:
             self.param.update({"insize": insize})
-            param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
+            param_str = json2str(self.param)
             #print("resort:param_str= ", param_str)
             ###
-            self.outparam[0] = ""
+            self.outparam[0] = b""
             self.resort_buf[0:insize] = data[0:insize]
             ret = self.load.lib.api_audio_resort_packet(self.handle, self.resort_buf, param_str, self.outbuf, self.outparam)
             if ret > 0:
-                frame_timestamp = long(self.outparam[3])
+                frame_timestamp = char2long(self.outparam[3])
         return (ret, self.outbuf, self.outparam, frame_timestamp)
 
 if __name__ == '__main__':

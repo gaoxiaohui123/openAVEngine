@@ -1621,7 +1621,7 @@ int osd_process(char *handle, char *outbuf, int y)
     //printf("osd_process: 0 \n");
     if(difftime > 1000)
     {
-        int sum_time = (difftime / 1000);//s
+        float sum_time = (difftime / 1000.0);//s
         if((obj->frame_num % step) == (step - 1))
         {
             if(!sum_time)
@@ -1694,6 +1694,81 @@ int osd_process(char *handle, char *outbuf, int y)
 	obj->frame_num++;
 	return ret;
 }
+static int adapt_by_cpu(void *json)
+{
+    int ret = 0;
+    int ref_idx = GetvalueInt(json, "ref_idx");
+    int refs = GetvalueInt(json, "refs");
+    int pict_type = GetvalueInt(json, "pict_type");
+    int icpurate = 0;
+    int memrate = 0;
+    int devmemrate = 0;
+    api_get_cpu_info2(&icpurate, &memrate, &devmemrate);
+    if(icpurate > 95)
+    {
+        if(refs > 1)
+        {
+            if(refs > 2)
+            {
+                if (((ref_idx & 1) == 0) || (ref_idx == (refs - 1)) || (ref_idx == 1))
+                {
+                    ret = 1;
+                }
+                else if ((ref_idx & 1) == 1)
+                {
+                    ret = 1;
+                }
+            }
+            else{
+                if ((ref_idx & 1) == 1)
+                {
+                    ret = 1;
+                }
+            }
+        }
+        else{
+            if((pict_type == 3))//B
+            {
+                ret = 1;
+            }
+            else if((pict_type == 2))//P
+            {
+            }
+        }
+    }
+    else if(icpurate > 90)
+    {
+        if(refs > 1)
+        {
+            if(refs > 2)
+            {
+                if (((ref_idx & 1) == 0) || (ref_idx == (refs - 1)) || (ref_idx == 1))
+                {
+                    ret = 1;
+                }
+                else if ((ref_idx & 1) == 1)
+                {
+                }
+            }
+            else{
+                if ((ref_idx & 1) == 1)
+                {
+                    ret = 1;
+                }
+            }
+        }
+        else{
+            if((pict_type == 3))//B
+            {
+                ret = 1;
+            }
+            else if((pict_type == 2))//P
+            {
+            }
+        }
+    }
+    return ret;
+}
 HCSVC_API
 int api_video_encode_one_frame(char *handle, char *data, char *param, char *outbuf, char *outparam[])
 {
@@ -1725,6 +1800,15 @@ int api_video_encode_one_frame(char *handle, char *data, char *param, char *outb
             //
             json = mystr2json(param);
             obj->param = (void *)json;
+            int adapt_cpu = GetvalueInt(json, "adapt_cpu");
+            if(adapt_cpu)
+            {
+                int skip_frame = adapt_by_cpu(json);
+                if(skip_frame)
+                {
+                    return ret;
+                }
+            }
             int frame_idx = GetvalueInt(json, "frame_idx");
             int bit_rate = GetvalueInt(json, "bit_rate");
             int refs = GetvalueInt(json, "refs");
@@ -1739,6 +1823,7 @@ int api_video_encode_one_frame(char *handle, char *data, char *param, char *outb
             }
             obj->width = obj->frame->width;
             obj->height = obj->frame->height;
+            //printf("api_video_encode_one_frame: obj->width=%d, obj->height=%d \n", obj->width, obj->height);
             osd_process(handle, data, 2);
             //
             av_init_packet(&pkt);
@@ -2617,7 +2702,7 @@ int decode_open2(char *handle, char *param)
             obj->inbuf = (uint8_t *)av_malloc((INBUF_SIZE + AV_INPUT_BUFFER_PADDING_SIZE)*sizeof(uint8_t));
             memset(obj->inbuf + INBUF_SIZE, 0, AV_INPUT_BUFFER_PADDING_SIZE);
             //
-            if(!obj->logfp)
+            if(!obj->logfp && false)
             {
                 char filename[256] = "/home/gxh/works/decode_gxh_";
                 char ctmp[32] = "";
@@ -2681,6 +2766,7 @@ int api_video_decode_one_frame(char *handle, char *data, char *param, char *outb
             }
             obj->width = obj->frame->width;
             obj->height = obj->frame->height;
+            //printf("api_video_decode_one_frame: obj->width=%d, obj->height=%d \n", obj->width, obj->height);
             osd_process(handle, outbuf, 1);
             obj->sum_bits += (insize << 3);
             if ((obj->pkt.flags & AV_PKT_FLAG_KEY) || (obj->frame->pict_type == AV_PICTURE_TYPE_I) || (obj->frame->key_frame & AV_PKT_FLAG_KEY))

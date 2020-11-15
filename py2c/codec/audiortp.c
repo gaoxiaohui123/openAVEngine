@@ -337,16 +337,16 @@ static int get_frame(void *hnd, char *outbuf, char *complete, long long *frame_t
             {
                 //int64_t last_ms = obj->last_frame_time;
                 //int delay2 = (int)(now_ms - last_ms);
-                printf("warning: get_frame: delay= %u \n", delay);
+                printf("warning: audio: get_frame: delay= %u \n", delay);
                 //printf("warning: get_frame: delay2= %u \n", delay2);
-                printf("warning: get_frame: obj->Obj_id= %u \n", obj->Obj_id);
-                printf("warning: get_frame: timestamp0= %u \n", timestamp0);
-                printf("warning: get_frame: timestamp1= %u \n", timestamp1);
-                printf("warning: get_frame: I0= %u \n", I0);
-                printf("warning: get_frame: I1= %u \n", I1);
-                printf("warning: get_frame: obj->min_packet= %u \n", obj->min_packet);
-                printf("warning: get_frame: obj->max_packet= %u \n", obj->max_packet);
-                printf("warning: get_frame: obj->old_seqnum= %u \n", obj->old_seqnum);
+                printf("warning: audio: get_frame: obj->Obj_id= %u \n", obj->Obj_id);
+                printf("warning: audio: get_frame: timestamp0= %u \n", timestamp0);
+                printf("warning: audio: get_frame: timestamp1= %u \n", timestamp1);
+                printf("warning: audio: get_frame: I0= %u \n", I0);
+                printf("warning: audio: get_frame: I1= %u \n", I1);
+                printf("warning: audio: get_frame: obj->min_packet= %u \n", obj->min_packet);
+                printf("warning: audio: get_frame: obj->max_packet= %u \n", obj->max_packet);
+                printf("warning: audio: get_frame: obj->old_seqnum= %u \n", obj->old_seqnum);
 
                 for(int t = obj->min_packet; t <= obj->max_packet; t++)
                 {
@@ -355,7 +355,7 @@ static int get_frame(void *hnd, char *outbuf, char *complete, long long *frame_t
                     int *p = (int *)&obj->recv_buf[I][0];
                     int size = p[0];
                     if(!size)
-                        printf("warning: get_frame: t= %d, t.size=%d \n", t, size);
+                        printf("warning: audio: get_frame: t= %d, t.size=%d \n", t, size);
                 }
                 //int I = obj->min_packet % obj->buf_size;
                 //uint8_t *buf = (uint8_t *)&obj->recv_buf[I][sizeof(int)];
@@ -400,12 +400,12 @@ static int get_frame(void *hnd, char *outbuf, char *complete, long long *frame_t
                     int *p = (int *)&obj->recv_buf[I][0];
                     int size = p[0];
 
-                    printf("warning: get_frame: obj->Obj_id= %u \n", obj->Obj_id);
-                    printf("warning: get_frame: packet_distance= %d \n", packet_distance);
-                    printf("warning: get_frame: delay= %d \n", delay);
-                    printf("warning: get_frame: min_packet size=%d \n", size);
-                    printf("warning: get_frame: obj->min_packet= %d \n", obj->min_packet);
-                    printf("warning: get_frame: obj->max_packet= %d \n", obj->max_packet);
+                    printf("warning: audio: get_frame: obj->Obj_id= %u \n", obj->Obj_id);
+                    printf("warning: audio: get_frame: packet_distance= %d \n", packet_distance);
+                    printf("warning: audio: get_frame: delay= %d \n", delay);
+                    printf("warning: audio: get_frame: min_packet size=%d \n", size);
+                    printf("warning: audio: get_frame: obj->min_packet= %d \n", obj->min_packet);
+                    printf("warning: audio: get_frame: obj->max_packet= %d \n", obj->max_packet);
                 }
                 //for(int i = obj->min_packet; i < obj->max_packet; i++)
                 for(int i = start; i <= end; i++)
@@ -420,9 +420,9 @@ static int get_frame(void *hnd, char *outbuf, char *complete, long long *frame_t
                     //memcpy(&obj->recv_buf[I][sizeof(int)], data, insize);
                     if(!obj->recv_buf[I])
                     {
-                        printf("error: get_frame: obj->Obj_id= %x \n", obj->Obj_id);
-                        printf("error: get_frame: I=%d \n", I);
-                        printf("error: get_frame: obj->recv_buf[I]=%x \n", obj->recv_buf[I]);
+                        printf("error: audio: get_frame: obj->Obj_id= %x \n", obj->Obj_id);
+                        printf("error: audio: get_frame: I=%d \n", I);
+                        printf("error: audio: get_frame: obj->recv_buf[I]=%x \n", obj->recv_buf[I]);
                     }
 
                     uint8_t *buf = (uint8_t *)&obj->recv_buf[I][sizeof(int)];
@@ -431,7 +431,7 @@ static int get_frame(void *hnd, char *outbuf, char *complete, long long *frame_t
                     int size = p[0];
                     if(size > MAX_PACKET_SIZE)
                     {
-                        printf("error: get_frame: size=%d \n\n\n\n\n\n\n\n\n\n", size);
+                        printf("error: audio: get_frame: size=%d \n\n\n\n\n\n\n\n\n\n", size);
                     }
                     if(size > 0)
                     {
@@ -442,10 +442,10 @@ static int get_frame(void *hnd, char *outbuf, char *complete, long long *frame_t
 
                         if(this_seq_num != this_seqnum)
                         {
-                            printf("error: get_frame: this_seq_num= %d \n", this_seq_num);
-                            printf("error: get_frame: this_seqnum= %d \n", this_seqnum);
-                            printf("error: get_frame: obj->min_packet= %d \n", obj->min_packet);
-                            printf("error: get_frame: obj->max_packet= %d \n", obj->max_packet);
+                            printf("error: audio: get_frame: this_seq_num= %d \n", this_seq_num);
+                            printf("error: audio: get_frame: this_seqnum= %d \n", this_seqnum);
+                            printf("error: audio: get_frame: obj->min_packet= %d \n", obj->min_packet);
+                            printf("error: audio: get_frame: obj->max_packet= %d \n", obj->max_packet);
                         }
                         //last_frame_time_stamp
                         timestamp = rtp_hdr->timestamp;
@@ -943,7 +943,7 @@ int api_audio_resort_packet(char *handle, char *data, char *param, char *outbuf,
             obj->Obj_id = id;
             printf("api_audio_resort_packet: obj->recv_buf= %x \n", obj->recv_buf);
             //
-#if 1
+#if 0
             if(!obj->logfp)
             {
                 char filename[256] = "/home/gxh/works/audio_rtp_resort_gxh_";

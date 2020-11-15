@@ -4,6 +4,8 @@
 import sys
 import os
 import io
+import gc
+import objgraph
 from ctypes import *
 import json
 import loadlib
@@ -11,21 +13,34 @@ import threading
 import time
 import random
 import string
-from mysdl import *
+import inspect
+import ctypes
+
+from mysdl import * #pip install PySDL2
 import loadlib
 
 from sdl2 import *
-import Tkinter as tk
-from Tkinter import *
+if sys.version_info >= (3, 0):
+    import tkinter as tk
+    from tkinter import *
+    import tkinter.ttk as ttk
+    import tkinter.simpledialog as dl
+    import tkinter.messagebox as mb
+    import tkinter.filedialog as df
+else:
+    import Tkinter as tk
+    from Tkinter import *
+    import ttk
+    import tkSimpleDialog as dl
+    import tkMessageBox as mb
+    import tkFileDialog as df
 import random, ctypes
 # import Tkinter.messagebox
 import pickle
 # from tux import Image_sys   #调用文件tux
 #from PIL import ImageTk, Image
-import ttk
-import tkSimpleDialog as dl
-import tkMessageBox as mb
-import tkFileDialog as df
+
+
 from PIL import Image
 from matplotlib import pyplot as plt
 from capture import VideoCapture
@@ -38,6 +53,24 @@ from session import AVSession as session
 # https://blog.csdn.net/ahilll/article/details/81531587
 # https://vlight.me/2017/12/04/Layout-Management/
 
+SCREEN_WIDTH = 1920
+SCREEN_HEIGHT = 1080
+
+
+def json2str(jsonobj):
+    if sys.version_info >= (3, 0):
+        json_str = json.dumps(jsonobj, ensure_ascii=False, sort_keys=False).encode('utf-8')
+    else:
+        json_str = json.dumps(jsonobj, encoding='utf-8', ensure_ascii=False, sort_keys=False)
+
+    return json_str
+def json2str2(jsonobj):
+    if sys.version_info >= (3, 0):
+        json_str = json.dumps(jsonobj, ensure_ascii=False, indent=4, sort_keys=False).encode('utf-8')
+    else:
+        json_str = json.dumps(jsonobj, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=False)
+
+    return json_str
 class JsonFile(object):
     def __init__(self, filename):
         self.filename = filename
@@ -50,9 +83,12 @@ class JsonFile(object):
             data = data0
         flag = 0  # -1
         if flag == 0:
-            json_str = json.dumps(data, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
+            json_str = json2str2(data)
             thisfile = open(self.filename, "w")
-            thisfile.write(json_str)
+            if sys.version_info >= (3, 0):
+                thisfile.write(json_str.decode())
+            else:
+                thisfile.write(json_str)
             thisfile.flush()
         elif flag == 1:
             json.dump(data, io.open(self.filename, 'w', encoding='utf-8'), ensure_ascii=False, encoding='utf-8',
@@ -68,7 +104,10 @@ class JsonFile(object):
         data = None
         with open(self.filename, 'r') as f:
             filedata = f.read()
-            filedata = filedata.decode(encoding='utf-8', errors='strict')
+            if sys.version_info >= (3, 0):
+                filedata = filedata.encode(encoding='utf-8').decode(encoding='utf-8', errors='strict')
+            else:
+                filedata = filedata.decode(encoding='utf-8', errors='strict')
             try:
                 data = json.loads(filedata, encoding='utf-8')
             except:
@@ -94,7 +133,7 @@ class PyLogin(object):
         window.geometry('690x500')
         # 画布放置图片
         canvas = tk.Canvas(window, height=400, width=800)
-        imagefile = tk.PhotoImage(file='hc.png')
+        imagefile = tk.PhotoImage(file='./icon/hc.png')
         image = canvas.create_image(0, 0, anchor='nw', image=imagefile)
         canvas.pack(side='top')
         # `在这里插入代码片`
@@ -329,7 +368,7 @@ class Pyui(object):
 ## Sets the position in the widget that will be placed at the specified coordinates. docstore.mik.ua/orelly/perl3/tk/ch02_03.htm
 
 class ExternalSDL(threading.Thread):
-    def __init__(self, parent):
+    def __init__(self, parent, deviceId):
         threading.Thread.__init__(self)
         self.lock = threading.Lock()
         self.__flag = threading.Event()  # 用于暂停线程的标识
@@ -342,6 +381,11 @@ class ExternalSDL(threading.Thread):
         self.status = 0
         self.preview = None
         self.winid = 0
+        self.deviceId = deviceId
+    def __del__(self):
+        print("ExternalSDL del")
+        if self.preview != None:
+            del self.preview
     def get_status(self):
         ret = 0
         self.lock.acquire()
@@ -358,14 +402,43 @@ class ExternalSDL(threading.Thread):
     def creat_preview(self, win_hnd):
         if win_hnd > 0:
             self.winid = win_hnd
-        if self.preview == None:
+        self.preview = ReadFrame(self.winid)
+        if self.preview != None:
+            (screen_width, screen_height) = (self.parent.width, self.parent.height)
+            (cap_width, cap_height) = (self.parent.width, self.parent.height)
             multdevice = self.json.dict.get("multdevice")
+            if multdevice != None:
+                thisDevice = multdevice[str(self.deviceId)]
+                if thisDevice != None:
+                    self.preview.devicetype = 4
+                    videos = thisDevice["videos"]
+                    if videos != None:
+                        denoise = videos["denoise"]
+                        if denoise:
+                            self.preview.denoise = 2
+                        sresolution = videos["resolution"]["name"]
+                        if sresolution not in ["其他"]:
+                            swidth = sresolution.split("x")[0]
+                            sheight = sresolution.split("x")[1]
+                            (cap_width, cap_height) = (int(swidth), int(sheight))
+                        scapture = videos["capture"]["name"]
+                        print("create_up_video: scapture= ", scapture)
+                        if "video" in scapture:
+                            self.preview.input_name = "v4l2"
+                            self.preview.device_name = "/dev/" + str(scapture.split(":")[0])
+                            self.preview.input_format = str(scapture.split(":")[1])
+                        elif "fb" in scapture:
+                            self.preview.input_name = "x11grab"
+                            self.preview.device_name = ":0.0"
+                            self.preview.input_format = "raw"
+                            (screen_width, screen_height, cap_width, cap_height) = (SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT)
+                        else:
+                            pass
             control = self.json.dict.get("control")
             general = self.json.dict.get("general")
-            if multdevice != None:
-                print("creat_preview: multdevice= ", multdevice)
-            self.preview = ReadFrame(self.winid)
-            self.preview.init(self.parent.width, self.parent.height)
+            print("creat_preview: ", (screen_width, screen_height, cap_width, cap_height))
+            self.preview.init(screen_width, screen_height, cap_width, cap_height)
+            self.preview.setDaemon(True)
             self.preview.start()
     def close_preview(self):
         if self.preview != None:
@@ -378,6 +451,7 @@ class ExternalSDL(threading.Thread):
             ##del self.preview
             ##self.preview = None
             self.set_status(0)
+
     def stop(self):
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
@@ -418,20 +492,29 @@ class ClientFrame(object):
         self.meeting_frame = None
         self.canvas = None
         self.session = None
+        self.status = True
+        self.imagefile = tk.PhotoImage(file='icon/hc_2.png')
+        self.framelist = []
         #self.lock = threading.Lock()
-
+    def __del__(self):
+        print("ClientFrame del")
+    def close(self):
+        for (thisframe, thiscanvas) in self.framelist:
+            thiscanvas.destroy()
+            thisframe.destroy()
+        print("ClientFrame: destroy all over")
     def create_meeting(self):
         self.exit_meeting()
         time.sleep(1)
-        self.openFrame(1)
+        self.openFrame(1, 0)
     def enter_meeting(self):
         self.exit_meeting()
         time.sleep(1)
-        self.openFrame(1)
-    def cap_preview(self):
+        self.openFrame(1, 0)
+    def cap_preview(self, deviceId):
         self.exit_preview()
         time.sleep(1)
-        self.openFrame(0)
+        self.openFrame(0, deviceId)
     def exit_preview(self):
         if self.meeting_frame != None:
             self.meeting_frame.withdraw()
@@ -453,9 +536,7 @@ class ClientFrame(object):
                     print("exit_preview: (count, status)=", (count, status))
             #self.preview.resume()
             print("ClientFrame: exit_preview: status= ", status)
-            ##self.lock.acquire()
-            self.preview = None
-            ##self.lock.release()
+
         print("ClientFrame: exit_preview end")
 
         return
@@ -480,9 +561,6 @@ class ClientFrame(object):
                     print("exit_meeting: (count, status)=", (count, status))
             #self.preview.resume()
             print("ClientFrame: exit_meeting: status= ", status)
-            ##self.lock.acquire()
-            self.session = None
-            ##self.lock.release()
         print("ClientFrame: exit_meeting end")
 
         return
@@ -493,7 +571,7 @@ class ClientFrame(object):
             num = 0
             # self.itext = self.canvas.create_text((self.width - 300), 0, text=str(num), font=("Comic Sans", 15),fill='yellow',anchor='nw')
             status = 1
-            while status:
+            while status: #while self.status:
                 #print("refresh_frame: enter")
                 num += 1
                 ###
@@ -519,8 +597,8 @@ class ClientFrame(object):
                         self.btn_home = tk.Button(self.meeting_frame, text="home", image=self.image1,
                                                    command=self.parent.show)  # , width=50, height=30)
                         self.btn_home.place(x=0, y=0)
-
                     ###
+                if self.meeting_frame != None:
                     #print("refresh_frame: start update")
                     self.meeting_frame.update()
                     #print("refresh_frame: start update ok")
@@ -529,8 +607,10 @@ class ClientFrame(object):
                     # self.meeting_frame.after(4)
                 ##self.lock.release()
                 time.sleep(0.1)
-                if (num % 10) == 0:
-                    print("openFrame: (self.status, num)= ", (status, num))
+                if (num % 100) == 0:
+                    print("threading.activeCount():%d" % (threading.activeCount()))
+                    print("openFrame: (status, num)= ", (status, num))
+                    print("openFrame: (self.status, num)= ", (self.status, num))
                 ##self.lock.acquire()
                 if self.meeting_frame != None:
                     if type in [0]:
@@ -548,26 +628,7 @@ class ClientFrame(object):
                 ##self.lock.release()
             ###
             #子线程不能删除主线程创建的实例
-            print("refresh_frame: meeting_frame.destroy: start")
-            print("refresh_frame: meeting_frame.destroy: status= ", status)
-            ##self.lock.acquire()
-            if False:
-                if self.canvas != None:
-                    self.canvas.delete("all")
-                    self.canvas.destroy()
-                    self.canvas = None
-                    # del self.canvas
-                if self.meeting_frame != None:
-                    self.meeting_frame.destroy()
-                    print("refresh_frame: meeting_frame.destroy: ok")
-                    # del self.meeting_frame
-                    self.meeting_frame = None
-            else:
-                self.meeting_frame = None
             print("refresh_frame over")
-            ##self.lock.release()
-            ##self.lock.acquire()
-        ##self.lock.release()
         return
     def on_meeting_closing(self):
         print("meeting frame close")
@@ -575,46 +636,32 @@ class ClientFrame(object):
             self.exit_preview()
         if self.session != None:
             self.exit_meeting()
-        #time.sleep(2)
-        ##self.lock.acquire()
-        if False:
+        if (self.preview == None and self.session == None):
             if self.meeting_frame != None:
-                self.canvas.delete("all")
-                self.canvas.destroy()
-                # del self.canvas
-                self.canvas = None
-                # self.btn_home.destroy()
-                self.meeting_frame.destroy()
-                print("on_meeting_closing: meeting_frame.destroy: ok")
-                # del self.meeting_frame
-                self.meeting_frame = None
-            else:
-                self.parent.show()
-        else:
-            self.meeting_frame = None
-        ##self.lock.release()
+                self.meeting_frame.withdraw()
+        self.status = False  # test
         print("on_meeting_closing: over")
-        #self.parent.config_frame.update()
         return
-    def openFrame(self, type):
+    def openFrame(self, type, deviceId):
         ##self.parent.hide()
+        self.status = True
         if True:
-            #self.status = True
-            self.meeting_frame = tk.Toplevel()
+            if self.meeting_frame == None:
+                self.meeting_frame = tk.Toplevel()
+                self.meeting_frame.title("欢迎进入会畅SVC调试系统")
+                str_resolution = str(self.parent.width) + "x" + str(self.parent.height)
+                self.meeting_frame.geometry(str_resolution)  # "1280x720"
+                self.canvas = tk.Canvas(self.meeting_frame, height=self.parent.height, width=self.parent.width)
+                # self.image_2 = \
+                self.canvas.create_image(0, 0, anchor='nw', image=self.imagefile)
+                self.canvas.pack(side='top')
+                self.meeting_frame.protocol("WM_DELETE_WINDOW", self.on_meeting_closing)
+                # self.meeting_frame.attributes("-toolwindow", 1)
+                # self.meeting_frame.iconbitmap("My icon.ico")
+                # self.meeting_frame.attributes("-alpha", 0.5)
+            else:
+                self.meeting_frame.deiconify()
 
-            self.meeting_frame.title("欢迎进入会畅SVC调试系统")
-            str_resolution = str(self.parent.width) + "x" + str(self.parent.height)
-            self.meeting_frame.geometry(str_resolution) #"1280x720"
-            #self.meeting_frame.attributes("-toolwindow", 1)
-            #self.meeting_frame.iconbitmap("My icon.ico")
-            #self.meeting_frame.attributes("-alpha", 0.5)
-
-            self.imagefile1 = tk.PhotoImage(file='icon/hc_2.png')#.zoom(2)
-            self.canvas = tk.Canvas(self.meeting_frame, height=self.parent.height, width=self.parent.width)
-            self.image_2 = self.canvas.create_image(0, 0, anchor='nw', image=self.imagefile1)
-            self.canvas.pack(side='top')
-            #label_img = tk.Label(self.meeting_frame, image=self.imagefile1)
-            #label_img.pack()
             self.winid = self.canvas.winfo_id()
 
             if False:
@@ -635,7 +682,8 @@ class ClientFrame(object):
 
             if type in [0]:
                 if self.preview == None:
-                    self.preview = ExternalSDL(self.parent)
+                    self.preview = ExternalSDL(self.parent, deviceId)
+                    self.preview.setDaemon(True)
                     self.preview.start()
                 self.preview.set_winid(self.winid)
                 self.preview.set_status(1)
@@ -651,11 +699,30 @@ class ClientFrame(object):
                 self.session.set_status(1)
                 self.session.resume()
 
-            self.meeting_frame.protocol("WM_DELETE_WINDOW", self.on_meeting_closing) #root.iconify #root.destroy #customized_function
+            #self.meeting_frame.protocol("WM_DELETE_WINDOW", self.on_meeting_closing) #root.iconify #root.destroy #customized_function
             #self.meeting_frame.protocol("WM_DELETE_WINDOW", self.meeting_frame.iconify)
             self.refresh_frame(type)
             #self.meeting_frame.mainloop()
-
+            if True:
+                if self.preview != None:
+                    print("openFrame: del self.preview")
+                    del self.preview
+                    self.preview = None
+                if self.session != None:
+                    del self.session
+                    self.session = None
+            if False:
+                print("openFrame: gc.isenabled()", gc.isenabled())
+                print("openFrame: gc.get_threshold()", gc.get_threshold())
+                print("openFrame: gc.get_count()", gc.get_count())
+                #gc.set_threshold(100, 10, 10)
+                _unreachable = gc.collect()
+                print("threading.activeCount():%d" % (threading.activeCount()))
+                #print("openFrame: gc.get_objects()", gc.get_objects())
+                print("unreachable object num:%d" % (_unreachable))
+                print("garbage object num:%d" % (len(gc.garbage)))
+                objgraph.show_growth()
+        self.status = False
         print("openFrame: over")
 class ConfigGeneralFrame(object):
     def __init__(self, parent, parentFrame, width0, height0, generalDict):
@@ -673,6 +740,7 @@ class ConfigGeneralFrame(object):
             if generalDict.get("supprams") != None:
                 self.suppramsDict = generalDict.get("supprams")
         self.splitMode = 0
+        (self.confWidth, self.confHeight) = (parent.width, parent.height)
         (self.width, self.height) = (width0, height0)
         (orgx, orgy, width1, height1) = (0, 0, (width0 >> 1), ((height0 >> 1) - 16))
         self.splitFrame0 = ttk.LabelFrame(parentFrame, text='显示分屏', width=width1, height=height1)
@@ -687,12 +755,18 @@ class ConfigGeneralFrame(object):
         self.suparamsFrame = ttk.LabelFrame(parentFrame, text='高级调参', width=width1, height=height1)
         self.suparamsFrame.place(x=orgx, y=orgy)
         self.avPassword = ""
+    def __del__(self):
+        print("ConfigGeneralFrame del")
     def CreateModeTab(self, id):
         ret = []
         factor = 4
-        (w, h) = (self.width, self.height)
-        w1 = self.width / factor
-        h1 = self.height / factor
+        (w, h) = (self.confWidth, self.confHeight)
+        w1 = int(self.confWidth / factor)
+        h1 = int(self.confHeight / factor)
+        w3 = int(w / 3)
+        h3 = int(h / 3)
+        w4 = w >> 2
+        h4 = h >> 2
         if id == 0:
             ret.append((0, 0, w, h)) #(x, y, w, h)
         elif id == 1: #s
@@ -724,9 +798,9 @@ class ConfigGeneralFrame(object):
             ret.append(((w1 << 1), (h1 << 1), (w1 << 1), (h1 << 1)))
         elif id == 9: #s
             ret.append((w1, 0, (w - w1), h))
-            ret.append((0, 0, w1, (h / 3)))
-            ret.append((0, (h / 3), w1, (h / 3)))
-            ret.append((0, (2 * h / 3), w1, (h / 3)))
+            ret.append((0, 0, w1, (h3)))
+            ret.append((0, (h3), w1, (h3)))
+            ret.append((0, (2 * h3), w1, (h3)))
         elif id == 10:
             ret.append((0, 0, w, h))
             ret.append((0, 0, w1, h1))
@@ -788,36 +862,36 @@ class ConfigGeneralFrame(object):
             ret.append(((w - w1), (2 * h1), w1, h1))
             ret.append(((w - w1), (3 * h1), w1, h1))
         elif id == 18:
-            ret.append((        0,        0, w / 3, h / 3))
-            ret.append((    w / 3,        0, w / 3, h / 3))
-            ret.append((2 * w / 3,        0, w / 3, h / 3))
-            ret.append((        0,    h / 3, w / 3, h / 3))
-            ret.append((    w / 3,    h / 3, w / 3, h / 3))
-            ret.append((2 * w / 3,    h / 3, w / 3, h / 3))
-            ret.append((        0,2 * h / 3, w / 3, h / 3))
-            ret.append((    w / 3,2 * h / 3, w / 3, h / 3))
-            ret.append((2 * w / 3,2 * h / 3, w / 3, h / 3))
+            ret.append((     0,        0, w3, h3))
+            ret.append((    w3,        0, w3, h3))
+            ret.append((2 * w3,        0, w3, h3))
+            ret.append((     0,    h3, w3, h3))
+            ret.append((    w3,    h3, w3, h3))
+            ret.append((2 * w3,    h3, w3, h3))
+            ret.append((     0,2 * h3, w3, h3))
+            ret.append((    w3,2 * h3, w3, h3))
+            ret.append((2 * w3,2 * h3, w3, h3))
         elif id == 19:
-            ret.append((        0, 0, w / 4, h / 4))
-            ret.append((    w / 4, 0, w / 4, h / 4))
-            ret.append((2 * w / 4, 0, w / 4, h / 4))
-            ret.append((3 * w / 4, 0, w / 4, h / 4))
-            ret.append((        0, h / 4, w / 4, h / 4))
-            ret.append((    w / 4, h / 4, w / 4, h / 4))
-            ret.append((2 * w / 4, h / 4, w / 4, h / 4))
-            ret.append((3 * w / 4, h / 4, w / 4, h / 4))
-            ret.append((        0, 2 * h / 4, w / 4, h / 4))
-            ret.append((    w / 4, 2 * h / 4, w / 4, h / 4))
-            ret.append((2 * w / 4, 2 * h / 4, w / 4, h / 4))
-            ret.append((3 * w / 4, 2 * h / 4, w / 4, h / 4))
-            ret.append((        0, 3 * h / 4, w / 4, h / 4))
-            ret.append((    w / 4, 3 * h / 4, w / 4, h / 4))
-            ret.append((2 * w / 4, 3 * h / 4, w / 4, h / 4))
-            ret.append((3 * w / 4, 3 * h / 4, w / 4, h / 4))
+            ret.append((     0, 0, w4, h4))
+            ret.append((    w4, 0, w4, h4))
+            ret.append((2 * w4, 0, w4, h4))
+            ret.append((3 * w4, 0, w4, h4))
+            ret.append((     0, h4, w4, h4))
+            ret.append((    w4, h4, w4, h4))
+            ret.append((2 * w4, h4, w4, h4))
+            ret.append((3 * w4, h4, w4, h4))
+            ret.append((     0, 2 * h4, w4, h4))
+            ret.append((    w4, 2 * h4, w4, h4))
+            ret.append((2 * w4, 2 * h4, w4, h4))
+            ret.append((3 * w4, 2 * h4, w4, h4))
+            ret.append((     0, 3 * h4, w4, h4))
+            ret.append((    w4, 3 * h4, w4, h4))
+            ret.append((2 * w4, 3 * h4, w4, h4))
+            ret.append((3 * w4, 3 * h4, w4, h4))
         return ret
 
     def CreateSplitFrame(self):
-        modeDict = self.modeDict
+        #modeDict = self.modeDict
         self.modePosList = []
         self.modeNum = 20
         n = 5
@@ -827,18 +901,19 @@ class ConfigGeneralFrame(object):
         stepx = w / n
         stepy = h / n #(n + 1)
         offset = 8
-        w2 = stepx - (offset << 1)
-        h2 = stepy - (offset << 1)
+        w2 = int(stepx - (offset << 1))
+        h2 = int(stepy - (offset << 1))
         #w3 = 16
         #h3 = 3#h2 >> 3
         self.imglist = []
         self.splitModeVar = tk.IntVar()
 
-        idValue = 0
-        if modeDict != None:
-            modeId = modeDict.get("modeId")
-            if modeId != None:
-                idValue = modeId
+        #idValue = 0
+        modeId = -1
+        if self.modeDict != None:
+            modeId = self.modeDict.get("modeId")
+            #if modeId != None:
+            #    idValue = modeId
         #self.splitimage = tk.PhotoImage(file='icon/stock_table_split.png').zoom(6,3)
         self.splitSubFrameList = None
         def modePage(v):
@@ -849,7 +924,18 @@ class ConfigGeneralFrame(object):
             self.splitMode = v
             self.splitRects = self.CreateModeTab(v - 1)
             posList = []
-            print("modePage: self.splitRects= ", self.splitRects)
+
+            if self.modeDict != None:
+                if self.modeDict.get("modePos") != None and modeId == (v - 1):
+                    posList = self.modeDict.get("modePos")
+                self.modeDict["modeId"] = (v - 1)
+                #print("modePage: modeDict=", self.modeDict)
+            else:
+                self.modeDict = {}
+                self.modeDict.update({"modeId": (v - 1)})
+                #print("modePage: self.modeDict=", self.modeDict)
+            #print("modePage: posList=", posList)
+            #print("modePage: self.splitRects= ", self.splitRects)
             self.chanBntList = []  # [k]
             #self.chanBntVarList = [len(self.splitRects)]  # [k]
             #self.splitSubFrameList = []
@@ -862,9 +948,9 @@ class ConfigGeneralFrame(object):
                 print("chanPage: (v, v2)= ", (v, v2))
                 #self.chainId = v2
                 #self.chanIdList[id] = v2
-                #self.modeDict["modePos"][id]["devideId"] = v2
-                i = v2 - 1
-                splitSubFrame = self.splitSubFrameList[i]
+                #self.modeDict["modePos"][id]["deviceId"] = v2
+                chanId = v2 - 1
+                splitSubFrame = self.splitSubFrameList[chanId]
                 wx = splitSubFrame.winfo_x()
                 wy = splitSubFrame.winfo_y()
                 ww = splitSubFrame.winfo_width()
@@ -890,7 +976,7 @@ class ConfigGeneralFrame(object):
                 print("chanPage: (ww, wh)", (ww, wh))
                 popFrame = tk.Toplevel()
                 #popFrame = tk.Frame(splitSubFrame, width=640, height=480)
-                title = '设备及通道选择(' + str(i) + ')'
+                title = '设备及通道选择(' + str(chanId) + ')'
                 popFrame.title(title)
                 (popwidth, popheight) = (320, 240)
                 str_resolution = str(popwidth) + "x" + str(popheight) + "+" + str(wx) + "+" + str(wy)
@@ -903,7 +989,7 @@ class ConfigGeneralFrame(object):
                 #popFrame.deiconify()
 
                 (orgx, orgy, fsize, lsize, step, combSize, btnWidth) = (0, 0, 8, 8, 32, 3, 10)
-                if i == 0:
+                if chanId == 0:
                     (orgx, orgy) = (100, 100)
                 deviceId = None
                 value = 0
@@ -912,17 +998,41 @@ class ConfigGeneralFrame(object):
                 #    if spatiallayer != None:
                 #        value = spatiallayer.get("value")
                 #        name = spatiallayer.get("name")
+                value = self.parent.deviceNum
+                if chanId == 0:
+                    value = 0
+                if len(posList) > 0:
+                    #print("chanEvent: 0:  posList[v2 - 1]=",  posList[v2 - 1])
+                    value = posList[v2 - 1].get("deviceId")
+                    chanId2 = posList[v2 - 1].get("chanId")
+                    pos = posList[v2 - 1].get("pos")
+                    #print("chanEvent: 0: (value, chanId2, pos)=", (value, chanId2, pos))
+                    #print("chanEvent: self.parent.deviceNum=", self.parent.deviceNum)
+                    if value >= self.parent.deviceNum or value < 0:
+                        value = self.parent.deviceNum
+                        print("chanEvent: 1: value=", value)
+                #if len(rectList) > 0:
+                #    value = int(rectList[v2 - 1].get("deviceId"))
+                #    if value >= self.parent.deviceNum or value < 0:
+                #        value = self.parent.deviceNum
+                rectDict = posList[v2 - 1]
+
+                values = []
+                for i in range(self.parent.deviceNum):
+                    values.append(i)
+                values.append(-1)
+
                 ttk.Label(popFrame, text="设备", width=lsize).place(x=orgx, y=orgy)
-                self.deviceIdVar = tk.StringVar()
+                self.deviceIdVar = tk.IntVar()
                 self.deviceIdChosen = ttk.Combobox(popFrame, width=combSize,
                                                        textvariable=self.deviceIdVar,
                                                        state='readonly')
-                self.deviceIdChosen['values'] = (0, 1, 2, 3)  # 设置下拉列表的值
+                self.deviceIdChosen['values'] = values #(0, 1, 2, 3)  # 设置下拉列表的值
                 self.deviceIdChosen.current(value)  # 设置下拉列表默认显示的值，0为 numberChosen['values'] 的下标值
                 self.deviceIdChosen.place(x=(orgx + 40), y=orgy)
                 orgy += step
 
-                chanId = None
+
                 value = 0
                 # if suppramsDict != None:
                 #    spatiallayer = suppramsDict.get("spatiallayer")
@@ -930,7 +1040,7 @@ class ConfigGeneralFrame(object):
                 #        value = spatiallayer.get("value")
                 #        name = spatiallayer.get("name")
                 ttk.Label(popFrame, text="通道", width=lsize).place(x=orgx, y=orgy)
-                self.chanIdVar = tk.StringVar()
+                self.chanIdVar = tk.IntVar()
                 self.chanIdChosen = ttk.Combobox(popFrame, width=combSize,
                                                    textvariable=self.chanIdVar,
                                                    state='readonly')
@@ -940,19 +1050,25 @@ class ConfigGeneralFrame(object):
                 orgy += step
                 def setting():
                     print("setting")
+                    deviceId = int(self.deviceIdChosen.get())
+                    print("setting: deviceId= ", deviceId)
+                    rectDict["deviceId"] = deviceId
+                    posList[v2 - 1] = rectDict
                     #popFrame.delete("all")
                     popFrame.destroy()
                 self.btnEnter = tk.Button(popFrame, text="确定", command=setting)
                 self.btnEnter.place(x=(orgx + 100), y=(orgy + 30))
-
+                popFrame.update()
+            self.splitFrame1.update()
             sw = self.splitFrame1.winfo_width()
             sh = self.splitFrame1.winfo_height()
             print("CreateSplitFrame: (sw, sh)=", (sw, sh))
-            factorx = float(self.width) / float(sw)
-            factory = float(self.height) / float(sh)
+            factorx = float(self.confWidth) / float(sw)
+            factory = float(self.confHeight) / float(sh)
             factor = factorx
             print("CreateSplitFrame: (factorx, factory)=", (factorx, factory))
             #fsize = 7
+            posList2 = []
             self.chanBntVar = tk.IntVar()
             #for rect in self.splitRects:
             for i in range(len(self.splitRects)):
@@ -961,11 +1077,13 @@ class ConfigGeneralFrame(object):
                 print("modePage: self.chanIdVarList[i].get()= ", self.chanIdVarList[i].get())
                 rect = self.splitRects[i]
                 captureId = 0 if i == 0 else -1
-                posList.append({"chanId":i, "devideId": captureId, "pos":rect})
+                if len(posList) > 0:
+                    captureId = posList[i].get("deviceId")
+                posList2.append({"chanId":i, "deviceId": captureId, "pos":rect})
 
                 (x0, y0, dw, dh) = (int(rect[0] / factorx), int(rect[1] / factory), int(rect[2] / factorx), int(rect[3] / factory))
-                dw /= 7
-                dh /= 17
+                dw = int(dw/7)
+                dh = int(dh/17)
                 splitSubFrame = tk.Radiobutton(self.splitFrame1, text=str(i), value=(i + 1), variable=self.chanBntVar,
                                command=lambda: chanPage(self.chanBntVar.get()), indicatoron=0,width=dw,height=dh)
                 splitSubFrame.place(x=x0, y=y0)
@@ -984,8 +1102,10 @@ class ConfigGeneralFrame(object):
                 ###device select
                 self.splitSubFrameList[i] = splitSubFrame
             self.splitModeVar.set(v)
-            self.modeDict.update({"modeId":v, "modePos":posList})
+            posList = posList2
+            self.modeDict.update({"modeId": (v - 1), "modePos":posList})
             return
+        modePage(modeId + 1)
         disableList = [1, 2, 7, 9]
         for i in range(n):
             for j in range(n):
@@ -1005,10 +1125,12 @@ class ConfigGeneralFrame(object):
                     splitBtn.place(x=orgx, y=orgy)
                     #self.subFrame = ttk.LabelFrame(splitBtn, text='', width=w2, height=h2)
                     #self.subFrame.place(x=0, y=0)
+                    if modeId == id: #(id - 1):
+                        self.splitModeVar.set((modeId + 1))
                     if id in disableList:
                         splitBtn.configure(state='disabled')
-        self.splitModeVar.set(idValue)
-        return modeDict
+        #self.splitModeVar.set(idValue)
+        return self.modeDict
     def CreateSplitChanFrame(self):
         pass
     def CreateMcuFrame(self):
@@ -1028,6 +1150,7 @@ class ConfigGeneralFrame(object):
         ttk.Label(otherSubFrame, text="服务器地址", width=lsize).place(x=orgx, y=orgy)
         #
         serverAddVar = "47.92.7.66:10088"
+        serverAddVar = "127.0.0.1:10088"
         self.suppramsDict = suppramsDict
         if suppramsDict != None:
             serverAddr = suppramsDict.get("serverAddr")
@@ -1062,7 +1185,7 @@ class ConfigGeneralFrame(object):
         #orgx1 = fsize * lsize * 2
         #orgx2 += fsize * lsize * 2
         temporallayer = None
-        value = 1
+        value = 0
         if suppramsDict != None:
             temporallayer = suppramsDict.get("temporallayer")
             if temporallayer != None:
@@ -1144,7 +1267,6 @@ class ConfigGeneralFrame(object):
         # offsety += step
 
         orgx1 += 60
-
 
         self.opening = tk.IntVar()
         openingValue = 0
@@ -1410,6 +1532,7 @@ class ConfigGeneralFrame(object):
         orgy += step
         return suppramsDict
     def SaveConfig(self):
+        print("ConfigGeneralFrame: SaveConfig")
         thisvalue = self.saveConfigVar.get()
         print("CreateSuppramsFrame: saveConfigPage: thisvalue= ", thisvalue)
         self.suppramsDict.update({"serverAddr": self.var_sever_add.get()})
@@ -1442,16 +1565,22 @@ class ConfigControlFrame(object):
         self.videoFarame = None
         self.width = 720
         self.height = 690
-        self.confWidth = parent.width
-        self.confHeight = parent.height
+        self.confWidth = parent.parent.width
+        self.confHeight = parent.parent.height
         self.modeNum = 8
         self.devicePos = (0, 1)
         #self.deviceNum = 2
+    def __del__(self):
+        print("ConfigControlFrame del")
     def SaveConfig(self):
+        print("ConfigControlFrame: SaveConfig: 0: self.dict=", self.dict)
         if self.dict != None:
-            self.parent.json.dict.update({"control": self.dict})
-            print("SaveConfig: self.dict=", self.parent.json.dict)
-        print("SaveConfig: self.dict=", self.dict)
+            if self.parent.json.dict.get("control") == None:
+                self.parent.json.dict.update({"control": self.dict})
+            else:
+                self.parent.json.dict["control"] = self.dict
+        print("ConfigControlFrame: SaveConfig: 1: self.dict=", self.dict)
+
     def CreateControlFrame(self, offset):
         mode = -1
         if self.dict != None:
@@ -1491,7 +1620,6 @@ class ConfigControlFrame(object):
                 self.dict.update({"mode": (v - 1)})
                 print("modePage: self.dict=", self.dict)
             #
-
             def chanEvent(v2):
                 print("chanEvent: v2=", v2)
                 (wx, wy) = (300, 300)
@@ -1518,38 +1646,44 @@ class ConfigControlFrame(object):
 
                 #
                 rectDict = rectList[v2 - 1]
+                print("chanEvent: rectDict=", rectDict)
 
                 (orgx2, orgy2, fsize, lsize, step, combSize, btnWidth) = (8, 8, 8, 8, 32, 3, 10)
 
                 chanId = None
                 value = 0
                 if len(rectList) > 0:
-                    value = rectList[v2 - 1].get("deviceId")
-                    if value >= self.parent.deviceNum:
+                    value = int(rectList[v2 - 1].get("deviceId"))
+                    print("chanEvent: 0: value=", value)
+                    print("chanEvent: self.parent.deviceNum=", self.parent.deviceNum)
+                    if value >= self.parent.deviceNum or value < 0:
                         value = self.parent.deviceNum
+                        print("chanEvent: 1: value=", value)
                 # if suppramsDict != None:
                 #    spatiallayer = suppramsDict.get("spatiallayer")
                 #    if spatiallayer != None:
                 #        value = spatiallayer.get("value")
                 #        name = spatiallayer.get("name")
                 ttk.Label(popFrame, text="通道", width=lsize).place(x=orgx2, y=orgy2)
-                self.chanIdVar = tk.StringVar()
+                self.chanIdVar = tk.IntVar()
                 self.chanIdChosen = ttk.Combobox(popFrame, width=combSize,
                                                  textvariable=self.chanIdVar,
                                                  state='readonly')
                 values = []
                 for i in range(self.parent.deviceNum):
                     values.append(i)
-                values.append('None')
+                values.append(-1)
                 self.chanIdChosen['values'] = values #(1, 2, 3, 4)  # 设置下拉列表的值
                 self.chanIdChosen.current(value)  # 设置下拉列表默认显示的值，0为 numberChosen['values'] 的下标值
                 self.chanIdChosen.place(x=(orgx2 + 32), y=orgy2)
                 orgy2 += step
+                print("chanEvent: value=", value)
 
                 def setting():
-                    deviceId = self.chanIdChosen.get()
+                    deviceId = int(self.chanIdChosen.get())
                     print("setting: deviceId= ", deviceId)
                     rectDict["deviceId"] = deviceId
+                    rectList[v2 - 1] = rectDict
                     # popFrame.delete("all")
                     popFrame.destroy()
 
@@ -1560,57 +1694,73 @@ class ConfigControlFrame(object):
             id = 0
             previewBtn = tk.Radiobutton(previewFrame, text=str(id), value=(id + 1), variable=self.previewVar,
                                       #image=splitimage,
-                                      command=lambda: chanEvent(self.previewVar.get()), indicatoron=0, width=dw2 / 7,
-                                      height=dh2 / 18)
+                                      command=lambda: chanEvent(self.previewVar.get()), indicatoron=0, width=int(dw2 / 7),
+                                      height=int(dh2 / 18))
             previewBtn.place(x=0, y=0)
+            rectList2 = []
             if v in [1]:
                 rect = (0, 0, self.confWidth, self.confHeight)
-                thisDict = {"chanId": 0, "pos": rect, "deviceId": 0}
-                rectList.append(thisDict)
+                value = 0
+                if (mode + 1) in [1]:
+                    value = int(rectList[0].get("deviceId"))
+                thisDict = {"chanId": 0, "pos": rect, "deviceId": value}
+                rectList2.append(thisDict)
             elif v in [2, 3, 4, 5]:
                 rect = (0, 0, self.confWidth, self.confHeight)
-                thisDict = {"chanId" : 0, "pos" : rect, "deviceId": 0}
-                rectList.append(thisDict)
+                value = 0
+                if (mode + 1) in [2, 3, 4, 5]:
+                    value = int(rectList[0].get("deviceId"))
+                thisDict = {"chanId" : 0, "pos" : rect, "deviceId": value}
+                rectList2.append(thisDict)
                 id = 1
                 (orgx2, orgy2) = (0 , 0)
-                if v in [1]:
+                if v in [2]:
                     rect = (0, 0, self.confWidth / 4, self.confHeight / 4)
-                elif v in [2]:
+                elif v in [3]:
                     rect = ((self.confWidth - self.confWidth / 4), 0, self.confWidth / 4, self.confHeight / 4)
                     (orgx2, orgy2) = (dw2 - (dw2 / 4) , 0)
-                elif v in [3]:
-                    rect = ((self.confWidth - self.confWidth / 4), (self.confHeight - self.confHeight / 4), self.confWidth / 4, self.confHeight / 4)
-                    (orgx2, orgy2) = (0 , (dh2 - (dh2 / 4)))
                 elif v in [4]:
                     rect = (0, (self.confHeight - self.confHeight / 4), self.confWidth / 4, self.confHeight / 4)
+                    (orgx2, orgy2) = (0 , (dh2 - (dh2 / 4)))
+                elif v in [5]:
+                    rect = ((self.confWidth - self.confWidth / 4), (self.confHeight - self.confHeight / 4), self.confWidth / 4,self.confHeight / 4)
                     (orgx2, orgy2) = (dw2 - (dw2 / 4) , (dh2 - (dh2 / 4)))
-                thisDict = {"chanId": 1, "pos": rect, "deviceId": 1}
-                rectList.append(thisDict)
+                value = -1
+                if (mode + 1) in [2, 3, 4, 5]:
+                    value = int(rectList[id].get("deviceId"))
+                thisDict = {"chanId": id, "pos": rect, "deviceId": value}
+                rectList2.append(thisDict)
                 previewBtn = tk.Radiobutton(previewFrame, text=str(id), value=(id + 1), variable=self.previewVar,
                                             # image=splitimage,
                                             command=lambda: chanEvent(self.previewVar.get()), indicatoron=0,
-                                            width=dw2 / 7 / 4,
-                                            height=dh2 / 18 / 4)
+                                            width=int(dw2 / 7 / 4),
+                                            height=int(dh2 / 18 / 4))
                 previewBtn.place(x=orgx2, y=orgy2)
             elif v in [6, 7]:
                 (orgx2, orgy2) = (0, 0)
                 rect = (0, 0, self.confWidth, self.confHeight)
-                thisDict = {"chanId": 0, "pos": rect, "deviceId": 0}
-                rectList.append(thisDict)
+                value = 0
+                if (mode + 1) in [6, 7]:
+                    value = int(rectList[0].get("deviceId"))
+                thisDict = {"chanId": 0, "pos": rect, "deviceId": value}
+                rectList2.append(thisDict)
                 for i in range(4):
                     id = 1 + i
                     orgy2 = i * (dh2 / 4)
                     rect = (0, i * (self.confHeight / 4), self.confWidth / 4, self.confHeight / 4)
-                    if v in [6]:
+                    if v in [7]:
                         rect = ((self.confWidth - self.confWidth / 4), i * (self.confHeight / 4), self.confWidth / 4, self.confHeight / 4)
                         orgx2 = (dw2 - (dw2 / 4))
-                    thisDict = {"chanId": id, "pos": rect, "deviceId": id}
-                    rectList.append(thisDict)
+                    id2 = 0 if i == 0 else -1
+                    if (mode + 1) in [6, 7]:
+                        id2 = int(rectList[id].get("deviceId"))
+                    thisDict = {"chanId": id, "pos": rect, "deviceId": id2}
+                    rectList2.append(thisDict)
                     previewBtn = tk.Radiobutton(previewFrame, text=str(id), value=(id + 1), variable=self.previewVar,
                                                 # image=splitimage,
                                                 command=lambda: chanEvent(self.previewVar.get()), indicatoron=0,
-                                                width=dw2 / 7 / 4,
-                                                height=dh2 / 18 / 4)
+                                                width=int(dw2 / 7 / 4),
+                                                height=int(dh2 / 18 / 4))
                     previewBtn.place(x=orgx2, y=orgy2)
 
             elif v in [8]:
@@ -1621,17 +1771,22 @@ class ConfigControlFrame(object):
                         orgx2 = j * (dw2 / 2)
                         orgy2 = i * (dh2 / 2)
                         rect = (j * (self.confWidth / 4), i * (self.confHeight / 4), self.confWidth / 4, self.confHeight / 4)
-                        thisDict = {"chanId": id, "pos": rect, "deviceId": id}
-                        rectList.append(thisDict)
+                        id2 = 0 if i == 0 else -1
+                        if (mode + 1) in [8]:
+                            id2 = int(rectList[id].get("deviceId"))
+                        thisDict = {"chanId": id, "pos": rect, "deviceId": id2}
+                        rectList2.append(thisDict)
                         previewBtn = tk.Radiobutton(previewFrame, text=str(id), value=(id + 1),
                                                     variable=self.previewVar,
                                                     # image=splitimage,
                                                     command=lambda: chanEvent(self.previewVar.get()), indicatoron=0,
-                                                    width=dw2 / 7 / 2,
-                                                    height=dh2 / 18 / 2)
+                                                    width=int(dw2 / 7 / 2),
+                                                    height=int(dh2 / 18 / 2))
                         previewBtn.place(x=orgx2, y=orgy2)
+            rectList = rectList2
+            #print("rectList2= ", rectList2)
             if self.dict != None:
-                self.dict["rect"] = rectList
+                self.dict["rect"] = rectList2
             return self.dict
         for i in range(n):
             for j in range(m):
@@ -1649,8 +1804,9 @@ class ConfigControlFrame(object):
                     splitBtn = tk.Radiobutton(modeFrame, text=name, value=(id + 1), variable=self.splitModeVar, image=splitimage,
                                               command=lambda: modePage(self.splitModeVar.get()), indicatoron=0, width=dw, height=dh)
                     splitBtn.place(x=orgx, y=orgy)
-                    if mode == (id - 1):
+                    if mode == id: #(id - 1):
                         self.splitModeVar.set((mode + 1))
+        modePage((mode + 1))
         ###
         contrFrame = ttk.LabelFrame(directFrame, text='控制面板', width=w2, height=h2)
         contrFrame.place(x=w2, y=(h - 240))
@@ -1667,7 +1823,7 @@ class ConfigControlFrame(object):
         self.controlVar = tk.IntVar()
         def controlEvent(v):
             #
-            print("addDevice: v= ", v)
+            print("controlEvent: v= ", v)
             if v == contrlNum:
                 self.SaveConfig()
                 self.parent.save_config()
@@ -1720,7 +1876,7 @@ class ConfigControlFrame(object):
                                                   command=lambda: controlEvent(self.controlVar.get()), indicatoron=0, width=btnWidth)
                     self.controlVar.set(0)
                     controlBtn.place(x=orgx, y=orgy)
-
+        return self.dict
 class ConfigDeviceFrame(object):
     def __init__(self, parent, parentFrame, deviceId, deviceDict):
         self.parent = parent
@@ -1730,7 +1886,8 @@ class ConfigDeviceFrame(object):
         self.videoFarame = None
         self.width = 280
         self.dict = deviceDict
-
+    def __del__(self):
+        print("ConfigDeviceFrame del")
     def SaveConfig(self):
         audios = None
         videos = None
@@ -1978,7 +2135,7 @@ class ConfigDeviceFrame(object):
         offsety += step
 
         framesize = None
-        value = 1
+        value = 2
         if audios != None:
             framesize = audios.get("framesize")
         if framesize != None:
@@ -2126,13 +2283,6 @@ class ConfigDeviceFrame(object):
         capture = None
         value = 1
         name = "test"
-        if videos != None:
-            capture = videos.get("capture")
-        if capture != None:
-            if capture.get("value") != None:
-                value = capture.get("value")
-            if capture.get("name") != None:
-                name = capture.get("name")
         # 创建一个下拉列表
         values = []
         if len(self.parent.videoInfolist) > 0:
@@ -2148,6 +2298,17 @@ class ConfigDeviceFrame(object):
         values.append("RTMP")
         values.append("RTSP")
         values.append("其他")
+        if videos != None:
+            capture = videos.get("capture")
+        if capture != None:
+            if capture.get("name") != None:
+                name = str(capture.get("name"))
+                #if capture.get("value") != None:
+                #    value = capture.get("value")
+                if name in values:
+                    value = values.index(name)
+                print("CreateDevice: name=", name)
+
         self.videoDevice = tk.StringVar()
         self.videoDeviceChosen = ttk.Combobox(frame31, font=Font1, width=combSize, textvariable=self.videoDevice, state='readonly')
         self.videoDeviceChosen['values'] = values #("video0", "fb0", "RTMP", "RTSP", "其他")  # 设置下拉列表的值
@@ -2201,7 +2362,7 @@ class ConfigDeviceFrame(object):
         offsety += step
 
         framerate = None
-        value = 1
+        value = 2
         if videos != None:
             framerate = videos.get("framerate")
         if framerate != None:
@@ -2219,7 +2380,7 @@ class ConfigDeviceFrame(object):
         offsety += step
 
         bitrate = None
-        value = 1
+        value = 3
         if videos != None:
             bitrate = videos.get("bitrate")
         if bitrate != None:
@@ -2232,7 +2393,7 @@ class ConfigDeviceFrame(object):
         self.videoBitRateChosen = ttk.Combobox(frame31, font=Font1, width=combSize, textvariable=self.videoBitRate,
                                           state='readonly')
         self.videoBitRateChosen['values'] = (
-            "256kbps", "512kbps", "800kbps", "1000kbps", "1500kbps", "2000kbps", "2500kbps", "3000kbps", "6000kbps",
+            "default", "256kbps", "512kbps", "800kbps", "1000kbps", "1500kbps", "2000kbps", "2500kbps", "3000kbps", "6000kbps",
             "其他")
         self.videoBitRateChosen.current(value)  # 设置下拉列表默认显示的值，0为 numberChosen['values'] 的下标值
         self.videoBitRateChosen.place(x=offsetx, y=offsety)
@@ -2268,8 +2429,8 @@ class ConfigDeviceFrame(object):
             self.vFEC.set(fecValue)
 
         def preview():
-            print("video pre view")
-            self.parent.client.cap_preview()
+            print("video pre view: self.deviceId= ", self.deviceId)
+            self.parent.client.cap_preview(self.deviceId)
 
         self.btnVideoView = tk.Button(frame31, text="预览", command=preview)
         self.btnVideoView.place(x=orgx2, y=(offsety - 10))
@@ -2301,6 +2462,10 @@ class ConfigFrame(object):
         #if data != None and data != {}:
         #    for key, value in data.items():
         #        print("(key, value)= ", (key, value))
+    def __del__(self):
+        print("ConfigFrame del")
+    def SetClient(self, client):
+        self.client = client
     def init_device_info(self):
         self.cap = VideoCapture()
         self.audioCap = AudioCapture(0)
@@ -2309,7 +2474,7 @@ class ConfigFrame(object):
         print("init_device_info: self.videoInfolist= ", self.videoInfolist)
         print("init_device_info: self.audioInfolist= ", self.audioInfolist)
     def on_config_closing(self):
-        print("config frame close")
+        print("on_config_closing")
         #self.save_config()
         if False:
             if self.config_frame != None:
@@ -2327,7 +2492,7 @@ class ConfigFrame(object):
             if self.config_frame != None:
                 self.config_frame.withdraw()
                 self.config_frame = None
-
+        print("on_config_closing over")
     def callCheckbutton(self):
         self.v0.set("hello Checkbutton")
     def channel0(self):
@@ -2371,7 +2536,9 @@ class ConfigFrame(object):
             self.json.dict.update({"multdevice" : multdevice})
         controlDict = self.json.dict.get("control")
         if controlDict != None:
-            self.json.dict.update({"control" : controlDict})
+            self.json.dict["control"] = controlDict
+        else:
+            self.json.dict.update({"control": controlDict})
         self.json.writefile(None, "")
     def create_device_frame(self, deviceId, offset):
         fh = self.frame0.winfo_height()
@@ -2566,8 +2733,10 @@ class ConfigFrame(object):
             self.ctrFrame = ConfigControlFrame(self, self.frame0, controlDict)
             controlDict = self.ctrFrame.CreateControlFrame(offset)
             if controlDict != None:
-                self.json.dict.update({"control": controlDict})
+                self.json.dict["control"] = controlDict
                 print("ConfigFrame:open_config_frame: len(controlDict)= ", len(controlDict))
+            else:
+                self.json.dict.update({"control": controlDict})
             ###genernalframe
             self.genFrame = ConfigGeneralFrame(self, frame1, width0, height0, generalDict)
             modeDict = self.genFrame.CreateSplitFrame()
@@ -2661,10 +2830,8 @@ class ConfigFrame(object):
         return
 class Conference(object):
     def __init__(self, width, height):
+        print("Conference: (width, height)= ", (width, height))
         self.root = None
-        #self.preview = ExternalSDL()
-        #self.preview.start()
-        #self.preview = None
         self.json = JsonFile("config.json")
         data = self.json.readfile("")
         self.client = None #ClientFrame(self.root)
@@ -2674,21 +2841,23 @@ class Conference(object):
         self.videoInfolist = []
         self.audioInfolist = []
         (self.screen_width, self.screen_height) = (0, 0)
-
+    def __del__(self):
+        print("Conference del")
     def on_root_close(self):
         #self.hide()
         if self.config_frame != None:
             #self.config_frame.destroy()
             self.config_frame. on_config_closing()
-        #if self.meeting_frame != None and False:
-        #    self.meeting_frame.destroy()
-        #else:
-        #    self.exit_meeting()
-        #time.sleep(5)
         if self.client != None:
             self.client.on_meeting_closing()
-        if self.client.meeting_frame == None:
-            self.root.destroy()
+            self.client.close()
+            del self.client
+            self.client = None
+
+        self.root.destroy()
+        _unreachable = gc.collect()
+        print("unreachable object num:%d" % (_unreachable))
+        print("garbage object num:%d" % (len(gc.garbage)))
 
     def hide(self):
         self.root.withdraw()
@@ -2710,12 +2879,25 @@ class Conference(object):
         self.audioInfolist = self.audioCap.get_device_info()
         print("init_device_info: self.videoInfolist= ", self.videoInfolist)
         print("init_device_info: self.audioInfolist= ", self.audioInfolist)
+    def close_client(self):
+        if self.client != None:
+            self.client.exit_meeting()
+            if False:
+                while self.client.status:
+                    time.sleep(1)
+                    print("close_client: wait...")
+                print("close_client: self.client.status= ", self.client.status)
+            #self.client.meeting_frame.destroy()
+            #del self.client
+            #self.client = None
+        print("close_client over")
     def root_frame(self):
         self.root = tk.Tk()
         width = self.root.winfo_screenwidth()
         height = self.root.winfo_screenheight()
+        (SCREEN_WIDTH,  SCREEN_HEIGHT) = (width, height)
         (self.screen_width, self.screen_height) = (width, height)
-        print("root_frame: (width, height)= ", (width, height))
+        print("root_frame: (screen_width, screen_height)= ", (self.screen_width, self.screen_height))
         self.root.title('欢迎进入会畅SVC调试系统')
         self.root.geometry('690x500+300+100')
         ##self.frame = tk.Frame(self.root)
@@ -2728,7 +2910,7 @@ class Conference(object):
         #self.canvas = canvas
         #self.winid = canvas.winfo_id()
         #print("log_frame: self.winid= ", self.winid)
-        imagefile = tk.PhotoImage(file='hc.png')
+        imagefile = tk.PhotoImage(file='./icon/hc.png')
         image = canvas.create_image(0, 0, anchor='nw', image=imagefile)
         canvas.pack(side='top')
 
@@ -2737,21 +2919,50 @@ class Conference(object):
 
         # `在这里插入代码片`
         # 标签 用户名密码
-        tk.Label(self.root, text='会议号:').place(x=200, y=280)
-        tk.Label(self.root, text='会议密码:').place(x=200, y=320)
-        tk.Label(self.root, text='帐号:').place(x=200, y=360)
+        step = 40
+        y0 = 240
+        y1 = y0 + step
+        y2 = y1 + step
+        y3 = y2 + step
+        tk.Label(self.root, text='会议号:').place(x=200, y=y0)
+        tk.Label(self.root, text='会议密码:').place(x=200, y=y1)
+        tk.Label(self.root, text='分辨率:').place(x=200, y=y2)
+        tk.Label(self.root, text='帐号:').place(x=200, y=y3)
         # 会议号输入框
         self.var_meeting_id = tk.StringVar()
         entry_meeting_id = tk.Entry(self.root, textvariable=self.var_meeting_id)
-        entry_meeting_id.place(x=260, y=280)
+        entry_meeting_id.place(x=260, y=y0)
         # 密码输入框
         self.var_usr_pwd = tk.StringVar()
         entry_usr_pwd = tk.Entry(self.root, textvariable=self.var_usr_pwd, show='*')
-        entry_usr_pwd.place(x=260, y=320)
+        entry_usr_pwd.place(x=260, y=y1)
         # 帐号输入框
         self.var_usr_name = tk.StringVar()
         entry_usr_name = tk.Entry(self.root, textvariable=self.var_usr_name)
-        entry_usr_name.place(x=260, y=360)
+        entry_usr_name.place(x=260, y=y3)
+        # 分辨率
+        resolution = None
+        value = 1
+        values = ["1920x1080", "1280x720", "960x540", "704x576", "640x480", "352x288", "320x240"]
+        if self.json.dict != None:
+            conference = self.json.dict["conference"]
+            if conference != None:
+                width = conference["width"]
+                height = conference["height"]
+                #width = self.width
+                #height = self.height
+                (self.width, self.height) = (width, height)
+                swh = str(width) + "x" + str(height)
+                value = values.index(swh)
+                print("Conference: root_frame: value= ", value)
+        ttk.Label(self.root, text="分辨率", width=8).place(x=260, y=y2)
+        self.videoResolution = tk.StringVar()
+        self.videoResolutionChosen = ttk.Combobox(self.root, width=18,
+                                                  textvariable=self.videoResolution,
+                                                  state='readonly')
+        self.videoResolutionChosen['values'] = values
+        self.videoResolutionChosen.current(value)  # 设置下拉列表默认显示的值，0为 numberChosen['values'] 的下标值
+        self.videoResolutionChosen.place(x=260, y=y2)
         # 登录 注册按钮
         # image = Image.open('icon/video_chat.png')
         # image = image.resize((40, 60), Image.ANTIALIAS)
@@ -2781,19 +2992,22 @@ class Conference(object):
         #self.bt_config.place(x=480, y=400)
 
         self.init_device_info()
-        self.client = ClientFrame(self)  # .root)
-        self.config_frame = ConfigFrame(self, self.client)  # .root)
 
-        #self.iv0_0 = 0
-        #self.iv0 = tk.IntVar()
+        self.client = ClientFrame(self)
+
+        self.config_frame = ConfigFrame(self, self.client)  # .root)
+        # self.iv0_0 = 0
+        # self.iv0 = tk.IntVar()
         image4 = tk.PhotoImage(file='icon/config.png').subsample(3, 4)
-        self.bt_config = tk.Radiobutton(self.root, text='设置', value=1, variable=self.config_frame.iv0, image=image4, command=self.setting, indicatoron=0, width=50, height=30)
-        #self.bt_config = tk.Radiobutton(self.root, text='设置', value=1, image=image4, command=self.setting, indicatoron=0, width=50, height=30)
-        #self.iv0.set(self.iv0_0)
+        self.bt_config = tk.Radiobutton(self.root, text='设置', value=1, variable=self.config_frame.iv0, image=image4,
+                                        command=self.setting, indicatoron=0, width=50, height=30)
+        # self.bt_config = tk.Radiobutton(self.root, text='设置', value=1, image=image4, command=self.setting, indicatoron=0, width=50, height=30)
+        # self.iv0.set(self.iv0_0)
         self.config_frame.iv0.set(0)
         self.bt_config.place(x=480, y=400)
 
         self.root.protocol("WM_DELETE_WINDOW", self.on_root_close)  # 只要其中一个窗口关闭,就同时关闭两个窗口
+        print("threading.activeCount():%d" % (threading.activeCount()))
         self.root.mainloop()
         #self.exit_meeting()
         print("root exit")
@@ -2811,14 +3025,34 @@ class Conference(object):
             self.var_usr_name.set(usr_name)
         print("create_meeting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
         (self.meeting_id, self.usr_name, self.usr_pwd) = (meeting_id, usr_name, usr_pwd)
-        self.json.dict.update({"conference":{"sessionId": int(meeting_id), "ownerName":usr_name, "width":self.width, "height":self.height}})
+        ###
+        value = self.videoResolutionChosen.current()
+        name = self.videoResolutionChosen.get()
+        swidth = name.split("x")[0]
+        sheight = name.split("x")[1]
+        width = int(swidth)
+        height = int(sheight)
+        if (width != self.width) or (height != self.height):
+            #self.on_root_close()
+            (self.width, self.height) = (width, height)
+            self.json.dict.update({"conference": {"sessionId": int(meeting_id), "ownerName": usr_name, "width": self.width, "height": self.height}})
+            #self.root_frame()
+        else:
+            self.json.dict.update({"conference":{"sessionId": int(meeting_id), "ownerName":usr_name, "width":self.width, "height":self.height}})
         print("create_meeting: self.json.dict= ", self.json.dict)
         self.root.update()
 
-        if self.client != None:
-            #self.client = None
-            #self.client = ClientFrame(self)
-            self.client.create_meeting()
+        #if self.client != None:
+        #    if self.client.meeting_frame != None:
+        #        self.client.meeting_frame.destroy()
+        #    del self.client
+        #    self.client = None
+        if self.client == None:
+            self.client = ClientFrame(self)
+            if self.config_frame != None:
+                self.config_frame.client = self.client
+        self.client.create_meeting()
+
 
     def enter_meeting(self):
         meeting_id = self.var_meeting_id.get()
@@ -2834,9 +3068,11 @@ class Conference(object):
         self.json.dict.update({"conference":{"sessionId": int(meeting_id), "ownerName":usr_name, "width":self.width, "height":self.height}})
         self.root.update()
 
-        if self.client != None:
-            #self.client.cap_preview()
-            pass
+        if self.client == None:
+            self.client = ClientFrame(self)
+            if self.config_frame != None:
+                self.config_frame.client = self.client
+        return
 
     def watch_meeting(self):
         meeting_id = self.var_meeting_id.get()
@@ -2844,7 +3080,10 @@ class Conference(object):
         usr_pwd = self.var_usr_pwd.get()
         print("watch_meeting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
         (self.meeting_id, self.usr_name, self.usr_pwd) = (meeting_id, usr_name, usr_pwd)
-
+        if self.client == None:
+            self.client = ClientFrame(self)
+            if self.config_frame != None:
+                self.config_frame.client = self.client
         return
 
     def exit_meeting(self):
@@ -2852,8 +3091,10 @@ class Conference(object):
         usr_name = self.var_usr_name.get()
         usr_pwd = self.var_usr_pwd.get()
         print("exit_meeting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
-        if self.client != None:
-            self.client.exit_meeting()
+        #if self.client != None:
+        #    self.client.exit_meeting()
+        #MyThread(close_client, self)
+        self.close_client()
         print("Conference: exit_meeting end")
 
         return
@@ -2871,9 +3112,79 @@ class Conference(object):
             self.var_usr_name.set(usr_name)
         print("setting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
         (self.meeting_id, self.usr_name, self.usr_pwd) = (meeting_id, usr_name, usr_pwd)
+        ###
+        value = self.videoResolutionChosen.current()
+        name = self.videoResolutionChosen.get()
+        swidth = name.split("x")[0]
+        sheight = name.split("x")[1]
+        width = int(swidth)
+        height = int(sheight)
+        if (width != self.width) or (height != self.height):
+            #self.on_root_close()
+            (self.width, self.height) = (width, height)
+            self.json.dict.update({"conference": {"sessionId": int(meeting_id), "ownerName": usr_name,
+                                                  "width": self.width, "height": self.height}})
+            #self.root_frame()
+        else:
+            self.json.dict.update({"conference": {"sessionId": int(meeting_id), "ownerName": usr_name,
+                                                  "width": self.width, "height": self.height}})
+        print("Conference: setting: self.json.dict= ", self.json.dict)
+        self.root.update()
         if self.config_frame != None:
             self.config_frame.setting()
+####################################################################################
 
+def _async_raise(tid, exctype):
+    """raises the exception, performs cleanup if needed"""
+    tid = ctypes.c_long(tid)
+    if not inspect.isclass(exctype):
+        exctype = type(exctype)
+    res = ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, ctypes.py_object(exctype))
+    if res == 0:
+        raise ValueError("invalid thread id")
+    elif res != 1:
+        # """if it returns a number greater than one, you're in trouble,
+        # and you should call it again with exc=NULL to revert the effect"""
+        ctypes.pythonapi.PyThreadState_SetAsyncExc(tid, None)
+        raise SystemError("PyThreadState_SetAsyncExc failed")
+
+def stop_thread(thread):
+    _async_raise(thread.ident, SystemExit)
+
+#t = threading.Thread(target=print_time)
+#t.start()
+#stop_thread(t)
+
+class MyThread(threading.Thread):
+    def __init__(self, func, *args):
+        threading.Thread.__init__(self)
+
+        self.func = func
+        self.args = args
+
+        self.setDaemon(True)
+        self.start()  # 在这里开始
+
+    def run(self):
+        self.func(*self.args)
+###
+def close_client(conf):
+    if conf.client != None:
+        conf.client.exit_meeting()
+        if True:
+            while conf.client.status:
+                time.sleep(1)
+                print("close_client: wait...")
+            print("close_client: self.client.status= ", conf.client.status)
+        print(sys.getrefcount(conf.client.meeting_frame))
+        print(sys.getrefcount(conf.client))
+        if conf.client.meeting_frame != None:
+            conf.client.meeting_frame.destroy()
+            conf.client.meeting_frame = None
+        print("close_client meeting_frame.destroy")
+        del conf.client
+        conf.client = None
+        print("close_client over")
 #import wx
 #from win32api import GetSystemMetrics
 
@@ -2904,14 +3215,72 @@ def mytest():
     output = 'This is output message'
     mb.showinfo("Output:", output)
     return
+class MemGet(object):
+    def __init__(self, idx):
+        self.idx = idx
+        frame_size = 1920 * 1080 * 3
+        self.testlist = []
+        for i in range(10):
+            outbuf = create_string_buffer(frame_size)
+            self.testlist.append(outbuf)
+            time.sleep(1)
+            print("(idx, i)= ", (idx, i))
+    def close(self):
+        n = len(self.testlist)
+        for i in range(n):
+            del self.testlist[0]
+            time.sleep(1)
+            print("(idx, i, len(testlist))= ", (idx, i, len(self.testlist)))
+def memTest():
+    a = range(10000 * 10000)
+    stauts = 1
+    frame_size = 1920 * 1080 * 3
+    testlist = []
+    for i in range(10):
+        #outbuf = create_string_buffer(frame_size)
+        outbuf = MemGet(i)
+        testlist.append(outbuf)
+        #time.sleep(1)
+        print("i= ", i)
+    n = len(testlist)
+    for i in range(n):
+        #del testlist[0]
+        testlist[0] = None
+        time.sleep(1)
+        print("(i, len(testlist))= ", (i, len(testlist)))
+    if sys.version_info >= (3, 0):
+        idx = int(input('please input to exit(eg: 0 ): '))
+    else:
+        idx = int(raw_input('please input to exit(eg: 0 ): '))
 
+    sys.exit()
+    print("exit")
 if __name__ == '__main__':
     print('Start pycall.')
     #mytest()
-    #(width, height) = (1920, 1080)
-    (width, height) = (1280, 720)
+    #memTest()
+    #gc.enable()  # 设置垃圾回收器调试标志
+    if sys.version_info >= (3, 0):
+        gc.set_debug(gc.DEBUG_COLLECTABLE | gc.DEBUG_UNCOLLECTABLE)
+    else:
+        gc.set_debug(gc.DEBUG_COLLECTABLE | gc.DEBUG_UNCOLLECTABLE | gc.DEBUG_INSTANCES | gc.DEBUG_OBJECTS | gc.DEBUG_LEAK) #DEBUG_SAVEALL
+    gc.set_debug(gc.DEBUG_UNCOLLECTABLE)
+
+    (width, height) = (1920, 1080)
+    #(width, height) = (1280, 720)
     call = Conference(width, height)
     call.root_frame()
+    ###
+    idx = -1
+    while idx >= 0 and idx < 4:
+        call = Conference(width, height)
+        call.root_frame()
+        del call
+        if sys.version_info >= (3, 0):
+            idx = int(input('please input to exit(eg: 0 ): '))
+        else:
+            idx = int(raw_input('please input to exit(eg: 0 ): '))
+        print("idx= ", idx)
     ###
     #chanId = 0
     #test = 0x10000

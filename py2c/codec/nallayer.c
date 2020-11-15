@@ -1679,6 +1679,78 @@ char *get_extern_info(char *data)
     }
     return ret;
 }
+static int adapt_by_cpu(int ref_idx, int refs, int pict_type)
+{
+    int ret = 0;
+    int icpurate = 0;
+    int memrate = 0;
+    int devmemrate = 0;
+    api_get_cpu_info2(&icpurate, &memrate, &devmemrate);
+    if(icpurate > 95)
+    {
+        if(refs > 1)
+        {
+            if(refs > 2)
+            {
+                if (((ref_idx & 1) == 0) || (ref_idx == (refs - 1)) || (ref_idx == 1))
+                {
+                    ret = 1;
+                }
+                else if ((ref_idx & 1) == 1)
+                {
+                    ret = 1;
+                }
+            }
+            else{
+                if ((ref_idx & 1) == 1)
+                {
+                    ret = 1;
+                }
+            }
+        }
+        else{
+            if((pict_type == 3))//B
+            {
+                ret = 1;
+            }
+            else if((pict_type == 2))//P
+            {
+            }
+        }
+    }
+    else if(icpurate > 90)
+    {
+        if(refs > 1)
+        {
+            if(refs > 2)
+            {
+                if (((ref_idx & 1) == 0) || (ref_idx == (refs - 1)) || (ref_idx == 1))
+                {
+                    ret = 1;
+                }
+                else if ((ref_idx & 1) == 1)
+                {
+                }
+            }
+            else{
+                if ((ref_idx & 1) == 1)
+                {
+                    ret = 1;
+                }
+            }
+        }
+        else{
+            if((pict_type == 3))//B
+            {
+                ret = 1;
+            }
+            else if((pict_type == 2))//P
+            {
+            }
+        }
+    }
+    return ret;
+}
 //
 int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *extend_info, long long *frame_timestamp)
 {
@@ -1688,6 +1760,7 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
     //int insize = GetvalueInt(json, "insize");
     int delay_time = GetvalueInt(json, "delay_time");
     int qos_level = GetvalueInt(json, "qos_level");
+    int adapt_cpu = GetvalueInt(json, "adapt_cpu");
     RTP_FIXED_HEADER  *rtp_hdr = NULL;
 	EXTEND_HEADER *rtp_ext = NULL;
 	NALU_HEADER *nalu_hdr   = NULL;
@@ -1769,6 +1842,9 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
             //printf("get_frame: timestamp1= %d \n", timestamp1);
             //if(diff >= delay_time)
             {
+                int ref_idx = 0;
+                int refs = 0;
+                int pict_type = 0;
                 int marker = 0;
                 int sps_flag = 0;
                 int pps_flag = 0;
@@ -1867,6 +1943,9 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                             fec_n = info.fec_n;
                             ref_idc = info.ref_idc;
                             nack_time = info.nack_time;
+                            ref_idx = info.ref_idx;
+                            refs = info.refs;
+                            //pict_type = 0;
                         }
                         if(abs(timestamp - start_timestamp) > delay_time)
                         {
@@ -2227,6 +2306,17 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                         fflush(obj->logfp);
                         //printf("get_frame: obj->max_packet= %d \n", obj->max_packet);
                     }
+                    if(adapt_cpu)
+                    {
+                        //int ref_idx = 0;
+                        //int refs = 0;
+                        //int pict_type = 0;
+                        int skip_frame = adapt_by_cpu(ref_idx, refs, pict_type);
+                        if(skip_frame)
+                        {
+                            ret = 0;
+                        }
+                    }
                 }
                 else{
                     //printf("get_frame: j= %d \n", j);
@@ -2578,7 +2668,7 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
             ResetObj(obj);
             obj->Obj_id = id;
             //
-#if 1
+#if 0
             if(!obj->logfp)
             {
                 char filename[256] = "/home/gxh/works/rtp_resort_gxh_";

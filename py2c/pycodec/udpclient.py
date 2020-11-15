@@ -4,13 +4,16 @@
 import sys
 
 # for python2
-try:
-    print (sys.getdefaultencoding())
-    reload(sys)
-    sys.setdefaultencoding('utf-8')
-    print (sys.getdefaultencoding())
-except:
+if sys.version_info >= (3, 0):
     pass
+else:
+    try:
+        print (sys.getdefaultencoding())
+        reload(sys)
+        sys.setdefaultencoding('utf-8')
+        print (sys.getdefaultencoding())
+    except:
+        pass
 
 import os
 import socket
@@ -44,7 +47,7 @@ SHOW_POLL_TIME = 10  # 5
 SVC_REFS = 2#16#2
 QOS_LEVEL = 1#0#1#3#2#1#0
 
-global_port = 8097  # 8888
+global_port = 10088 #8097  # 8888
 global_host = 'localhost'
 # global_host = '172.16.0.17'
 # global_host = '111.230.226.17'
@@ -54,30 +57,56 @@ if len(sys.argv) > 1:
     global_host = sys.argv[1]
 
 
+def json2str(jsonobj):
+    if sys.version_info >= (3, 0):
+        json_str = json.dumps(jsonobj, ensure_ascii=False, sort_keys=False).encode('utf-8')
+    else:
+        json_str = json.dumps(jsonobj, encoding='utf-8', ensure_ascii=False, sort_keys=False)
+
+    return json_str
 def char2long(x):
     ret = 0
-    try:  # Add these 3 lines
-        ret = long(x)
-    except: # ValueError:
-        print("Something went wrong {!r}".format(x))
+    if sys.version_info >= (3, 0):
+        ret = int(x)
+    else:
+        try:  # Add these 3 lines
+            ret = long(x)
+        except: # ValueError:
+            print("Something went wrong {!r}".format(x))
     return ret
-def str2json(json_str):
+def data2str(data):
     try:
-        outjson = json.loads(json_str, encoding='utf-8')
+        if sys.version_info >= (3, 0):
+            outjson = json.loads(data.decode())
+        else:
+            outjson = json.loads(data, encoding='utf-8')
     except:
-        print("error: python version")
+        try:
+            outjson = json.loads(data)
+        except:
+            print("data2str: not str")
+            # print("not cmd: str_cmd=", str_cmd)
+        else:
+            pass
+    else:
+        pass
+def str2json(json_str):
+    outjson = None
+    try:
+        if sys.version_info >= (3, 0):
+            outjson = json.loads(json_str.decode())
+        else:
+            outjson = json.loads(json_str, encoding='utf-8')
+    except:
         try:
             outjson = json.loads(json_str)
         except:
-            print("not json")
+            print("ReadCmd: not cmd")
+            # print("not cmd: str_cmd=", str_cmd)
         else:
-            json_str2 = json.dumps(outjson, encoding='utf-8', ensure_ascii=False,
-                                   sort_keys=True)
-            # print("1: json_str2= ", json_str2)
+            pass
     else:
-        json_str2 = json.dumps(outjson, encoding='utf-8', ensure_ascii=False,
-                               sort_keys=True)
-        # print("0: json_str2= ", json_str2)
+        pass
     return outjson
 
 
@@ -104,7 +133,10 @@ class FrameBuffer(object):
         self.audio_timestamp = 0
         self.audio_start_time = 0
         self.audio_frequence = 0
-
+    def __del__(self):
+        print("FrameBuffer del")
+        for thisobj in self.framelist:
+            del thisobj
     def SetAudioBase(self, timestamp, play_time, frequence):
         self.audio_timestamp = timestamp
         self.audio_start_time = play_time
@@ -112,17 +144,19 @@ class FrameBuffer(object):
 
 
 class ShowThread(threading.Thread):
-    def __init__(self, winhnd, width, height):
+    def __init__(self, winhnd, screen_width, screen_height, width, height):
         threading.Thread.__init__(self)
         self.lock = threading.Lock()
         self.show_lock = threading.Lock()
         self.load = loadlib.gload
         self.winhnd = winhnd
-        self.sdl = MySDL(self.winhnd, width, height)
+        self.sdl = MySDL(self.winhnd, screen_width, screen_height)
+        (self.sdl.width, self.sdl.height) = (width, height)
         self.sdl.init()
         self.sdl.start()
         self.DataList = []
         self.FrameList = []
+        self.RectList = []
         self.way = 0
         self.show_type = SHOW_TYPE
         self.start_time = 0
@@ -149,7 +183,24 @@ class ShowThread(threading.Thread):
         self.__flag.set()  # 设置为True
         self.__running = threading.Event()  # 用于停止线程的标识
         self.__running.set()  # 将running设置为True
-
+    def __del__(self):
+        print("ShowThread del")
+        for thisobj in self.DataList:
+            del thisobj
+        del self.DataList
+        for thisobj in self.FrameList:
+            del thisobj
+        del self.FrameList
+        for thisobj in self.RectList:
+            del thisobj
+        del self.RectList
+        for thisobj in self.idMap:
+            del thisobj
+        del self.idMap
+        if self.sdl != None:
+            del self.sdl
+        if self.outparam != None:
+            del self.outparam
     def stop(self):
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
@@ -160,6 +211,9 @@ class ShowThread(threading.Thread):
     def resume(self):
         self.__flag.set()  # 设置为True, 让线程停止阻塞
 
+    def SetRects(self, rectList):
+        self.RectList = rectList
+        print("SetRects: self.RectList=", self.RectList)
     def InsertId(self, id):
         self.idMap.append(id)
 
@@ -233,9 +287,13 @@ class ShowThread(threading.Thread):
 
     def get_rect(self, id):
         (h, w) = (self.height, self.width)
+        #print("ShowThread: get_rect: (h, w)=", (h, w))
         ret = None #(0, 0, w, h)
         idx = self.idMap.index(id)
-
+        if len(self.RectList) > 0 and True:
+            if idx < len(self.RectList):
+                ret = self.RectList[idx]
+                return ret
         #print("self.idMap= ", self.idMap)
         #print("(idx, id)= ", (idx, id))
 
@@ -374,7 +432,10 @@ class ShowThread(threading.Thread):
                         thisFrmBuf = FrameBuffer(id)
                         self.FrameList.append(thisFrmBuf)
                     if thisFrmBuf.last_timestamp and (recvTime < thisFrmBuf.last_timestamp):
-                        thisFrmBuf.time_offset += long(1 << 32) - 1
+                        if sys.version_info >= (3, 0):
+                            thisFrmBuf.time_offset += int(1 << 32) - 1
+                        else:
+                            thisFrmBuf.time_offset += long(1 << 32) - 1
                     if thisFrmBuf.base_timestamp == 0:
                         thisFrmBuf.base_timestamp = recvTime
                         thisFrmBuf.init_timestamp = recvTime
@@ -525,7 +586,6 @@ class UdpClient(object):
         print("recvData: ", recvData)
         clientSock.close()
 
-
 class RecvCmdThread(threading.Thread):
     def __init__(self, client):
         threading.Thread.__init__(self)
@@ -549,16 +609,25 @@ class RecvCmdThread(threading.Thread):
         self.__flag.set()  # 设置为True
         self.__running = threading.Event()  # 用于停止线程的标识
         self.__running.set()  # 将running设置为True
-
+    def __del__(self):
+        print("RecvCmdThread del")
+        if self.outparam != None:
+            del self.outparam
+        if self.ll_handle != None:
+            del self.ll_handle
     def ReadCmd(self, str_cmd):
         cmd = {}
         try:
-            cmd = json.loads(str_cmd, encoding='utf-8')
+            if sys.version_info >= (3, 0):
+                cmd = json.loads(str_cmd.decode())
+            else:
+                cmd = json.loads(str_cmd, encoding='utf-8')
         except:
             try:
                 cmd = json.loads(str_cmd)
             except:
-                print("not cmd")
+                print("ReadCmd: not cmd")
+                #print("not cmd: str_cmd=", str_cmd)
             else:
                 pass
         else:
@@ -578,8 +647,8 @@ class RecvCmdThread(threading.Thread):
                     print("rdata= ", rdata)
                     break
             # except:
-            except IOError, error:  # python2
-                # except IOError as error:  # python3
+            #except IOError, error:  # python2
+            except IOError as error:  # python3
                 print("RecvCmdThread: run: recvfrom error", error)
                 break
             else:
@@ -684,7 +753,13 @@ class DecodeFrameThread(threading.Thread):
         self.__flag.set()  # 设置为True
         self.__running = threading.Event()  # 用于停止线程的标识
         self.__running.set()  # 将running设置为True
-
+    def __del__(self):
+        print("DecodeFrameThread del")
+        for thisobj in self.framelist:
+            del thisobj
+        del self.framelist
+        if self.infobuf != None:
+            del self.infobuf
     def stop(self):
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
@@ -730,7 +805,7 @@ class DecodeFrameThread(threading.Thread):
     def DecodeFrame(self, item):
         (data4, pktSize, complete, frame_timestamp) = item
         # print("DecodeFrame: complete= ", complete)
-        frame_info = complete.split(",")
+        frame_info = complete.split(b",")
         ref_idc = int(frame_info[0]) - 1
         #if ref_idc == 0:
         #    self.ref_idc_list = []
@@ -798,20 +873,27 @@ class DecodeFrameThread(threading.Thread):
             self.client.decode0.outparam[0] = c_char_p(self.infobuf.raw)
             ret2 = self.client.decode0.load.lib.api_get_extern_info(data4, self.client.decode0.outparam)
             if ret2 > 0:
-                outjson = str2json(self.client.decode0.outparam[0])
+                if sys.version_info >= (3, 0):
+                    outjson = str2json(self.client.decode0.outparam[0].decode())
+                else:
+                    outjson = str2json(self.client.decode0.outparam[0])
                 if outjson != None:
                     enable_fec = outjson["enable_fec"]
             # print("DecodeFrame: enable_fec= ", enable_fec)
         if enable_fec:
             # data4 = self.client.decode0.outbuf.raw[:ret]
             # pktSize = self.client.decode0.outparam[0].split(",")
-            self.client.decode0.outparam[0] = ""
-            self.client.decode0.outparam[1] = ""
+            self.client.decode0.outparam[0] = b""
+            self.client.decode0.outparam[1] = b""
             sizelist = []
             for packet_size in pktSize:
                 sizelist.append(int(packet_size))
+
+            if self.client.decode0.param.get("insize") != None:
+                del (self.client.decode0.param["insize"])
             self.client.decode0.param.update({"inSize": sizelist})
-            param_str = json.dumps(self.client.decode0.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+            #param_str = json.dumps(self.client.decode0.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+            param_str = json2str(self.client.decode0.param)
             # print("DecodeFrame: out frame api_fec_decode")
             ret = self.client.decode0.load.lib.api_fec_decode(self.client.decode0.handle, data4, param_str,
                                                               self.client.decode0.outbuf,
@@ -819,7 +901,7 @@ class DecodeFrameThread(threading.Thread):
             del (self.client.decode0.param["inSize"])
             if ret > 0 and True:
                 # print("DecodeFrame: fec: decode raw size= ", ret)
-                pktSize = self.client.decode0.outparam[0].split(",")
+                pktSize = self.client.decode0.outparam[0].split(b",")
                 # print("DecodeFrame: fec: pktSize= ", pktSize)
                 # print("DecodeFrame: fec: len(pktSize)= ", len(pktSize))
                 data5 = self.client.decode0.outbuf.raw[:ret]
@@ -865,15 +947,16 @@ class DecodeFrameThread(threading.Thread):
             # rtpSize = self.client.decode0.outparam[0].split(",")
             # print("rtpSize= ", rtpSize)
             ###
-            self.client.decode0.outparam[0] = ""
-            self.client.decode0.outparam[1] = ""
+            self.client.decode0.outparam[0] = b""
+            self.client.decode0.outparam[1] = b""
             sizelist = []
             for packet_size in rtpSize:
                 sizelist.append(int(packet_size))
             self.client.decode0.param.update({"rtpSize": sizelist})
             self.client.decode0.param.update({"mtu_size": self.client.decode0.mtu_size})
             # self.client.decode0.param.update({"mtu_size": 150})
-            param_str = json.dumps(self.client.decode0.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+            #param_str = json.dumps(self.client.decode0.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+            param_str = json2str(self.client.decode0.param)
             # print("param_str= ", param_str)
             # 獲取幀後，進行解包
             ret = self.client.decode0.load.lib.api_rtp_packet2raw(self.client.decode0.handle, data, param_str,
@@ -881,7 +964,8 @@ class DecodeFrameThread(threading.Thread):
                                                                   self.client.decode0.outparam)
             data4 = self.client.decode0.outbuf.raw[:ret]
             self.client.decode0.param.update({"insize": ret})
-            param_str = json.dumps(self.client.decode0.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+            #param_str = json.dumps(self.client.decode0.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+            param_str = json2str(self.client.decode0.param)
             ###
             # 解包後進行解碼
             start_time = time.time()
@@ -928,8 +1012,10 @@ class RecvTaskManagerThread(threading.Thread):
         threading.Thread.__init__(self)
         self.client = client
         self.frame_decode = DecodeFrameThread(client)
-        self.frame_decode.start()
         (self.param, self.outbuf, self.outparam) = self.client.decode0.setparam2()
+        (self.frame_decode.width, self.frame_decode.height) = (self.client.decode0.width, self.client.decode0.height)
+        self.frame_decode.start()
+
         self.max_delay_time = 0
         self.max_delay_packet = -1
         self.recv_packet_num = 0
@@ -954,7 +1040,16 @@ class RecvTaskManagerThread(threading.Thread):
         self.__flag.set()  # 设置为True
         self.__running = threading.Event()  # 用于停止线程的标识
         self.__running.set()  # 将running设置为True
-
+    def __del__(self):
+        print("RecvTaskManagerThread del")
+        if self.param != None:
+            del self.param
+        if self.outbuf != None:
+            del self.outbuf
+        if self.outparam != None:
+            del self.outparam
+        if self.ll_handle != None:
+            del self.ll_handle
     def ResortPacket(self, revcData, remoteHost, remotePort, recv_time):
         sockId = remoteHost + "_" + str(remotePort)
         # print("ResortPacket: start: id= ", self.client.decode0.obj_id)
@@ -972,15 +1067,17 @@ class RecvTaskManagerThread(threading.Thread):
         self.param.update({"delay_time": self.client.decode0.delay_time})
         self.param.update({"buf_size": self.client.decode0.buf_size})
         self.param.update({"qos_level": QOS_LEVEL})
+        self.param.update({"adapt_cpu": 1})
 
         self.param.update({"loglevel": 1})  # 0/1/2
         # 重排序，並取幀
         # print("ResortPacket: self.client.decode0.obj_id= ", self.client.decode0.obj_id)
-        param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
-        self.outparam[0] = ""
-        self.outparam[1] = ""
-        self.outparam[2] = "no frame"
-        self.outparam[3] = ""
+        #param_str = json.dumps(self.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+        param_str = json2str(self.param)
+        self.outparam[0] = b""
+        self.outparam[1] = b""
+        self.outparam[2] = b"no frame"
+        self.outparam[3] = b""
 
         # print("param_str= ", param_str)
         ret = self.client.decode0.load.lib.api_resort_packet(self.client.decode0.handle, revcData, param_str,
@@ -1010,17 +1107,17 @@ class RecvTaskManagerThread(threading.Thread):
         if ret > 0 and True:
             # print("ResortPacket: ret= ", ret)
             runflag = True
-            frame_timestamp = long(self.outparam[3])
+            frame_timestamp = char2long(self.outparam[3])
             # print("ResortPacket: frame_timestamp= ", frame_timestamp)
             complete = self.outparam[2]
             # print("ResortPacket: complete= ", complete)
             # if(complete != "complete"):
             #    return
             data = self.outbuf.raw[:ret]
-            rtpSize = self.outparam[0].split(",")
+            rtpSize = self.outparam[0].split(b",")
 
             data4 = self.outbuf.raw[:ret]
-            pktSize = self.outparam[0].split(",")
+            pktSize = self.outparam[0].split(b",")
             if self.frame_decode != None:
                 self.frame_decode.PushQueue((data4, pktSize, complete, frame_timestamp))
                 #self.ctime[0] = "0123456789012345"
@@ -1079,7 +1176,11 @@ class DataManager(object):
         self.lock = threading.Lock()
         self.id = id
         self.DataList = []
-
+    def __del__(self):
+        print("DataManager del")
+        for thisobj in self.DataList:
+            del thisobj
+        del self.DataList
     def PopQueue(self):
         ret = None
         self.lock.acquire()
@@ -1124,6 +1225,8 @@ class EchoClientThread(threading.Thread):
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, SO_SNDBUF)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, SO_RCVBUF)
+    def __del__(self):
+        print("EchoClientThread del")
 
     def stop(self):
         self.status = False
@@ -1152,7 +1255,11 @@ class PacedSend(threading.Thread):
         self.__flag.set()  # 设置为True
         self.__running = threading.Event()  # 用于停止线程的标识
         self.__running.set()  # 将running设置为True
-
+    def __del__(self):
+        print("PacedSend del")
+        for thisobj in self.DataList:
+            del thisobj
+        del self.DataList
     def stop(self):
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
         self.__running.clear()  # 设置为Fals
@@ -1223,8 +1330,9 @@ class PacedSend(threading.Thread):
                     # self.encode0.load.lib.api_renew_time_stamp(data2)
                     try:
                         sendDataLen = self.client.sock.sendto(data2, (self.client.host, self.client.port))
-                    except IOError, err:
-                        print("PacedSend: run error: ", err)
+                    #except IOError, error:
+                    except IOError as error:  # python3
+                        print("PacedSend: run error: ", error)
                         break
                     else:
                         # print("sendDataLen= ", sendDataLen)
@@ -1282,7 +1390,13 @@ class EncoderClient(EchoClientThread):
         # self.recv_task = RecvTaskManagerThread(self)
         # self.recv_task.start()
         ###
-
+        self.denoise = 0
+        self.input_name = "v4l2"
+        self.device_name = "/dev/video0"
+        self.input_format = "mjpeg"
+        self.framerate = 25
+        self.select_device = 1#-1
+        ###
         (self.width, self.height) = (SHOW_WIDTH, SHOW_HEIGHT)
         self.frame_size = (self.width * self.height * 3) / 2
         self.imglist = []
@@ -1295,42 +1409,66 @@ class EncoderClient(EchoClientThread):
         self.start_time = 0
 
         self.paced_send = PacedSend(self)
-
+    def __del__(self):
+        print("EncoderClient del")
+        if self.ll_handle != None:
+            del self.ll_handle
+        if self.cmd_master != None:
+            del self.cmd_master
+        if self.data_master != None:
+            del self.data_master
+        if self.paced_send != None:
+            del self.paced_send
+        if self.encode0 != None:
+            del self.encode0
+        if self.show != None:
+            del self.show
+        if self.capture != None:
+            del self.capture
+        if self.outparam != None:
+            del self.outparam
+        del self.sock
     def opendevice(self, devicetype):
         self.devicetype = devicetype
         if devicetype > 0:
             if devicetype == 1:
                 self.input_name = "v4l2"
                 self.device_name = "/dev/video0"
-            else:
+                self.input_format = "mjpeg"
+                self.select_device = -1
+            elif devicetype == 2:
+                self.input_name = "v4l2"
+                self.device_name = "/dev/video0"
+                self.input_format = "raw"
+                self.select_device = -1
+            elif devicetype == 3:
                 self.input_name = "x11grab"
                 self.device_name = ":0.0"
-
+                self.input_format = "raw"
+                self.select_device = -1
+            elif devicetype == 4:
+                self.select_device = -1
             self.capture = VideoCapture()
             self.capture.input_name = self.input_name
             self.capture.device_name = self.device_name
-            self.capture.framerate = self.encode0.frame_rate
-            self.capture.framerate = 15 #以25fps进行编码，以15fps采集视频
+            self.capture.input_format = self.input_format
+            self.capture.select_device = self.select_device
+            print("opendevice: self.input_name= ", self.input_name)
+            print("opendevice: self.device_name= ", self.device_name)
+            print("opendevice: self.input_format= ", self.input_format)
+            print("opendevice: self.select_device= ", self.select_device)
+            #self.capture.framerate = self.encode0.frame_rate
+            self.capture.framerate = self.framerate #以25fps进行编码，以15fps采集视频
+            (self.capture.width, self.capture.height) = (self.width, self.height)
+            (self.capture.cap_width, self.capture.cap_height) = (self.width, self.height)
+            self.capture.denoise = self.denoise
             self.capture.init()
             self.capture.start()
 
         if self.capture == None:  # or self.capture.status == False:
             filename1 = loadlib.yuvfilename
             print("filename1= ", filename1)
-            if False:
-                tmpdir = '/home/gxh/works/test/' + str(id)
-                if not os.path.isdir(tmpdir):
-                    os.makedirs(tmpdir)
-                filename2 = os.path.join(tmpdir, "read.yuv")
-
-                print("filename2= ", filename2)
-                if not os.path.exists(filename2):
-                    cmd = 'cp %s %s' % (filename1, filename2)
-                    # cmd = 'cp %s %s' % (filename1, tmpdir)
-                    os.system(cmd)
-                self.fp = open(filename2, 'rb')
-            else:
-                self.fp = open(filename1, 'rb')
+            self.fp = open(filename1, 'rb')
             #
             i = 0
             if self.fp:
@@ -1345,18 +1483,20 @@ class EncoderClient(EchoClientThread):
                         break
 
     def opencodec(self):
-
+        self.frame_size = (self.width * self.height * 3) / 2
         (self.encode0.param, self.encode0.outbuf, self.encode0.outparam) = self.encode0.setparam()
 
         # self.encode0.param.update({"fec": 1})
 
-        param_str = json.dumps(self.encode0.param, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
+        #param_str = json.dumps(self.encode0.param, encoding='utf-8', ensure_ascii=False, indent=4, sort_keys=True)
+        param_str = json2str(self.encode0.param)
         # self.encode0.load.lib.api_video_encode_open(self.encode0.obj_id, param_str)
         ret = self.encode0.load.lib.api_video_encode_open(self.encode0.handle, param_str)
-        print("opencodec: init: open ret= ", ret)
+        print("EncoderClient: opencodec: open ret= ", ret)
         ###
         cmd = {"actor": self.actor, "sessionId": self.sessionId}
-        str_cmd = json.dumps(cmd, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+        #str_cmd = json.dumps(cmd, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+        str_cmd = json2str(cmd)
         sendDataLen = self.sock.sendto(str_cmd, (self.host, self.port))
         ##print("sendDataLen= ", sendDataLen)
         if self.paced_send != None:
@@ -1390,25 +1530,6 @@ class EncoderClient(EchoClientThread):
             # time.sleep(0.001)
             sum += size
         return sum
-
-    def str2json(self, json_str):
-        try:
-            outjson = json.loads(json_str, encoding='utf-8')
-        except:
-            print("error: python version")
-            try:
-                outjson = json.loads(json_str)
-            except:
-                print("self.client.decode0.outparam[1] not json")
-            else:
-                json_str2 = json.dumps(outjson, encoding='utf-8', ensure_ascii=False,
-                                       sort_keys=True)
-                print("1: json_str2= ", json_str2)
-        else:
-            json_str2 = json.dumps(outjson, encoding='utf-8', ensure_ascii=False,
-                                   sort_keys=True)
-            print("0: json_str2= ", json_str2)
-        return outjson
 
     def show_yuv(self, data0, id):
         (h, w) = (self.height, self.width)
@@ -1452,7 +1573,7 @@ class EncoderClient(EchoClientThread):
                 else:
                     time.sleep(0.01)
                     continue
-            else:
+            elif self.img_num:
                 if self.imglist == []:
                     data = self.fp.read(self.frame_size)
                 else:
@@ -1467,9 +1588,11 @@ class EncoderClient(EchoClientThread):
             # if test_time_read > 0:
             #    print("EncoderClient: 0: (test_time_read, id)= ", (test_time_read, self.id))
             # print("read data")
-            if len(data) == self.frame_size:
+            #if len(data) == self.frame_size:
+            if len(data) > 0:
                 # self.show_yuv(data, self.id)
                 if self.show != None:
+                    #print("EncoderClient: show 0")
                     # self.show.play_right_now2(data, self.id)
                     # self.show.play_right_now3(data, self.id, 1)
                     #self.ctime[0] = "0123456789012345"
@@ -1479,6 +1602,7 @@ class EncoderClient(EchoClientThread):
                     if this_frame_time == 0:
                         print("itime= ", itime)
                     self.show.PushQueue(self.id, data, this_frame_time)
+                    #print("EncoderClient: show 1")
                     pass
                 pict_type = 0
                 if i % self.encode0.gop_size:
@@ -1526,8 +1650,8 @@ class EncoderClient(EchoClientThread):
                     #self.encode0.param.update({"ref_idx": ref_idx})
                     self.encode0.param.update({"pict_type": pict_type})
                 self.read_ack()
-                param_str = json.dumps(self.encode0.param, encoding='utf-8', ensure_ascii=False, indent=4,
-                                       sort_keys=True)
+                #param_str = json.dumps(self.encode0.param, encoding='utf-8', ensure_ascii=False, indent=4,sort_keys=True)
+                param_str = json2str(self.encode0.param)
                 enc_start = time.time()
                 ret = self.encode0.load.lib.api_video_encode_one_frame(self.encode0.handle, data, param_str,
                                                                        self.encode0.outbuf, self.encode0.outparam)
@@ -1547,8 +1671,8 @@ class EncoderClient(EchoClientThread):
                     data2 = self.encode0.outbuf.raw[:ret]
                     # test rtp
                     if True:
-                        self.encode0.outparam[0] = ""
-                        self.encode0.outparam[1] = ""
+                        self.encode0.outparam[0] = b""
+                        self.encode0.outparam[1] = b""
                         self.encode0.param.update({"insize": ret})
                         self.encode0.param.update({"seqnum": self.encode0.seqnum})
                         ###
@@ -1558,8 +1682,12 @@ class EncoderClient(EchoClientThread):
                         else:
                             difftime = now_time - self.start_time
                             frame_num = int(difftime * 1000) / int(interval)
-                            long_timestamp = long(difftime * 1000 * 90000 / 1000)
-                            MAX_UINT = ((long(1) << 32) - 1)
+                            if sys.version_info >= (3, 0):
+                                long_timestamp = int(difftime * 1000 * 90000 / 1000)
+                                MAX_UINT = ((int(1) << 32) - 1)
+                            else:
+                                long_timestamp = long(difftime * 1000 * 90000 / 1000)
+                                MAX_UINT = ((long(1) << 32) - 1)
                             timestamp = int(long_timestamp)
                             if long_timestamp > MAX_UINT:
                                 timestamp = int(long_timestamp - MAX_UINT)
@@ -1580,8 +1708,8 @@ class EncoderClient(EchoClientThread):
 
                         self.encode0.param.update({"timestamp": timestamp})
                         ###
-                        param_str = json.dumps(self.encode0.param, encoding='utf-8', ensure_ascii=False, indent=4,
-                                               sort_keys=True)
+                        #param_str = json.dumps(self.encode0.param, encoding='utf-8', ensure_ascii=False, indent=4,sort_keys=True)
+                        param_str = json2str(self.encode0.param)
                         ret2 = self.encode0.load.lib.api_raw2rtp_packet(self.encode0.handle, data2, param_str,
                                                                         self.encode0.outbuf, self.encode0.outparam)
 
@@ -1593,7 +1721,7 @@ class EncoderClient(EchoClientThread):
                         # print("outparam[0]= ", outparam[0])
                         self.encode0.seqnum = int(self.encode0.outparam[1])
                         # print("self.encode0.seqnum= ", self.encode0.seqnum)
-                        rtpSize = self.encode0.outparam[0].split(",")
+                        rtpSize = self.encode0.outparam[0].split(b",")
                         ##print("EncoderClient: rtpSize= ", rtpSize)
                         ##print("EncoderClient: len(rtpSize)= ", len(rtpSize))
                         data3 = self.encode0.outbuf.raw[:ret2]
@@ -1635,6 +1763,8 @@ class EncoderClient(EchoClientThread):
                             for packet_size in rtpSize:
                                 sizelist.append(int(packet_size))
                             fec_k = len(sizelist)
+                            #print("EncoderClient: api_fec_encode: sizelist=", sizelist)
+                            del (self.encode0.param["insize"])
                             self.encode0.param.update({"inSize": sizelist})
                             fec_n = int(fec_k / self.encode0.code_rate + 0.8)
                             if fec_k < 5 and self.fec_level > 2:
@@ -1648,18 +1778,19 @@ class EncoderClient(EchoClientThread):
                                     fec_n = int(fec_k / 0.2 + 0.8)
                             test_fec_k += fec_k
                             test_fec_n += fec_n
-                            param_str = json.dumps(self.encode0.param, encoding='utf-8', ensure_ascii=False,
-                                                   sort_keys=True)
+                            #param_str = json.dumps(self.encode0.param, encoding='utf-8', ensure_ascii=False,sort_keys=True)
+                            param_str = json2str(self.encode0.param)
+                            #print("EncoderClient: api_fec_encode: param_str=", param_str)
                             ret = self.encode0.load.lib.api_fec_encode(self.encode0.handle, data3, param_str,
                                                                        self.encode0.outbuf, self.encode0.outparam)
 
                             test_now_time = time.time()
                             test_time_fec = int((test_now_time - now_time) * 1000)
-
+                            #print("EncoderClient: api_fec_encode: ret=", ret)
                             if ret > 0:
                                 # print("encode raw size= ", ret)
                                 self.encode0.seqnum = int(self.encode0.outparam[1])
-                                pktSize = self.encode0.outparam[0].split(",")
+                                pktSize = self.encode0.outparam[0].split(b",")
                                 # print("pktSize= ", pktSize)
                                 # print("len(pktSize)= ", len(pktSize))
                                 data4 = self.encode0.outbuf.raw[:ret]
@@ -1708,14 +1839,15 @@ class EncoderClient(EchoClientThread):
                     print("EncoderClient: 3: (test_time_all,self.id)= ", (test_time_all, self.id))
 
                 if (i % self.encode0.frame_rate) == (self.encode0.frame_rate - 1) and self.encode0.enable_fec:
-                    recovery_rate = int(100 * float(test_fec_n - test_fec_k) / test_fec_k)
-                    # print("EncoderClient: (self.id, loss_rate)= ", (self.id, recovery_rate))
-                    # print("EncoderClient: (test_fec_k, test_fec_n)= ", (test_fec_k, test_fec_n))
-                    test_sum_fec_k += test_fec_k
-                    test_sum_fec_n += test_fec_n
-                    recovery_rate = int(100 * float(test_sum_fec_n - test_sum_fec_k) / test_sum_fec_k)
-                    if (self.frame_idx % 1000) == 0:
-                        print("EncoderClient: (self.id, loss_rate)= ", (self.id, recovery_rate))
+                    if test_fec_k:
+                        recovery_rate = int(100 * float(test_fec_n - test_fec_k) / test_fec_k)
+                        # print("EncoderClient: (self.id, loss_rate)= ", (self.id, recovery_rate))
+                        # print("EncoderClient: (test_fec_k, test_fec_n)= ", (test_fec_k, test_fec_n))
+                        test_sum_fec_k += test_fec_k
+                        test_sum_fec_n += test_fec_n
+                        recovery_rate = int(100 * float(test_sum_fec_n - test_sum_fec_k) / test_sum_fec_k)
+                        if (self.frame_idx % 1000) == 0:
+                            print("EncoderClient: (self.id, loss_rate)= ", (self.id, recovery_rate))
                     test_fec_k = 0
                     test_fec_n = 0
 
@@ -1774,6 +1906,7 @@ class EncoderClient(EchoClientThread):
                 if self.devicetype == 0:
                     time.sleep(wait_time)
             else:
+                print("EncoderClient:run: (len(data), self.frame_size)= ", (len(data), self.frame_size))
                 self.__running.clear()
                 # try:
                 #    rerun = int(raw_input('please input to exit(eg: 0 ): '))
@@ -1781,8 +1914,9 @@ class EncoderClient(EchoClientThread):
                 #    rerun = int(input('please input to exit(eg: 0 ): '))
                 rerun = 1  # 0 #1#0 #1
                 print("EncoderClient:run: rerun= ", rerun)
-                if rerun > 0:
-                    self.fp.seek(0, os.SEEK_SET)
+                if self.capture == None:
+                    if rerun > 0:
+                        self.fp.seek(0, os.SEEK_SET)
                     self.__running.set()
             ###
         if self.paced_send != None:
@@ -1808,8 +1942,9 @@ class EncoderClient(EchoClientThread):
         try:
             self.sock.shutdown(socket.SHUT_RDWR)
             self.sock.close()
-        except IOError, err:
-            print("EncoderClient: stop error: ", err)
+        #except IOError, err:
+        except IOError as error:  # python3
+            print("EncoderClient: stop error: ", error)
         else:
             print("EncoderClient: stop ok")
         if self.log_fp != None:
@@ -1856,14 +1991,44 @@ class DecoderClient(EchoClientThread):
         self.decode0 = CallVideoDecode(self.id, self.width, self.height)
         ###
         self.data_master = DataManager(id)
-        self.recv_task = RecvTaskManagerThread(self)
-        self.recv_task.start()
+        #self.recv_task = RecvTaskManagerThread(self)
+        #self.recv_task.start()
 
         ###
         cmd = {"actor": self.actor, "sessionId": self.sessionId}
-        str_cmd = json.dumps(cmd, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+        #str_cmd = json.dumps(cmd, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+        str_cmd = json2str(cmd)
         sendDataLen = self.sock.sendto(str_cmd, (self.host, self.port))
         # print("sendDataLen= ", sendDataLen)
+    def __del__(self):
+        print("DecoderClient del")
+        if self.ll_handle != None:
+            del self.ll_handle
+        if self.data_master != None:
+            del self.data_master
+        if self.recv_task != None:
+            del self.recv_task
+        if self.decode0 != None:
+            del self.decode0
+        if self.show != None:
+            del self.show
+        if self.outparam != None:
+            del self.outparam
+        del self.sock
+    def opencodec(self):
+        (self.decode0.param, self.decode0.outbuf, self.decode0.outparam) = self.decode0.setparam2()
+        start_time = time.time()
+        #param_str = json.dumps(self.decode0.param, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+        param_str = json2str(self.decode0.param)
+        ret = self.decode0.load.lib.api_video_decode_open(self.decode0.handle, param_str)
+        print("DecoderClient: opencodec: open ret= ", ret)
+        print("DecoderClient: opencodec: open self.handle= ", self.decode0.handle)
+
+        difftime = time.time() - start_time
+        print('{} DecoderClient: opencodec time: {:.3f}ms'.format(time.ctime(), difftime * 1000))
+
+        self.recv_task = RecvTaskManagerThread(self)
+        self.recv_task.start()
 
     def run(self):
         self.start_time = 0
@@ -1882,7 +2047,8 @@ class DecoderClient(EchoClientThread):
                     if (difftime > 20):  # heartbeat
                         self.start_time = now_time
                         cmd = {"actor": self.actor, "sessionId": self.sessionId}
-                        str_cmd = json.dumps(cmd, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+                        #str_cmd = json.dumps(cmd, encoding='utf-8', ensure_ascii=False, sort_keys=True)
+                        str_cmd = json2str(cmd)
                         sendDataLen = self.sock.sendto(str_cmd, (self.host, self.port))
 
                 #recvData, (remoteHost, remotePort) = self.sock.recvfrom(DATA_SIZE)
@@ -1990,7 +2156,7 @@ def RunClient(flag):
 
         (bitrate, mtu_size, fec_level, buffer_shift) = GetParams(SVC_REFS)
         print("RunClient: bitrate= ", bitrate)
-        thread_show = ShowThread(0, SHOW_WIDTH, SHOW_HEIGHT)
+        thread_show = ShowThread(0, SHOW_WIDTH, SHOW_HEIGHT, SHOW_WIDTH, SHOW_HEIGHT)
         idx = 0
         (id0, sessionId0, actor0) = (0, 100, 2)
         (id1, sessionId1, actor1) = (1, 200, 2)
@@ -2019,37 +2185,50 @@ def RunClient(flag):
         ###
         if True:
             if thread0 != None:
+                (thread0.decode0.width, thread0.decode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 thread0.decode0.min_distance = 2
                 thread0.decode0.delay_time = 100
                 thread0.decode0.buf_size = (1 << buffer_shift)  # 1024#必须是2的指数
                 thread0.decode0.mtu_size = mtu_size
+                thread0.opencodec()
             if thread1 != None:
+                (thread1.decode0.width, thread1.decode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 thread1.decode0.min_distance = 2
                 thread1.decode0.delay_time = 100
                 thread1.decode0.buf_size = (1 << buffer_shift)  # 1024#必须是2的指数
                 thread1.decode0.mtu_size = mtu_size
+                thread1.opencodec()
             if thread2 != None:
+                (thread2.decode0.width, thread2.decode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 thread2.decode0.min_distance = 2
                 thread2.decode0.delay_time = 100
                 thread2.decode0.buf_size = (1 << buffer_shift)  # 1024#必须是2的指数
                 thread2.decode0.mtu_size = mtu_size
+                thread2.opencodec()
             if thread3 != None:
+                (thread3.decode0.width, thread3.decode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 thread3.decode0.min_distance = 2
                 thread3.decode0.delay_time = 100
                 thread3.decode0.buf_size = (1 << buffer_shift)  # 1024#必须是2的指数
                 thread3.decode0.mtu_size = mtu_size
+                thread3.opencodec()
             if thread8 != None:
+                (thread8.decode0.width, thread8.decode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 thread8.decode0.min_distance = 2
                 thread8.decode0.delay_time = 100
                 thread8.decode0.buf_size = (1 << buffer_shift)  # 1024#必须是2的指数
                 thread8.decode0.mtu_size = mtu_size
+                thread8.opencodec()
             if thread9 != None:
+                (thread9.decode0.width, thread9.decode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 thread9.decode0.min_distance = 2
                 thread9.decode0.delay_time = 100
                 thread9.decode0.buf_size = (1 << buffer_shift)  # 1024#必须是2的指数
                 thread9.decode0.mtu_size = mtu_size
+                thread9.opencodec()
         if True:
             if thread4 != None:
+                (thread4.encode0.width, thread4.encode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 thread4.encode0.refs = 1
                 thread4.fec_level = 1#0 #fec_level
                 thread4.encode0.enable_fec = 1
@@ -2063,6 +2242,7 @@ def RunClient(flag):
                 thread4.opendevice(0)
                 thread4.opencodec()
             if thread5 != None:
+                (thread5.encode0.width, thread5.encode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 thread5.encode0.refs = SVC_REFS#2#16#2#1#16#2#16#2#4#16#4#2#16
                 thread5.fec_level = 0#1#0
                 thread5.encode0.enable_fec = 1#0
@@ -2074,6 +2254,7 @@ def RunClient(flag):
                 thread5.opendevice(1)
                 thread5.opencodec()
             if thread6 != None:
+                (thread6.encode0.width, thread6.encode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 thread6.encode0.refs = SVC_REFS#16
                 thread6.fec_level = fec_level  # 1#0#2#0#1#2#3#0#4 #3 #2#0
                 thread6.encode0.enable_fec = 1
@@ -2086,6 +2267,7 @@ def RunClient(flag):
                 thread6.opendevice(1)
                 thread6.opencodec()
             if thread7 != None:
+                (thread7.encode0.width, thread7.encode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 thread7.encode0.refs = 16
                 thread7.fec_level = fec_level
                 thread7.encode0.enable_fec = 1

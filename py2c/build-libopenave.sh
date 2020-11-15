@@ -2,6 +2,7 @@
 
 #sudo apt-get install alsa-base alsa-utils alsa-source libasound2-dev
 #export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/glibc-2.27/lib
+#pyinstaller -F -w pyui.py
 
 gcc -o libopenave.so -shared -fPIC  -Wformat=0 -Wl,-Bsymbolic -fvisibility=hidden -ldl -Wl,-rpath=. \
 -Xlinker --unresolved-symbols=ignore-in-shared-libs \

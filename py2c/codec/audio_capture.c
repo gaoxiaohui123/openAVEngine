@@ -1398,7 +1398,7 @@ int api_audio_capture_init(char *handle, char *param)
     cformat = GetvalueStr(obj->json, "in_sample_fmt");
     if(strcmp(cformat,""))
     {
-        av_dict_set(&obj->options,"sample_fmt", cformat,0);
+        ///av_dict_set(&obj->options,"sample_fmt", cformat,0);
     }
 
     if(avformat_open_input(&obj->pFormatCtx, obj->device_name, obj->ifmt, &obj->options) != 0)

@@ -70,7 +70,8 @@ class AVClient(object):
         self.audio_thread7 = None
         self.audio_thread8 = None
         self.audio_thread9 = None
-
+    def __del__(self):
+        print("AVClient del")
     def GetParams(self, refs):
         ret = (3 * 1024 * 1024, 1400, 0, 10)
         (h, w) = (SHOW_HEIGHT, SHOW_WIDTH)
@@ -107,7 +108,7 @@ class AVClient(object):
 
         (bitrate, mtu_size, fec_level, buffer_shift) = self.GetParams(SVC_REFS)
         print("RunClient: bitrate= ", bitrate)
-        self.video_thread_show = display(0, SHOW_WIDTH, SHOW_HEIGHT)
+        self.video_thread_show = display(0, SHOW_WIDTH, SHOW_HEIGHT, SHOW_WIDTH, SHOW_HEIGHT)
         idx = 0
         (id0, sessionId0, actor0) = (0, 100, 2)
         (id1, sessionId1, actor1) = (1, 200, 2)
@@ -136,37 +137,50 @@ class AVClient(object):
         ###
         if True:
             if self.video_thread0 != None:
+                (self.video_thread0.decode0.width, self.video_thread0.decode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 self.video_thread0.decode0.min_distance = 2
                 self.video_thread0.decode0.delay_time = 100
                 self.video_thread0.decode0.buf_size = (1 << buffer_shift)  # 1024#必须是2的指数
                 self.video_thread0.decode0.mtu_size = mtu_size
+                self.video_thread0.opencodec()
             if self.video_thread1 != None:
+                (self.video_thread1.decode0.width, self.video_thread1.decode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 self.video_thread1.decode0.min_distance = 2
                 self.video_thread1.decode0.delay_time = 100
                 self.video_thread1.decode0.buf_size = (1 << buffer_shift)  # 1024#必须是2的指数
                 self.video_thread1.decode0.mtu_size = mtu_size
+                self.video_thread1.opencodec()
             if self.video_thread2 != None:
+                (self.video_thread2.decode0.width, self.video_thread2.decode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 self.video_thread2.decode0.min_distance = 2
                 self.video_thread2.decode0.delay_time = 100
                 self.video_thread2.decode0.buf_size = (1 << buffer_shift)  # 1024#必须是2的指数
                 self.video_thread2.decode0.mtu_size = mtu_size
+                self.video_thread2.opencodec()
             if self.video_thread3 != None:
+                (self.video_thread3.decode0.width, self.video_thread3.decode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 self.video_thread3.decode0.min_distance = 2
                 self.video_thread3.decode0.delay_time = 100
                 self.video_thread3.decode0.buf_size = (1 << buffer_shift)  # 1024#必须是2的指数
                 self.video_thread3.decode0.mtu_size = mtu_size
+                self.video_thread3.opencodec()
             if self.video_thread8 != None:
+                (self.video_thread8.decode0.width, self.video_thread8.decode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 self.video_thread8.decode0.min_distance = 2
                 self.video_thread8.decode0.delay_time = 100
                 self.video_thread8.decode0.buf_size = (1 << buffer_shift)  # 1024#必须是2的指数
                 self.video_thread8.decode0.mtu_size = mtu_size
+                self.video_thread8.opencodec()
             if self.video_thread9 != None:
+                (self.video_thread9.decode0.width, self.video_thread9.decode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 self.video_thread9.decode0.min_distance = 2
                 self.video_thread9.decode0.delay_time = 100
                 self.video_thread9.decode0.buf_size = (1 << buffer_shift)  # 1024#必须是2的指数
                 self.video_thread9.decode0.mtu_size = mtu_size
+                self.video_thread9.opencodec()
         if True:
             if self.video_thread4 != None:
+                (self.video_thread4.encode0.width, self.video_thread4.encode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 self.video_thread4.encode0.refs = SVC_REFS  # 16
                 self.video_thread4.fec_level = fec_level  # 1#0#2#0#1#2#3#0#4 #3 #2#0
                 self.video_thread4.encode0.enable_fec = 1
@@ -179,6 +193,7 @@ class AVClient(object):
                 self.video_thread4.opendevice(1)
                 self.video_thread4.opencodec()
             if self.video_thread5 != None:
+                (self.video_thread5.encode0.width, self.video_thread5.encode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 self.video_thread5.encode0.refs = SVC_REFS  # 16
                 self.video_thread5.fec_level = fec_level  # 1#0#2#0#1#2#3#0#4 #3 #2#0
                 self.video_thread5.encode0.enable_fec = 1
@@ -191,6 +206,7 @@ class AVClient(object):
                 self.video_thread5.opendevice(1)
                 self.video_thread5.opencodec()
             if self.video_thread6 != None:
+                (self.video_thread6.encode0.width, self.video_thread6.encode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 self.video_thread6.encode0.refs = SVC_REFS  # 16
                 self.video_thread6.fec_level = fec_level  # 1#0#2#0#1#2#3#0#4 #3 #2#0
                 self.video_thread6.encode0.enable_fec = 1
@@ -203,6 +219,7 @@ class AVClient(object):
                 self.video_thread6.opendevice(1)
                 self.video_thread6.opencodec()
             if self.video_thread7 != None:
+                (self.video_thread7.encode0.width, self.video_thread7.encode0.height) = (SHOW_WIDTH, SHOW_HEIGHT)
                 self.video_thread7.encode0.refs = SVC_REFS  # 16
                 self.video_thread7.fec_level = fec_level  # 1#0#2#0#1#2#3#0#4 #3 #2#0
                 self.video_thread7.encode0.enable_fec = 1
@@ -481,29 +498,85 @@ class AVClient(object):
         if self.audio_thread_show != None:
             self.audio_thread_show.stop()
         print("StopClientAudio ok")
+    def Release(self):
+        if self.video_thread4 != None:
+            del self.video_thread4
+        if self.video_thread5 != None:
+            del self.video_thread5
+        if self.video_thread6 != None:
+            del self.video_thread6
+        if self.video_thread7 != None:
+            del self.video_thread7
 
+        if self.video_thread0 != None:
+            del self.video_thread0
+        if self.video_thread1 != None:
+            del self.video_thread1
+        if self.video_thread2 != None:
+            del self.video_thread2
+        if self.video_thread3 != None:
+            del self.video_thread3
+        if self.video_thread8 != None:
+            del self.video_thread8
+        if self.video_thread9 != None:
+            del self.video_thread9
+
+        if self.video_thread_show != None:
+            del self.video_thread_show
+
+        if self.audio_thread4 != None:
+            del self.audio_thread4
+        if self.audio_thread5 != None:
+            del self.audio_thread5
+        if self.audio_thread6 != None:
+            del self.audio_thread6
+        if self.audio_thread7 != None:
+            del self.audio_thread7
+
+        if self.audio_thread0 != None:
+            del self.audio_thread0
+        if self.audio_thread1 != None:
+            del self.audio_thread1
+        if self.audio_thread2 != None:
+            del self.audio_thread2
+        if self.audio_thread3 != None:
+            del self.audio_thread3
+        if self.audio_thread8 != None:
+            del self.audio_thread8
+        if self.audio_thread9 != None:
+            del self.audio_thread9
+
+        if self.audio_thread_show != None:
+            del self.audio_thread_show
 def RunClient(flag):
     if flag:
+        client = None
         idx = 0
-        client = AVClient()
-        client.StartClientVideo()
-        client.StartClientAudio()
-
         while idx >= 0 and idx < 4:
-            try:
-                idx = int(raw_input('please input to exit(eg: 0 ): '))
-            except:
+            if client == None:
+                client = AVClient()
+            client.StartClientVideo()
+            client.StartClientAudio()
+            if sys.version_info >= (3, 0):
                 idx = int(input('please input to exit(eg: 0 ): '))
+            else:
+                idx = int(raw_input('please input to exit(eg: 0 ): '))
+            client.StopClientVideo()
+            client.StopClientAudio()
+            for i in range(10):
+                print("RunClient: wait exit: i=", i)
+                time.sleep(1)
+            #client.Release()
+            #del client
+            #client = None
+            for i in range(1):
+                print("RunClient: wait exit: i=", i)
+                time.sleep(1)
             print("idx= ", idx)
-            # thread.status = False if idx == 0 else True
         print("main: start stop...")
 
-        client.StopClientVideo()
-        client.StopClientAudio()
         print("RunClient: over")
-        for i in range(10):
-            print("test: wait exit: i=", i)
-            time.sleep(1)
+
         return
 if __name__ == "__main__":
     print("start avclient")
