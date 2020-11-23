@@ -184,8 +184,8 @@ class AVClient(object):
                 self.video_thread4.encode0.refs = SVC_REFS  # 16
                 self.video_thread4.fec_level = fec_level  # 1#0#2#0#1#2#3#0#4 #3 #2#0
                 self.video_thread4.encode0.enable_fec = 1
-                self.video_thread4.encode0.lost_rate = LOSS_RATE  # 0.2 #0.3
-                self.video_thread4.encode0.code_rate = (1 - self.video_thread4.encode0.lost_rate)
+                self.video_thread4.encode0.loss_rate = LOSS_RATE  # 0.2 #0.3
+                self.video_thread4.encode0.code_rate = (1 - self.video_thread4.encode0.loss_rate)
                 bitrate = int(self.video_thread4.encode0.code_rate * bitrate)
                 self.video_thread4.encode0.bit_rate = bitrate
                 self.video_thread4.encode0.mtu_size = mtu_size
@@ -197,8 +197,8 @@ class AVClient(object):
                 self.video_thread5.encode0.refs = SVC_REFS  # 16
                 self.video_thread5.fec_level = fec_level  # 1#0#2#0#1#2#3#0#4 #3 #2#0
                 self.video_thread5.encode0.enable_fec = 1
-                self.video_thread5.encode0.lost_rate = LOSS_RATE  # 0.2 #0.3
-                self.video_thread5.encode0.code_rate = (1 - self.video_thread5.encode0.lost_rate)
+                self.video_thread5.encode0.loss_rate = LOSS_RATE  # 0.2 #0.3
+                self.video_thread5.encode0.code_rate = (1 - self.video_thread5.encode0.loss_rate)
                 bitrate = int(self.video_thread5.encode0.code_rate * bitrate)
                 self.video_thread5.encode0.bit_rate = bitrate
                 self.video_thread5.encode0.mtu_size = mtu_size
@@ -210,8 +210,8 @@ class AVClient(object):
                 self.video_thread6.encode0.refs = SVC_REFS  # 16
                 self.video_thread6.fec_level = fec_level  # 1#0#2#0#1#2#3#0#4 #3 #2#0
                 self.video_thread6.encode0.enable_fec = 1
-                self.video_thread6.encode0.lost_rate = LOSS_RATE  # 0.2 #0.3
-                self.video_thread6.encode0.code_rate = (1 - self.video_thread6.encode0.lost_rate)
+                self.video_thread6.encode0.loss_rate = LOSS_RATE  # 0.2 #0.3
+                self.video_thread6.encode0.code_rate = (1 - self.video_thread6.encode0.loss_rate)
                 bitrate = int(self.video_thread6.encode0.code_rate * bitrate)
                 self.video_thread6.encode0.bit_rate = bitrate
                 self.video_thread6.encode0.mtu_size = mtu_size
@@ -223,8 +223,8 @@ class AVClient(object):
                 self.video_thread7.encode0.refs = SVC_REFS  # 16
                 self.video_thread7.fec_level = fec_level  # 1#0#2#0#1#2#3#0#4 #3 #2#0
                 self.video_thread7.encode0.enable_fec = 1
-                self.video_thread7.encode0.lost_rate = LOSS_RATE  # 0.2 #0.3
-                self.video_thread7.encode0.code_rate = (1 - self.video_thread7.encode0.lost_rate)
+                self.video_thread7.encode0.loss_rate = LOSS_RATE  # 0.2 #0.3
+                self.video_thread7.encode0.code_rate = (1 - self.video_thread7.encode0.loss_rate)
                 bitrate = int(self.video_thread7.encode0.code_rate * bitrate)
                 self.video_thread7.encode0.bit_rate = bitrate
                 self.video_thread7.encode0.mtu_size = mtu_size

@@ -174,6 +174,7 @@ int api_get_cpu_info(char *outparam[])
     free(devmem);
     return 0;
 }
+HCSVC_API
 int api_get_cpu_info2(int *icpurate, int *memrate, int *devmemrate)
 {
     double cpurate = getCpuRate();
@@ -211,7 +212,18 @@ int pcmAddWavHeader(FILE *fp, int channels, int bits, int sample_rate, int len) 
     fwrite(&pcm2wavHEAD, 44, 1, fp);
     return 0;
 }
-
+HCSVC_API
+int api_clear_yuv420p(char *data, int w, int h)
+{
+    int size0 = w * h;
+    int size1 = (w >> 1) * (h >> 1);
+    char *srcY = (char *)data;
+    char *srcU = (char *)&data[size0];
+    char *srcV = (char *)&data[size0 + size1];
+    memset(srcY, 0, size0);
+    memset(srcU, 128, size1);
+    memset(srcV, 128, size1);
+}
 HCSVC_API
 int api_pcm2wav(char *srcfile, char *dstfile, int channels, int bits, int sample_rate)
 {

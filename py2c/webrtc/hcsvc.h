@@ -116,11 +116,11 @@ typedef struct
 typedef struct {
 	unsigned int codec_id : 3;//4; //3	// identifies the code/codec being used. In practice, the "FEC encoding ID" that identifies the FEC Scheme should
 					 // be used instead (see [RFC5052]). In our example, we are not compliant with the RFCs anyway, so keep it simple.
-	unsigned int k : 9;//8; //9 : 512
-	unsigned int n : 10;
+	unsigned int k : 11;//8; //9 : 512
+	unsigned int n : 14;//12
 	unsigned int symbol_size : 10;//symbol_size >> 2
-	unsigned short fec_seq_no : 10;
-	unsigned short resv;
+	unsigned short fec_seq_no : 14;//12
+	//unsigned short resv;
 }FEC_HEADER;
 typedef struct {
     unsigned short st0; //client send packet time
@@ -128,16 +128,23 @@ typedef struct {
     unsigned short st1; //server send packet time
     unsigned short rt1; //client receive packet time
 }RTT_HEADER;
-typedef union{
-    int64_t time_stamp;
-    RTT_HEADER rtt_list;
+//typedef union
+typedef struct
+{
+    int64_t time_stamp;//4b
+    RTT_HEADER rtt_list;//12b
 }TIME_HEADER;
+//
 typedef struct {
-    unsigned char lost_packet_rate : 7; //a% * 100
-    unsigned char is_lost_packet : 1;   //
-    unsigned char time_status : 1;      //0:time_stamp; 1:rtt_list
-    unsigned char rsv : 7;
-    short time_offset;
+    unsigned short enable_nack : 1;
+    unsigned short time_offset : 15; //2b
+    unsigned char loss_rate : 7; //a% * 100
+    unsigned char is_lost_packet : 1;
+    unsigned char info_status : 1;   //0:self
+    //unsigned char time_status : 1;      //0:time_stamp; 1:rtt_list
+    unsigned char chanId : 7; //循环将各个接收端的丢包信息回馈给对端;//4b
+    //unsigned short pkt_num : 11;
+    //unsigned short rsv : 5;//6b
     TIME_HEADER time_info;
 }NACK_HEADER;
 typedef struct {
@@ -171,9 +178,23 @@ typedef struct {
 	short rtp_extend_profile;       //profile used
 	short rtp_extend_length;        //扩展字段的长度，为4的整数倍；1表示4个字节
 	NACK_HEADER nack;
+	unsigned short seq_no;
 } AUDIO_EXTEND_HEADER;
 
 #endif
+
+typedef struct {
+    int st0; //client send packet time
+    int rt0; //server receive packet time
+    int st1; //server send packet time
+    int rt1; //client receive packet time
+    int loss_rate;
+    int info_status;
+    int chanId;
+    //int time_offset;
+    int64_t time_stamp;
+}NetInfo;
+
 typedef struct {
     int spatial_idx;        //空域第几层
     int spatial_num;        //空域总共层数
@@ -494,6 +515,82 @@ inline int GetRtpHearderSize(uint8_t* dataPtr, int dataSize)
     return ret;
 }
 
+HCSVC_API
+long long api_get_time_stamp_ll(void);
+
+inline int GetNetInfo(uint8_t* dataPtr, int insize, NetInfo *info)
+{
+    int ret = 0;
+    RTP_FIXED_HEADER* rtp_hdr = (RTP_FIXED_HEADER*)&dataPtr[0];
+    EXTEND_HEADER *rtp_ext = NULL;
+    if(rtp_hdr->extension)
+    {
+        rtp_ext = (EXTEND_HEADER *)&dataPtr[sizeof(RTP_FIXED_HEADER)];
+        if(rtp_ext->nack.enable_nack)
+        {
+            int64_t now_time = (int64_t)api_get_time_stamp_ll();
+            //不仅要获得网络信息，还需要获得全线信息，最终的效果是由全线的信息决定的
+            info->time_stamp = rtp_ext->nack.time_info.time_stamp;
+            info->loss_rate = rtp_ext->nack.loss_rate;//loss_rate in [1,101]
+		    info->st0 = rtp_ext->nack.time_info.rtt_list.st0;//共享编码端写入
+    		info->rt0 = rtp_ext->nack.time_info.rtt_list.rt0;//观看解码端（rtp接收）写入
+	    	info->st1 = rtp_ext->nack.time_info.rtt_list.st1;//观看编码端(rtp发送)写入
+		    info->rt1 = now_time & 0xFFFF;//共享解码端（rtp接收）写入
+	    	//最终交由共享编码端自己去统计并处理信息
+		    info->chanId = rtp_ext->nack.chanId;//if chanId == selfChanId then getting net info sucess!
+    		info->info_status = rtp_ext->nack.info_status;
+	    	if(!info->info_status)
+		    {
+    		    info->st0 = rtp_ext->nack.time_info.rtt_list.st0;
+	    	    info->rt0 = now_time & 0xFFFF;//rtp_ext->nack.time_info.rt0;
+		        info->st1 = 0;
+    		    info->rt1 = 0;
+	    	    info->loss_rate = 0;
+		        //info->chanId = rtp_ext->nack.chanId;
+    		    //info->info_status = rtp_ext->nack.info_status;
+	    	}
+		    ret = 1;
+        }
+    }
+    return ret;
+}
+inline int GetAudioNetInfo(uint8_t* dataPtr, int insize, NetInfo *info)
+{
+    int ret = 0;
+    RTP_FIXED_HEADER* rtp_hdr = (RTP_FIXED_HEADER*)&dataPtr[0];
+    AUDIO_EXTEND_HEADER *rtp_ext = NULL;
+    if(rtp_hdr->extension)
+    {
+        rtp_ext = (AUDIO_EXTEND_HEADER *)&dataPtr[sizeof(RTP_FIXED_HEADER)];
+        if(rtp_ext->nack.enable_nack)
+        {
+            int64_t now_time = (int64_t)api_get_time_stamp_ll();
+            //不仅要获得网络信息，还需要获得全线信息，最终的效果是由全线的信息决定的
+            info->time_stamp = rtp_ext->nack.time_info.time_stamp;
+            info->loss_rate = rtp_ext->nack.loss_rate;//loss_rate in [1,101]
+		    info->st0 = rtp_ext->nack.time_info.rtt_list.st0;//共享编码端写入
+    		info->rt0 = rtp_ext->nack.time_info.rtt_list.rt0;//观看解码端（rtp接收）写入
+	    	info->st1 = rtp_ext->nack.time_info.rtt_list.st1;//观看编码端(rtp发送)写入
+		    info->rt1 = now_time & 0xFFFF;//共享解码端（rtp接收）写入
+	    	//最终交由共享编码端自己去统计并处理信息
+		    info->chanId = rtp_ext->nack.chanId;//if chanId == selfChanId then getting net info sucess!
+    		info->info_status = rtp_ext->nack.info_status;
+	    	if(!info->info_status)
+		    {
+    		    info->st0 = rtp_ext->nack.time_info.rtt_list.st0;
+	    	    info->rt0 = now_time & 0xFFFF;//rtp_ext->nack.time_info.rt0;
+		        info->st1 = 0;
+    		    info->rt1 = 0;
+	    	    info->loss_rate = 0;
+		        //info->chanId = rtp_ext->nack.chanId;
+    		    //info->info_status = rtp_ext->nack.info_status;
+	    	}
+		    ret = 1;
+        }
+    }
+    return ret;
+}
+
 /****************************************************************************
  * Encoder functions
  ****************************************************************************/
@@ -560,8 +657,6 @@ HCSVC_API
 void api_get_array_free(int *pktSize);
 HCSVC_API
 void api_json_free(void *json);
-//HCSVC_API
-//long long api_get_time_stamp_ll(void);
 //
 HCSVC_API
 int api_raw2rtp_packet(char *handle, char *data, char *param, char *outbuf, char *outparam[]);
@@ -607,7 +702,7 @@ int api_fec_decode(char *handle, char *data, char *param, char *outbuf, char *ou
 HCSVC_API
 int api_check_packet(uint8_t* dataPtr, int insize, unsigned int ssrc, int lossRate);
 HCSVC_API
-int api_count_loss_rate(uint8_t* dataPtr, int insize);
+int api_count_loss_rate(uint8_t* dataPtr, int insize, int freq);
 
 HCSVC_API
 int api_create_capture_handle(char *handle);
@@ -665,6 +760,15 @@ HCSVC_API
 int api_simple_osd_process(char *handle, char *data, char *param);
 //HCSVC_API
 //void api_get_info_test(char *outparam[]);
+HCSVC_API
+int api_get_cpu_info(char *outparam[]);
+HCSVC_API
+int api_get_cpu_info2(int *icpurate, int *memrate, int *devmemrate);
+HCSVC_API
+int api_clear_yuv420p(char *data, int w, int h);
+
+HCSVC_API
+void api_test_write_str(int num);
 
 #else
 #define api_video_encode_open i2_video_encode_open

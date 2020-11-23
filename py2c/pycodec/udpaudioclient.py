@@ -219,7 +219,7 @@ class PlayThread(threading.Thread):
                 break
         if ret != None:
             del (self.DataList[i])
-        if len(self.DataList) > 10:
+        if len(self.DataList) > 20:
             print("PlayThread: PopQueue2: len(self.DataList)= ", len(self.DataList))
 
         self.lock.release()
@@ -272,9 +272,12 @@ class PlayThread(threading.Thread):
             for idx in self.idMap:
                 item = self.PopQueue2(idx)
                 ###test
-                if self.idMap.index(idx) in [0]:
+                #if self.idMap.index(idx) in [0]:
+                if idx in [0]:
                     pass
                 else:
+                    #print("PlayThread: run: idx=", idx)
+                    #print("PlayThread: run: self.idMap.index(idx)=", self.idMap.index(idx))
                     continue
                 ###需要做同步
                 if item != None:
@@ -603,6 +606,7 @@ class RecvTaskManagerThread(threading.Thread):
         self.max_delay_time = 0
         self.max_delay_packet = -1
         self.recv_packet_num = 0
+        self.loss_rate = 0
         self.log_fp = None
         # try:
         #    self.log_fp = open("../../mytest/log.txt", "w")
@@ -634,10 +638,19 @@ class RecvTaskManagerThread(threading.Thread):
             del self.outparam
         if self.ll_handle != None:
             del self.ll_handle
+    def GetClientChanIds(self):
+        ret = self.client.encChanIdList
+        return ret
+    def PushNetInfo(self, netInfoList):
+        self.client.push_net_info(netInfoList)
     def ResortPacket(self, revcData, remoteHost, remotePort, recv_time):
         sockId = remoteHost + "_" + str(remotePort)
         if len(revcData) == 0:
             print("error: ResortPacket: insize = 0")
+        self.client.decode0.param2.update({"selfChanId": (self.client.id + 1)})
+        self.client.decode0.param2.update({"ChanId": self.GetClientChanIds()})
+        #self.loss_rate = 90#80#test
+        self.client.decode0.param2.update({"loss_rate": self.loss_rate})
         # 重排序，並取幀
         (ret, outbuf, outparam, frame_timestamp) = self.client.decode0.resort(revcData, len(revcData))
         #print("ResortPacket: ret", ret)
@@ -645,7 +658,18 @@ class RecvTaskManagerThread(threading.Thread):
         # print("ret= ", ret)
         if ret > 0 and True:
             # print("ResortPacket: ret= ", ret)
-            runflag = True
+            if len(self.outparam[1]) > 0:
+                # print("ResortPacket: self.outparam[1]= ", self.outparam[1])
+                netDict = str2json(self.outparam[1])
+                if netDict != None:
+                    # print("ResortPacket: netDict= ", netDict)
+                    netInfoList = netDict.get("netInfo")
+                    if netInfoList != None:
+                        # print("ResortPacket: netInfoList= ", netInfoList)
+                        self.PushNetInfo(netInfoList)
+                else:
+                    ##print("error: audio: ResortPacket: netDict= ", netDict)
+                    pass
             complete = ""
             data4 = outbuf.raw[:ret]
             pktSize = []
@@ -676,8 +700,9 @@ class RecvTaskManagerThread(threading.Thread):
                 (revcData, remoteHost, remotePort, recv_time) = data
                 # recv_time = time.time()
                 # print("TaskManagerThread: recv_time= ", recv_time)
-                loss_rate = loadlib.gload.lib.api_count_loss_rate(revcData, len(revcData))
+                loss_rate = loadlib.gload.lib.api_count_loss_rate(revcData, len(revcData), 27)
                 if loss_rate >= 0:
+                    self.loss_rate = loss_rate
                     print("Audio TaskManagerThread: loss_rate= ", loss_rate)
                 self.ResortPacket(revcData, remoteHost, remotePort, recv_time)
             else:
@@ -783,6 +808,10 @@ class PacedSend(threading.Thread):
         self.DataList = []
         self.packet_interval = 0
         self.sum = 0
+        self.redundancy = 0
+        self.redundancyList = []
+        self.loss_rate_list = [(0, 0, 10), (0, 0, 100)] #(sum_loss_rate, cnt_loss_rate, cnt_max)
+        self.delayPktNum = 4 #10
         self.__flag = threading.Event()  # 用于暂停线程的标识
         self.__flag.set()  # 设置为True
         self.__running = threading.Event()  # 用于停止线程的标识
@@ -792,6 +821,9 @@ class PacedSend(threading.Thread):
         for thisobj in self.DataList:
             del thisobj
         del self.DataList
+
+        del self.redundancyList
+
     def stop(self):
         print("audio PacedSend: stop 0")
         self.__flag.set()  # 将线程从暂停状态恢复, 如何已经暂停的话
@@ -804,7 +836,26 @@ class PacedSend(threading.Thread):
 
     def resume(self):
         self.__flag.set()  # 设置为True, 让线程停止阻塞
-
+    def PoPRedundancy(self):
+        ret = []
+        n = len(self.redundancyList)
+        k = self.redundancy
+        for i in range(k):
+            if i >= n:
+                break
+            thisData = self.redundancyList[i]
+            ret.append(thisData)
+        for i in range(k):
+            if i >= n:
+                break
+            del self.redundancyList[0]
+        return ret
+    def PushRedundancy(self, data):
+        n = len(self.redundancyList)
+        k = self.redundancy + self.delayPktNum #self.redundancy
+        self.redundancyList.append(data)
+        if n > k:
+            del self.redundancyList[0]
     def PopQueue(self):
         ret = None
         self.lock.acquire()
@@ -866,22 +917,87 @@ class PacedSend(threading.Thread):
                     #print("PacedSend: run: self.client.host= ", self.client.host)
                     #print("PacedSend: run: self.client.port= ", self.client.port)
                     try:
+                        self.client.encode0.reset_seqnum(data2)
+                        #self.PushRedundancy(data2)
                         sendDataLen = self.client.sock.sendto(data2, (self.client.host, self.client.port))
                     #except IOError, err:
                     except IOError as error:  # python3
                         print("PacedSend: run error: ", error)
                         break
                     else:
+                        sum += sendDataLen
                         ###redundancy
-                        if False:
-                            sendDataLen = self.client.sock.sendto(data2, (self.client.host, self.client.port))
-                            sendDataLen = self.client.sock.sendto(data2, (self.client.host, self.client.port))
+                        netInfoList = self.client.pop_self_net_info()
+                        #print("PacedSend: len(netInfoList)= ", len(netInfoList))
+                        maxLossRate = 0
+                        if len(netInfoList) > 0 and True:
+                            for thisNetInfo in netInfoList:
+                                st0 = thisNetInfo["st0"]
+                                rt0 = thisNetInfo["rt0"]
+                                st1 = thisNetInfo["st1"]
+                                rt1 = thisNetInfo["rt1"]
+
+                                loss_rate = thisNetInfo["loss_rate"]
+                                if loss_rate > maxLossRate:
+                                    maxLossRate = loss_rate
+                        if maxLossRate > 0:
+                            maxLossRate -= 1
+                        #存在无携带netinfo的包
+                        #print("PacedSend: maxLossRate= ", maxLossRate)
+                        if maxLossRate > 0 and True:
+                            alfa = 0.8
+                            #print("PacedSend: maxLossRate= ", maxLossRate)
+                            loss_rate = float(maxLossRate) / 100.0
+                            #print("PacedSend: loss_rate= ", loss_rate)
+                            code_rate = (1.0 - loss_rate)
+                            code_rate = code_rate * alfa
+                            #print("PacedSend: code_rate= ", code_rate)
+                            #redundancy = int((1.0 / code_rate - 1.0) + 0.99)
+                            if loss_rate <= 0.05:
+                                self.redundancy = 1
+                            elif loss_rate <= 0.10:
+                                self.redundancy = 2
+                            elif loss_rate <= 0.20:
+                                self.redundancy = 3
+                            elif loss_rate <= 0.30:
+                                self.redundancy = 4
+                            elif loss_rate <= 0.40:
+                                self.redundancy = 5 #6
+                            elif loss_rate <= 0.50:
+                                self.redundancy = 6
+                            elif loss_rate <= 0.60:
+                                self.redundancy = 8
+                            elif loss_rate <= 0.70:
+                                self.redundancy = 11
+                            elif loss_rate <= 0.80:
+                                self.redundancy = 20
+                            #print("PacedSend: redundancy= ", redundancy)
+                            #self.redundancy = 4  # 3#2#1#10
+                            #for i in range(self.redundancy):
+                            #    self.client.encode0.reset_seqnum(data2)
+                            #    sendDataLen = self.client.sock.sendto(data2, (self.client.host, self.client.port))
+                            #    sum += sendDataLen
+                        else:
+                            #print("PacedSend: maxLossRate= ", maxLossRate)
+                            #self.redundancy = 15 #0.8
+                            #self.redundancy = 20#11#8#7#6#5#7#9
+                            pass
+                        if self.redundancy > 0 and True:
+                            #self.redundancy = 4#3#2#1#10
+                            fec_seqnum = 0
+                            #dataList = self.PoPRedundancy()
+                            for i in range(self.redundancy):
+                                thisData = data2
+                                fec_seqnum = self.client.encode0.reset_seqnum(thisData)
+                                sendDataLen = self.client.sock.sendto(thisData, (self.client.host, self.client.port))
+                                sum += sendDataLen
+                                time.sleep(0.001)
+                            #print("fec_seqnum= ", fec_seqnum)
                         # print("sendDataLen= ", sendDataLen)
                         # time.sleep(0.001)
-                        sum += sendDataLen
                         if sendDataLen != size:
                             print("warning: PacedSend: run: (size, sendDataLen)= ", (size, sendDataLen))
-                        time.sleep(0.0001)
+                        time.sleep(0.001)
                         # time.sleep(0.0001)
                         end_time = time.time()
                         difftime = (end_time - start_time) * 1000
@@ -915,6 +1031,13 @@ class EncoderClient(EchoClientThread):
         self.__flag.set()  # 设置为True
         self.__running = threading.Event()  # 用于停止线程的标识
         self.__running.set()  # 将running设置为True
+        ###
+        ###
+        self.lock = threading.Lock()
+        self.selfNetInfoList = []
+        self.otherNetInfoList = []
+        self.speakList = []
+        ###
         ###
         array_type = c_char_p * 4
         self.outparam = array_type()
@@ -966,6 +1089,8 @@ class EncoderClient(EchoClientThread):
         if self.outparam != None:
             del self.outparam
         del self.sock
+    def AddSpeakerId(self, id):
+        self.speakList.append(id)
     def opendevice(self, devicetype):
         self.devicetype = devicetype
         if devicetype > 0:
@@ -1005,7 +1130,45 @@ class EncoderClient(EchoClientThread):
         ##print("sendDataLen= ", sendDataLen)
         if self.paced_send != None:
             self.paced_send.start()
-
+    def push_net_info(self, netInfo):
+        self.lock.acquire()
+        chanId = netInfo.get("chanId")
+        info_status = netInfo.get("info_status")
+        if chanId != None and info_status != None:
+            if chanId == (self.id + 1) and info_status == 1:
+                ##print("push_net_info: selfNetInfoList: (chanId, self.id)=", (chanId, self.id))
+                self.selfNetInfoList.append(netInfo)
+            else:
+                #print("push_net_info: otherNetInfoList: (chanId, self.id)=", (chanId, self.id))
+                self.otherNetInfoList.append(netInfo)
+        self.lock.release()
+    def pop_net_info(self):
+        ret = []
+        #分开保存，以保证机会均等
+        self.lock.acquire()
+        n = len(self.otherNetInfoList)
+        if n > 0:
+            #for i in range(n):
+            #    ret.append(self.otherNetInfoList[0])
+            #    del(self.otherNetInfoList[0])
+            ret = self.otherNetInfoList
+            self.otherNetInfoList = []
+        self.lock.release()
+        #print("pop_net_info: len(ret)= ", len(ret))
+        return ret
+    def pop_self_net_info(self):
+        ret = []
+        self.lock.acquire()
+        n = len(self.selfNetInfoList)
+        if n > 0:
+            #for i in range(n):
+            #    ret.append(self.selfNetInfoList[0])
+            #    del (self.selfNetInfoList[0])
+            ret = self.selfNetInfoList
+            self.selfNetInfoList = []
+        #print("pop_net_info: len(self.selfNetInfoList)= ", len(self.selfNetInfoList))
+        self.lock.release()
+        return ret
     def read_ack(self):
         if self.ack.isSet():
             time_offset = self.cmd_master.time_offset
@@ -1065,6 +1228,15 @@ class EncoderClient(EchoClientThread):
                     # print("audioplayer: osize= ", osize)
                     if osize > 0 and True:
                         #print("rtppacket: osize=", osize)
+                        #self.encode0.param.update({"timestamp": timestamp})
+                        if True:
+                            self.encode0.param.update({"selfChanId": (self.id + 1)})
+                            self.encode0.param.update({"speakers": self.speakList})
+                            #print("EncoderClient: self.speakList= ", self.speakList)
+                            netInfoList = self.pop_net_info()
+                            # print("EncoderClient: 2：len(netInfoList)= ", len(netInfoList))
+                            if len(netInfoList) > 0:
+                                self.encode0.param.update({"netInfo": netInfoList})
                         (osize, outbuf, outparam) = self.encode0.rtppacket(outbuf, osize)
                         rtpSize = []
                         rtpSize.append(str(osize))
@@ -1126,6 +1298,11 @@ class DecoderClient(EchoClientThread):
         self.__running = threading.Event()  # 用于停止线程的标识
         self.__running.set()  # 将running设置为True
         ###
+        ###
+        self.encList = []  # 建立编码与解码的链接通道
+        self.encChanIdList = []
+        self.speakList = []
+        ###
         self.log_fp = None
         try:
             filename = "../../mytest/dec_log_audio" + str(id) + ".txt"
@@ -1168,6 +1345,18 @@ class DecoderClient(EchoClientThread):
         if self.outparam != None:
             del self.outparam
         del self.sock
+    def AddSpeakerId(self, id):
+        self.speakList.append(id)
+    def add_client(self, thisClient):
+        self.encList.append(thisClient) #建立编解码链接通道
+        self.encChanIdList.append(thisClient.id)
+    def push_net_info(self, netInfoList):
+        for thisInfo in netInfoList:
+            for chanId in self.encChanIdList:
+                idx = self.encChanIdList.index(chanId)
+                thisClient = self.encList[idx]
+                if thisClient != None:
+                    thisClient.push_net_info(thisInfo)
     def opencodec(self):
         self.decode0.init()
         pass

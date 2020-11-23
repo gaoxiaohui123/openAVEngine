@@ -40,8 +40,8 @@ class CallVideoEncode(object):
         self.seqnum = 0 #can be changed by fec
         self.enable_fec = 1 #0#1
         self.refresh_idr = 1
-        self.lost_rate = 0.3
-        self.code_rate = (1 - self.lost_rate)
+        self.loss_rate = 0.3
+        self.code_rate = (1 - self.loss_rate)
         (self.width, self.height) = (width, height)
         self.max_refs = 16
         self.mtu_size = 1400 #150 #500 #200 #1100#1400
@@ -54,7 +54,7 @@ class CallVideoEncode(object):
         self.bit_rate = 640*1024 #524288
         self.max_b_frames = 0
         self.thread_count = 1
-        self.adapt_cpu = 1;
+        self.adapt_cpu = 0#1
         #
         self.osd = 1
         self.orgX = 0
@@ -281,7 +281,7 @@ class CallVideoEncode(object):
                         data3 = outbuf.raw[:ret2]
                         if self.enable_fec:
                             param.update({"enable_fec": self.enable_fec})
-                            param.update({"loss_rate": self.lost_rate})
+                            param.update({"loss_rate": self.loss_rate})
                             param.update({"code_rate": self.code_rate})
                             sizelist = []
                             for packet_size in rtpSize:

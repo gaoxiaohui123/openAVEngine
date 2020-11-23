@@ -49,9 +49,6 @@
 
 #define H264_PLT 127
 #define AAC_PLT  126
-#define MAX_PKT_NUM 1024
-#define MAX_OBJ_NUM  20//100
-#define MAX_OUTCHAR_SIZE (5 * MAX_PKT_NUM)
 #define TIME_OUTCHAR_SIZE 16
 #if 1
 typedef struct
@@ -110,11 +107,11 @@ typedef struct
 typedef struct {
 	unsigned int codec_id : 3;//4; //3	// identifies the code/codec being used. In practice, the "FEC encoding ID" that identifies the FEC Scheme should
 					 // be used instead (see [RFC5052]). In our example, we are not compliant with the RFCs anyway, so keep it simple.
-	unsigned int k : 9;//8; //9 : 512
-	unsigned int n : 10;
+	unsigned int k : 11;//8; //9 : 512
+	unsigned int n : 14;//12
 	unsigned int symbol_size : 10;//symbol_size >> 2
-	unsigned short fec_seq_no : 10;
-	unsigned short resv;
+	unsigned short fec_seq_no : 14;//12
+	//unsigned short resv;
 }FEC_HEADER;
 typedef struct {
     unsigned short st0; //client send packet time
@@ -122,16 +119,22 @@ typedef struct {
     unsigned short st1; //server send packet time
     unsigned short rt1; //client receive packet time
 }RTT_HEADER;
-typedef union{
+//typedef union
+typedef struct
+{
     int64_t time_stamp;
     RTT_HEADER rtt_list;
 }TIME_HEADER;
 typedef struct {
-    unsigned char lost_packet_rate : 7; //a% * 100
-    unsigned char is_lost_packet : 1;   //
-    unsigned char time_status : 1;      //0:time_stamp; 1:rtt_list
-    unsigned char rsv : 7;
-    short time_offset;
+    unsigned short enable_nack : 1;
+    unsigned short time_offset : 15;
+    unsigned char loss_rate : 7; //a% * 100
+    unsigned char is_lost_packet : 1;
+    unsigned char info_status : 1;   //0:self
+    //unsigned char time_status : 1;      //0:time_stamp; 1:rtt_list
+    unsigned char chanId : 7; //循环将各个接收端的丢包信息回馈给对端;
+    //unsigned short pkt_num : 11;
+    //unsigned short rsv : 5;//6b
     TIME_HEADER time_info;
 }NACK_HEADER;
 typedef struct {
@@ -161,6 +164,12 @@ typedef struct {
 	NACK_HEADER nack;
 } EXTEND_HEADER;
 
+typedef struct {
+	short rtp_extend_profile;       //profile used
+	short rtp_extend_length;        //扩展字段的长度，为4的整数倍；1表示4个字节
+	NACK_HEADER nack;
+	unsigned short seq_no;
+} AUDIO_EXTEND_HEADER;
 #endif
 
 typedef struct {
@@ -524,8 +533,8 @@ static char *get_extern_info(char *data)
 		int enable_fec = rtp_ext->enable_fec;
 		int refresh_idr = rtp_ext->refresh_idr;
 		int is_lost_packet = rtp_ext->nack.is_lost_packet;
-		int lost_packet_rate = rtp_ext->nack.lost_packet_rate;
-		int time_status = rtp_ext->nack.time_status;
+		int loss_rate = rtp_ext->nack.loss_rate;
+		//int time_status = rtp_ext->nack.time_status;
 		int time_offset = rtp_ext->nack.time_offset;
 		int seqnum = rtp_hdr->seq_no;
 
@@ -558,12 +567,12 @@ static char *get_extern_info(char *data)
 		key = "is_lost_packet";
 		ivalue = is_lost_packet;
 		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
-		key = "lost_packet_rate";
-		ivalue = lost_packet_rate;
+		key = "loss_rate";
+		ivalue = loss_rate;
 		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
-		key = "time_status";
-		ivalue = time_status;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		//key = "time_status";
+		//ivalue = time_status;
+		//pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
 		key = "time_offset";
 		ivalue = time_offset;
 		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
@@ -595,7 +604,7 @@ static char *get_audio_extern_info(char *data)
 {
     char *ret = NULL;
     RTP_FIXED_HEADER  *rtp_hdr = NULL;
-    EXTEND_HEADER *rtp_ext = NULL;
+    AUDIO_EXTEND_HEADER *rtp_ext = NULL;
     rtp_hdr = (RTP_FIXED_HEADER *)data;
     int isrtp = (rtp_hdr->version == 2 &&  //版本号，此版本固定为2								V
             rtp_hdr->padding	== 0 &&  //														P
@@ -604,10 +613,10 @@ static char *get_audio_extern_info(char *data)
             );
     if(isrtp && rtp_hdr->extension)
     {
-        rtp_ext = (EXTEND_HEADER *)&data[sizeof(RTP_FIXED_HEADER)];
+        rtp_ext = (AUDIO_EXTEND_HEADER *)&data[sizeof(RTP_FIXED_HEADER)];
 		int is_lost_packet = rtp_ext->nack.is_lost_packet;
-		int lost_packet_rate = rtp_ext->nack.lost_packet_rate;
-		int time_status = rtp_ext->nack.time_status;
+		int loss_rate = rtp_ext->nack.loss_rate;
+		//int time_status = rtp_ext->nack.time_status;
 		int time_offset = rtp_ext->nack.time_offset;
 		int seqnum = rtp_hdr->seq_no;
 
@@ -619,12 +628,12 @@ static char *get_audio_extern_info(char *data)
 		char *key = "is_lost_packet";
 		int ivalue = is_lost_packet;
 		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
-		key = "lost_packet_rate";
-		ivalue = lost_packet_rate;
+		key = "loss_rate";
+		ivalue = loss_rate;
 		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
-		key = "time_status";
-		ivalue = time_status;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		//key = "time_status";
+		//ivalue = time_status;
+		//pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
 		key = "time_offset";
 		ivalue = time_offset;
 		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
@@ -698,8 +707,8 @@ int api_renew_time_stamp(char *data)
         if(rtp_hdr->extension)
         {
             rtp_ext = (EXTEND_HEADER *)&data[sizeof(RTP_FIXED_HEADER)];
-            int time_status = rtp_ext->nack.time_status;
-		    if(time_status == 0)
+            //int time_status = rtp_ext->nack.time_status;
+		    //if(time_status == 0)
 		    {
 		        rtp_ext->nack.time_info.time_stamp = time_stamp;
 		    }
@@ -793,7 +802,6 @@ static int GetRtpInfo(uint8_t* dataPtr, int insize, RtpInfo *info)
     }
     if(isrtp)
     {
-
         int offset = sizeof(RTP_FIXED_HEADER);//1;
         info->seqnum = rtp_hdr->seq_no;
         info->ssrc = rtp_hdr->ssrc;
@@ -801,8 +809,14 @@ static int GetRtpInfo(uint8_t* dataPtr, int insize, RtpInfo *info)
         if(rtp_hdr->payload == AAC_PLT)
         {
            ret = 1;
+#if 0
+           AUDIO_EXTEND_HEADER *rtp_ext = (AUDIO_EXTEND_HEADER *)&dataPtr[info->raw_offset + sizeof(RTP_FIXED_HEADER)];
+           info->seqnum = rtp_ext->seq_no;
+#endif
+           //printf("GetRtpInfo: rtp_ext->seq_no= %d \n", rtp_ext->seq_no);
            return ret;
         }
+        //printf("GetRtpInfo: rtp_hdr->payload= %d \n", rtp_hdr->payload);
         if(insize < (sizeof(RTP_FIXED_HEADER) + sizeof(EXTEND_HEADER)))
         {
             return ret;
@@ -1160,7 +1174,7 @@ static int CheckPacket(uint8_t* dataPtr, int insize, unsigned int ssrc, float lo
     }
     return ret;
 }
-#define MAX_PKT_BUF_SIZE (1 << 13)
+#define MAX_PKT_BUF_SIZE (1 << 15)
 #define PKT_LOSS_INTERVAL 1000
 #define MAX_PKT_DELAY 500
 #define LEFT_SHIFT32 ((long long)1 << 32)
@@ -1261,7 +1275,7 @@ static void *GetPacketManager(unsigned int ssrc, RtpInfo *info)
     }
     return (void *)ret;
 }
-int CountLossRate(uint8_t* dataPtr, int insize)
+int CountLossRate(uint8_t* dataPtr, int insize, int freq)
 {
     int ret = -1;
     //printf("CountLossRate: insize=%d \n", insize);
@@ -1383,10 +1397,10 @@ int CountLossRate(uint8_t* dataPtr, int insize)
             RtpPacketInfo *info1 = &manager->info[I1];
             int64_t timestamp0 = info0->timestamp;
             int64_t timestamp1 = info1->timestamp;
-            int delay = (int)(timestamp1 - timestamp0) / 90;//90000Hz
+            int delay = (int)(timestamp1 - timestamp0) / freq;//90;//90000Hz
             if(timestamp0 > timestamp1)
             {
-                delay = (int)((timestamp1 + LEFT_SHIFT32 - timestamp0) / 90);
+                delay = (int)((timestamp1 + LEFT_SHIFT32 - timestamp0) / freq);//90);
             }
             //printf("CountLossRate: delay=%d \n", delay);
             //if(test_ssrc != ssrc)
@@ -1414,10 +1428,11 @@ int CountLossRate(uint8_t* dataPtr, int insize)
                     int this_seqnum = info->seqnum;
                     if(this_timestamp >= 0 && this_seqnum >= 0)
                     {
-                        delay = (int)(this_timestamp - timestamp0) / 90;//90000Hz
-                        if(timestamp0 > timestamp1)
+                        delay = (int)(this_timestamp - timestamp0) / freq;//90;//90000Hz
+                        //if(timestamp0 > timestamp1)//???
+                        if(timestamp0 > this_timestamp)
                         {
-                            delay = (int)((this_timestamp + LEFT_SHIFT32 - timestamp0) / 90);
+                            delay = (int)((this_timestamp + LEFT_SHIFT32 - timestamp0) / freq);//90);
                         }
                         if(delay >= PKT_LOSS_INTERVAL)
                         {
@@ -1488,11 +1503,11 @@ int api_check_packet(uint8_t* dataPtr, int insize, unsigned int ssrc, int lossRa
     return CheckPacket(dataPtr, insize, ssrc, lossRate);
 }
 HCSVC_API
-int api_count_loss_rate(uint8_t* dataPtr, int insize)
+int api_count_loss_rate(uint8_t* dataPtr, int insize, int freq)
 {
     //printf("api_count_loss_rate \n");
     CountLossRateInit();
-    return CountLossRate(dataPtr, insize);
+    return CountLossRate(dataPtr, insize, freq);
 }
 HCSVC_API
 int api_get_pkt_delay(char *dataPtr, int insize)

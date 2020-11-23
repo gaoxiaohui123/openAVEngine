@@ -15,12 +15,16 @@ else:
     except:
         pass
 
+import os
 import socket
 import threading
 import time
 import signal
 import json
+#from ctypes import *
+import ctypes
 from ctypes import *
+from ctypes import c_longlong as ll
 import random
 import numpy as np
 import errno
@@ -244,7 +248,7 @@ class RecvTaskManagerThread(threading.Thread):
             data = self.server.data_master.PopQueue()
             if data != None:
                 (revcData, remoteHost, remotePort, recv_time) = data
-                loss_rate = self.server.load.lib.api_count_loss_rate(revcData, len(revcData))
+                loss_rate = self.server.load.lib.api_count_loss_rate(revcData, len(revcData), 27)
                 if loss_rate >= 0:
                     print("Audio RecvTaskManagerThread: loss_rate= ", loss_rate)
                 #print("TaskManagerThread: recv_time= ", recv_time)
@@ -316,9 +320,10 @@ class SendTaskManagerThread(threading.Thread):
             #print("SendTaskManagerThread: PushQueue: ret= ", ret)
             outjson = str2json(self.outparam[0])
             if outjson != None:
-                time_status = outjson["time_status"]
+                #time_status = outjson["time_status"]
                 #print("SendTaskManagerThread: PushQueue: time_status= ", time_status)
-                if time_status == 0:
+                #if time_status == 0:
+                if True:
                     #self.ctime[0] = "0123456789012345"
                     itime = self.server.load.lib.api_get_time2(self.ll_handle, self.ctime)
                     c_time_ll = char2long(self.ctime[0])
@@ -358,8 +363,9 @@ class SendTaskManagerThread(threading.Thread):
             print("send_ack: ret= ", ret)
             outjson = str2json(self.outparam[0])
             if outjson != None:
-                time_status = outjson["time_status"]
-                if time_status == 0:
+                #time_status = outjson["time_status"]
+                #if time_status == 0:
+                if True:
                     seqnum = outjson["seqnum"]
                     packet_time_stamp = char2long(outjson["packet_time_stamp"])
                     self.outparam[1] = b"api_get_time_stamp2"
@@ -445,12 +451,27 @@ class SendTaskManagerThread(threading.Thread):
     def resume(self):
         self.__flag.set()  # 设置为True, 让线程停止阻塞
 
+class LoadLib(object):
+    def __init__(self):
+        ll = ctypes.cdll.LoadLibrary
+        thispath = os.path.abspath('./udpserver.py')
+        print("thispath= ", thispath)
+        try:
+            self.lib = ll("./librtpserver.so")
+        # except IOError, error: #python2
+        except IOError as error:  # python3
+            print("LoadLib: error=", error)
+            self.lib = ll("../librtpserver.so")
+
 class EchoServerThread(threading.Thread):
     def __init__(self, actor, host, port):
         threading.Thread.__init__(self)
         ###
-        import loadlib
-        self.load = loadlib.gload
+        if False:
+            import loadlib
+            self.load = loadlib.gload
+        else:
+            self.load = LoadLib()
 
         array_type = c_char_p * 4
         self.outparam = array_type()
@@ -482,7 +503,8 @@ class EchoServerThread(threading.Thread):
         self.host = host
         self.port = port
         #self.status = True
-        self.lost_packet_rate = 0 #0.1 #10%
+        self.loss_rate = 0 #0.1 #10%
+        self.net_start_time = 0
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_SNDBUF, SO_SNDBUF)
         self.sock.setsockopt(socket.SOL_SOCKET, socket.SO_RCVBUF, SO_RCVBUF)
@@ -517,7 +539,7 @@ class EchoServerThread(threading.Thread):
         index = np.random.choice(a=a, size=1, replace=True, p=p)
         if 0 in index:
             ret = False
-            print("####################################################rand_lost_packet: ret= ", ret)
+            #print("####################################################rand_lost_packet: ret= ", ret)
         #print("rand_lost_packet: index= ", index)
         difftime = time.time() - start_time
         #print('{} rand_lost_packet: time: {:.3f}ms'.format(time.ctime(), difftime * 1000))
@@ -551,6 +573,8 @@ class EchoServerThread(threading.Thread):
                 print("save_info: not json", SERVER_TYPE)
         return ret
     def run(self):
+        time_factor = 10
+        time_step = 10  # s
         while self.__running.isSet():
             self.__flag.wait()   # 为True时立即返回, 为False时阻塞直到内部的标识位为True后返回
             recvData = None
@@ -597,7 +621,21 @@ class EchoServerThread(threading.Thread):
                 #random.randint(1, 10)  # 产生 1 到 10 的一个整数型随机数
                 #random.shuffle(a)
                 flag = True
-                flag = self.rand_lost_packet(self.lost_packet_rate)
+                now_time = time.time()
+                if self.net_start_time == 0:
+                    self.net_start_time = now_time
+                else:
+                    net_diff_time = int((now_time - self.net_start_time))
+                    if (net_diff_time / time_factor) == 1 and True:
+                        print("EchoServerThread: self.loss_rate= ", self.loss_rate)
+                        time_factor += time_step
+                        self.loss_rate += 0.05
+                        if self.loss_rate > 0.8:
+                            self.loss_rate = 0.8
+                    elif False:
+                        self.loss_rate = 0.3#0.2 #0.1 #0.05
+                        pass
+                flag = self.rand_lost_packet(self.loss_rate)
                 if flag:# or (ret == 0):
                     self.data_master.PushQueue(recvData, remoteHost, remotePort, c_time_ll)
             #print("[%s:%s] connect" % (remoteHost, remotePort))  # 接收客户端的ip, port

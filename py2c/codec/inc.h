@@ -78,16 +78,18 @@ EXTERNC {
 #define	VIDIORASHEADSIZE	4
 #define RECV_BUF_NUM  1000
 #define MAX_PACKET_SIZE  1500
-//#define MAX_RTP_NUM         128
 
-#define MAX_PKT_NUM 1024
+
+#define MAX_PKT_NUM (1 << 10) //1024//2048 //1024
+#define MAX_FEC_PKT_NUM (1 << 14)
 
 #define INBUF_SIZE 4096
 #define AUDIO_INBUF_SIZE 20480
 #define AUDIO_REFILL_THRESH 4096
 
-#define MAX_OBJ_NUM  20//100
-#define MAX_OUTCHAR_SIZE (5 * MAX_PKT_NUM)
+#define MAX_OUTCHAR_SIZE (128 * MAX_FEC_PKT_NUM)
+//#define MAX_OUTCHAR_SIZE (128 * 1024)
+
 #define MAX_SPS_SIZE MAX_PACKET_SIZE //128//64
 #define TIME_OUTCHAR_SIZE 16
 
@@ -133,6 +135,7 @@ typedef struct {
     uint16_t refresh_idr;
     uint16_t enable_fec;
     char *buf;
+    FILE *fp;
     NALU_t *nal;//[MAX_RTP_NUM];
 }SVCNalu;
 
@@ -154,7 +157,9 @@ typedef struct
     short *rtpSize;
     SVCNalu svc_nalu;
     uint8_t **recv_buf;
+    int64_t net_time_stamp;
     //uint8_t **send_buf;
+    int min_packet2;//用于网络信息获取
     int min_packet;
     int max_packet;
     int cut_flag;
@@ -178,7 +183,11 @@ typedef struct
     cJSON *json;
     char *param;
     uint8_t **recv_buf;
+    int64_t net_time_stamp;
     //uint8_t **send_buf;
+    int64_t netIdx;
+    int min_packet2;//用于网络信息获取
+    int max_packet2;//用于网络信息获取
     int min_packet;
     int max_packet;
     int buf_size;

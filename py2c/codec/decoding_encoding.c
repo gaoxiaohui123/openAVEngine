@@ -1676,7 +1676,36 @@ int osd_process(char *handle, char *outbuf, int y)
             sprintf(&context[strlen(context)], "  %d", obj->width);
             sprintf(&context[strlen(context)], "   %d", obj->height);
             sprintf(&context[strlen(context)], "   %2d", framerate);
-            sprintf(&context[strlen(context)], "   %6d", obj->bits_rate);
+            if(y == 2)
+            {
+                int up_bitrate = GetvalueInt(obj->json, "up_bitrate");
+                //printf("osd_process: up_bitrate= %d \n", up_bitrate);
+                if(up_bitrate > 0)
+                {
+                    sprintf(&context[strlen(context)], "   %6d", up_bitrate);
+                }
+                else{
+                    sprintf(&context[strlen(context)], "   %6d", obj->bits_rate);
+                }
+                int loop_loss_rate = GetvalueInt(obj->json, "loop_loss_rate");
+                //printf("osd_process: loop_loss_rate= %d \n", loop_loss_rate);
+                if(loop_loss_rate > 0)
+                {
+                    loop_loss_rate -= 1;
+                    sprintf(&context[strlen(context)], "   %2d", loop_loss_rate);
+                }
+            }
+            else{
+                int down_bitrate = GetvalueInt(obj->json, "down_bitrate");
+                if(down_bitrate > 0)
+                {
+                    sprintf(&context[strlen(context)], "   %6d", down_bitrate);
+                }
+                else{
+                    sprintf(&context[strlen(context)], "   %6d", obj->bits_rate);
+                }
+            }
+
             obj->json = api_renew_json_str(obj->json, "context", context);
             //printf("osd_process: context= %s \n", context);
             //printf("osd_process: obj->json= %x \n", obj->json);
@@ -1690,7 +1719,7 @@ int osd_process(char *handle, char *outbuf, int y)
             //printf("osd_process: ret= %d \n", ret);
       }
 	}
-
+    //printf("osd_process: end \n");
 	obj->frame_num++;
 	return ret;
 }
@@ -1783,9 +1812,6 @@ int api_video_encode_one_frame(char *handle, char *data, char *param, char *outb
         long long *testp = (long long *)handle;
         CodecObj *obj = (CodecObj *)testp[0];
 
-
-        //encode_open2(id, param);
-
         //printf("obj->Obj_id %5d (obj->c=%5d)\n", obj->Obj_id, obj->c);
         //if (obj->Obj_id == id && obj->c != NULL)
         if (obj->c != NULL)
@@ -1798,20 +1824,20 @@ int api_video_encode_one_frame(char *handle, char *data, char *param, char *outb
 		    //printf("api_video_encode_one_frame: now= %s \n", cTime);
 		    get_time_stamp();//test
             //
-            json = mystr2json(param);
-            obj->param = (void *)json;
-            int adapt_cpu = GetvalueInt(json, "adapt_cpu");
+            obj->json = mystr2json(param);
+            //obj->param = (void *)json;
+            int adapt_cpu = GetvalueInt(obj->json, "adapt_cpu");
             if(adapt_cpu)
             {
-                int skip_frame = adapt_by_cpu(json);
+                int skip_frame = adapt_by_cpu(obj->json);
                 if(skip_frame)
                 {
                     return ret;
                 }
             }
-            int frame_idx = GetvalueInt(json, "frame_idx");
-            int bit_rate = GetvalueInt(json, "bit_rate");
-            int refs = GetvalueInt(json, "refs");
+            int frame_idx = GetvalueInt(obj->json, "frame_idx");
+            int bit_rate = GetvalueInt(obj->json, "bit_rate");
+            int refs = GetvalueInt(obj->json, "refs");
             //printf("api_video_encode_one_frame: bit_rate= %d \n", bit_rate);
             if(bit_rate > 0)
             {
@@ -1824,7 +1850,10 @@ int api_video_encode_one_frame(char *handle, char *data, char *param, char *outb
             obj->width = obj->frame->width;
             obj->height = obj->frame->height;
             //printf("api_video_encode_one_frame: obj->width=%d, obj->height=%d \n", obj->width, obj->height);
-            osd_process(handle, data, 2);
+            if(obj->osd_enable)
+            {
+                osd_process(handle, data, 2);
+            }
             //
             av_init_packet(&pkt);
             obj->frame->pts = frame_idx;//obj->frame_idx;
@@ -1851,7 +1880,7 @@ int api_video_encode_one_frame(char *handle, char *data, char *param, char *outb
 
             //
             AVCodecContext *c = obj->c;
-            int pict_type = GetvalueInt(json, "pict_type");
+            int pict_type = GetvalueInt(obj->json, "pict_type");
             if(!pict_type)
             {
                 obj->frame->pict_type = AV_PICTURE_TYPE_NONE;
@@ -1873,6 +1902,7 @@ int api_video_encode_one_frame(char *handle, char *data, char *param, char *outb
 
             }
             memset(c->nal_size, 0, MAX_PKT_NUM * sizeof(int));
+            //memset(c->nal_size, 0, 1024 * sizeof(int));
             got_output = video_encode_frame((void *)obj, (AVPacket *)&pkt);//(obj->c, (AVPacket *)&pkt, (AVFrame *)&obj->frame);
             //printf("got_output %d \n", got_output);
             if(global_logfp)
@@ -1886,10 +1916,10 @@ int api_video_encode_one_frame(char *handle, char *data, char *param, char *outb
                 {
                     fprintf(global_logfp,"api_video_encode_one_frame: outparam= %x \n", outparam);
                     fprintf(global_logfp,"api_video_encode_one_frame: outparam[0]= %x \n", outparam[0]);
-                    fprintf(global_logfp,"api_video_encode_one_frame: json= %x \n", json);
+                    fprintf(global_logfp,"api_video_encode_one_frame: obj->json= %x \n", obj->json);
                     fflush(global_logfp);
                 }
-                int sdp = GetvalueInt(json, "sdp");
+                int sdp = GetvalueInt(obj->json, "sdp");
                 if(global_logfp)
                 {
                     fprintf(global_logfp,"api_video_encode_one_frame: sdp= %d \n", sdp);
@@ -1972,7 +2002,7 @@ int api_video_encode_one_frame(char *handle, char *data, char *param, char *outb
 	                    }
                         strcat(text, ctmp);
                         i++;
-                        if(i >= 1024)
+                        if(i >= MAX_PKT_NUM)
                         {
                             if(global_logfp)
                             {
@@ -1999,8 +2029,8 @@ int api_video_encode_one_frame(char *handle, char *data, char *param, char *outb
 
             av_free_packet(&pkt);
             obj->frame_idx += 1;
-            deleteJson(obj->param);
-            obj->param = NULL;
+            deleteJson(obj->json);
+            obj->json = NULL;
         }
     }
     if(global_logfp)
@@ -2767,7 +2797,10 @@ int api_video_decode_one_frame(char *handle, char *data, char *param, char *outb
             obj->width = obj->frame->width;
             obj->height = obj->frame->height;
             //printf("api_video_decode_one_frame: obj->width=%d, obj->height=%d \n", obj->width, obj->height);
-            osd_process(handle, outbuf, 1);
+            if(obj->osd_enable)
+            {
+                osd_process(handle, outbuf, 1);
+            }
             obj->sum_bits += (insize << 3);
             if ((obj->pkt.flags & AV_PKT_FLAG_KEY) || (obj->frame->pict_type == AV_PICTURE_TYPE_I) || (obj->frame->key_frame & AV_PKT_FLAG_KEY))
 			{

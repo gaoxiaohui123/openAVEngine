@@ -30,7 +30,7 @@ from udpaudioclient import EncoderClient as audioenc
 from udpaudioclient import PlayThread as player
 
 MAX_CHANID = 0x10000 #8#1#0x10000
-LOSS_RATE = 0.2#0.4 #0.2  # 0.8 #0.6 #0.2
+LOSS_RATE = 0.05 #0.2#0.4 #0.2  # 0.8 #0.6 #0.2
 EXCHANGE = 0# 1#0#1
 SHOW_WIDTH = loadlib.WIDTH
 SHOW_HEIGHT = loadlib.HEIGHT
@@ -74,7 +74,10 @@ class AVSession(threading.Thread):
         self.audio_thread_list = []
         ###
         #self.deviceList = []
-        self.upList = []
+        self.speakList = [] #记录共享者的ID号
+        self.upChanList = []
+        self.upAudioChanList = []
+        self.clientList = []
         self.init_params()
         #self.init_video()#注意：不能在主线程中创建SDL，否则退出后重启崩溃
         self.init_audio()
@@ -93,18 +96,37 @@ class AVSession(threading.Thread):
             del self.video_thread_show
         if self.audio_thread_show != None:
             del self.audio_thread_show
-        for thisobj in self.video_thread_list:
-            del thisobj
-        del self.video_thread_list
-        for thisobj in self.audio_thread_list:
-            del thisobj
-        del self.audio_thread_list
-        for thisobj in self.upList:
-            del thisobj
-        del self.upList
-        for thisobj in self.rectList:
-            del thisobj
-        del self.rectList
+
+        n = len(self.video_thread_list)
+        if n > 0:
+            for i in range(n):
+                del self.video_thread_list[0]
+            del self.video_thread_list
+
+        n = len(self.audio_thread_list)
+        if n > 0:
+            for i in range(n):
+                del self.audio_thread_list[0]
+            del self.audio_thread_list
+
+        n = len(self.clientList)
+        if n > 0:
+            for i in range(n):
+                del self.clientList[0]
+            del self.clientList
+
+        n = len(self.rectList)
+        if n > 0:
+            for i in range(n):
+                del self.rectList[0]
+            del self.rectList
+
+        n = len(self.upChanList)
+        if n > 0:
+            for i in range(n):
+                del self.upChanList[0]
+            del self.upChanList
+
         if self.conferenceInfo != None:
             del self.conferenceInfo
         if self.multdevice != None:
@@ -124,7 +146,8 @@ class AVSession(threading.Thread):
                     chanId = thisRect["chanId"]
                     deviceId = thisRect["deviceId"]
                     devicePos = thisRect["pos"]
-                    self.upList.append((chanId, deviceId, devicePos))
+                    self.speakList.append(chanId)
+                    self.clientList.append((chanId, deviceId, devicePos))
                     self.rectList.append(devicePos)
                     if deviceId >= 0:
                         deviceDict = self.multdevice[str(deviceId)]
@@ -137,17 +160,18 @@ class AVSession(threading.Thread):
                                     swidth = sresolution.split("x")[0]
                                     sheight = sresolution.split("x")[1]
                                     (self.width, self.height) = (int(swidth), int(sheight))
+
         elif self.control != None:
             mode = self.control["mode"]
             rect = self.control["rect"]
             if mode != None and rect != None:
                 # self.deviceNum = len(rect)
-                #self.upList = []
+                #self.clientList = []
                 for thisRect in rect:
                     chanId = thisRect["chanId"]
                     deviceId = thisRect["deviceId"]
                     devicePos = thisRect["pos"]
-                    self.upList.append((chanId, deviceId, devicePos))
+                    self.clientList.append((chanId, deviceId, devicePos))
                     self.rectList.append(devicePos)
                     if deviceId >= 0:
                         deviceDict = self.multdevice[str(deviceId)]
@@ -188,6 +212,13 @@ class AVSession(threading.Thread):
         self.audio_thread_show = player(2)
         self.audio_thread_show.start()
         return
+    def reset_pos(self, rectList):
+        if self.video_thread_show != None:
+            self.rectList = rectList
+            self.video_thread_show.SetRects(self.rectList)
+    def AddSpeakerId(self, thisObj):
+        for thisChanId in self.speakList:
+            thisObj.AddSpeakerId(thisChanId)
     def create_clients(self):
         self.init_video()
         #self.init_audio()#音频必须在主线程中启动，否则会崩溃
@@ -195,21 +226,27 @@ class AVSession(threading.Thread):
         #无导播合成多屏
         #导播合成多屏
         #导播多流
-        if len(self.upList) > 0 and (self.multdevice != None): #len(self.deviceList) > 0: #导播多流
-            for thisUp in self.upList:
-                chanId = thisUp[0]
-                deviceId = int(thisUp[1])
-                devicePos = thisUp[2]
+        if len(self.clientList) > 0 and (self.multdevice != None): #len(self.deviceList) > 0: #导播多流
+            #先建立编码通道
+            for thisClient in self.clientList:
+                chanId = thisClient[0]
+                deviceId = int(thisClient[1])
+                devicePos = thisClient[2]
                 if deviceId >= 0:
-                    deviceDict = self.multdevice[str(deviceId)] #self.deviceList[deviceId]
+                    deviceDict = self.multdevice[str(deviceId)]  # self.deviceList[deviceId]
                     print("create_clients: deviceDict= ", deviceDict)
-                    ###test
-                    if False:
-                        self.create_down_video((MAX_CHANID + chanId), devicePos)
-                        self.create_down_audio((MAX_CHANID + chanId), devicePos)
-                    ###
-                    self.create_up_video(chanId, devicePos, deviceDict)
-                    self.create_up_audio(chanId, devicePos, deviceDict)
+                    video_thread = self.create_up_video(chanId, devicePos, deviceDict)
+                    self.upChanList.append(video_thread)
+                    audio_thread = self.create_up_audio(chanId, devicePos, deviceDict)
+                    self.upAudioChanList.append(audio_thread)
+
+            # 再建立解码通道
+            for thisClient in self.clientList:
+                chanId = thisClient[0]
+                deviceId = int(thisClient[1])
+                devicePos = thisClient[2]
+                if deviceId >= 0:
+                    pass
                 else:
                     self.create_down_video(chanId, devicePos)
                     self.create_down_audio(chanId, devicePos)
@@ -229,7 +266,9 @@ class AVSession(threading.Thread):
         ###video
         (bitrate, mtu_size, fec_level, buffer_shift) = self.GetParams(refs, self.width, self.height)
         video_thread = videoenc(id, sessionId, actor, host, port)
+        self.AddSpeakerId(video_thread)
         ###
+        devicetype = 4
         osd_enable = sup["osd"]
         fecenable = 1
         if deviceDict != None:
@@ -250,7 +289,12 @@ class AVSession(threading.Thread):
                     print("create_up_video: ibitrate= ", ibitrate)
                 scapture = thisDevice["capture"]["name"]
                 print("create_up_video: scapture= ", scapture)
-                if "video" in scapture:
+                if scapture in ["YUV"]:
+                    yuvfilename = thisDevice["yuvfilename"]
+                    if yuvfilename != None:
+                        video_thread.yuvfilename = yuvfilename
+                        devicetype = -1
+                elif "video" in scapture:
                     video_thread.input_name = "v4l2"
                     video_thread.device_name = "/dev/" + str(scapture.split(":")[0])
                     video_thread.input_format = str(scapture.split(":")[1])
@@ -281,19 +325,19 @@ class AVSession(threading.Thread):
         video_thread.encode0.refs = refs  # 16
         video_thread.fec_level = fec_level  # 1#0#2#0#1#2#3#0#4 #3 #2#0
         video_thread.encode0.enable_fec = fecenable
-        video_thread.encode0.lost_rate = LOSS_RATE  # 0.2 #0.3
-        video_thread.encode0.code_rate = (1 - video_thread.encode0.lost_rate)
+        video_thread.encode0.loss_rate = LOSS_RATE  # 0.2 #0.3
+        video_thread.encode0.code_rate = (1 - video_thread.encode0.loss_rate)
         bitrate = int(video_thread.encode0.code_rate * bitrate)
         video_thread.encode0.bit_rate = bitrate
         video_thread.encode0.mtu_size = mtu_size
         video_thread.encode0.setparam()
-        video_thread.opendevice(4)
+        video_thread.opendevice(devicetype)
         video_thread.opencodec()
         video_thread.show = self.video_thread_show
         self.video_thread_show.InsertId(video_thread.id)
         video_thread.start()
         self.video_thread_list.append(video_thread)
-
+        return video_thread
     def create_up_audio(self, chanId, devicePos, deviceDict):
         (id, sessionId, actor) = (chanId, 100, 1)
         conf = self.conferenceInfo
@@ -309,6 +353,7 @@ class AVSession(threading.Thread):
         bitrate = int(deviceDict["audios"]["bitrate"]["name"])
         port = port + 1
         audio_thread = audioenc(id, sessionId, actor, host, port)
+        self.AddSpeakerId(audio_thread)
         ###
         if deviceDict != None:
             thisDevice = deviceDict["audios"]
@@ -343,7 +388,7 @@ class AVSession(threading.Thread):
         self.audio_thread_show.InsertId(audio_thread.id)
         audio_thread.start()
         self.audio_thread_list.append(audio_thread)
-
+        return audio_thread
     def create_down_video(self, chanId, devicePos):
         (id, sessionId, actor) = (chanId, 100, 2)
         conf = self.conferenceInfo
@@ -358,12 +403,17 @@ class AVSession(threading.Thread):
 
         (bitrate, mtu_size, fec_level, buffer_shift) = self.GetParams(refs, self.width, self.height)
         video_thread = vidodec(id, sessionId, actor, host, port)
+        self.AddSpeakerId(video_thread)
         ###video
         (video_thread.decode0.width, video_thread.decode0.height) = (self.width, self.height)
         video_thread.decode0.min_distance = 2
         video_thread.decode0.delay_time = 100
         video_thread.decode0.buf_size = (1 << buffer_shift)  # 1024#必须是2的指数
         video_thread.decode0.mtu_size = mtu_size
+        ###
+        for thisThread in self.upChanList:
+            video_thread.add_client(thisThread)
+        ###
         video_thread.opencodec()
         video_thread.show = self.video_thread_show
         self.video_thread_show.InsertId(video_thread.id)
@@ -381,13 +431,18 @@ class AVSession(threading.Thread):
         host = serverAddr.split(":")[0]
         port = int(serverAddr.split(":")[1])
         ###audio
-        (bitrate, mtu_size, buffer_shift) = (24000, 300, 10)
+        (bitrate, mtu_size, buffer_shift) = (24000, 300, 11)
         port = port + 1
         audio_thread = audiodec(id, sessionId, actor, host, port)
+        self.AddSpeakerId(audio_thread)
         audio_thread.decode0.min_distance = 2
         audio_thread.decode0.delay_time = 100
         audio_thread.decode0.buf_size = (1 << buffer_shift)  # 1024#必须是2的指数
         audio_thread.decode0.mtu_size = mtu_size
+        ###
+        for thisThread in self.upAudioChanList:
+            audio_thread.add_client(thisThread)
+        ###
         #audio_thread.opencodec()
         audio_thread.show = self.audio_thread_show
         self.audio_thread_show.InsertId(audio_thread.id)
@@ -468,30 +523,30 @@ class AVSession(threading.Thread):
             fec_level = 2
             if refs <= 2:
                 fec_level = 0
-            ret = (512 * 1024, 400, fec_level, 9)
+            ret = (512 * 1024, 400, fec_level, 11)
         elif (w * h) <= 640 * 480:
             fec_level = 3
             if refs <= 2:
                 fec_level = 0
-            ret = (800 * 1024, 600, fec_level, 10)
+            ret = (800 * 1024, 600, fec_level, 12)
         elif (w * h) <= 704 * 576:
             fec_level = 3
             if refs <= 2:
                 fec_level = 0
-            ret = (1200 * 1024, 600, fec_level, 10)
+            ret = (1200 * 1024, 600, fec_level, 13)
         elif (w * h) <= 1280 * 720:
             fec_level = 1
             if refs <= 2:
                 fec_level = 0
-            ret = (int(2.0 * 1024 * 1024), 800, fec_level, 11)
+            ret = (int(2.0 * 1024 * 1024), 800, fec_level, 14)
         elif (w * h) <= 1920 * 1080:
             fec_level = 1
             if refs <= 2:
                 fec_level = 0
-            ret = (3.0 * 1024 * 1024, 1100, fec_level, 12)
+            ret = (3.0 * 1024 * 1024, 1100, fec_level, 15)
         else:
             fec_level = 0
-            ret = (6 * 1024 * 1024, 1400, fec_level, 13)
+            ret = (6 * 1024 * 1024, 1400, fec_level, 16)
         return ret
 
 if __name__ == "__main__":

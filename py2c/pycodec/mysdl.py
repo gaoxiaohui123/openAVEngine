@@ -11,6 +11,8 @@ import threading
 import time
 from capture import VideoCapture
 
+DISTILL_LIST = [0, 1]
+
 def json2str(jsonobj):
     if sys.version_info >= (3, 0):
         json_str = json.dumps(jsonobj, ensure_ascii=False, sort_keys=False).encode('utf-8')
@@ -86,6 +88,12 @@ class MySDL(threading.Thread):
         del self.load
         del self.lock
         gc.collect()
+    def reset(self):
+        self.showlist = []
+        self.showmap = {}
+        self.layerlist = []
+        self.shownum = 0
+        self.stacklist = []
     def init(self):
         self.param = {}
         self.param.update({"name": "decode"})
@@ -198,7 +206,7 @@ class MySDL(threading.Thread):
         if self.handle == 0:
             return False
         # self.load.lib.api_sdl_clear(self.handle)
-        self.param = {}
+        ##self.param = {}
         self.param.update({"rect_x": rect[0]})
         self.param.update({"rect_y": rect[1]})
         self.param.update({"rect_w": rect[2]})
@@ -254,7 +262,20 @@ class MySDL(threading.Thread):
             self.shownum += 1
         self.lock.release()
         return True
-
+    def clean_screen(self,data, rect, show_flag):
+        #self.param = {}
+        self.param.update({"rect_x": rect[0]})
+        self.param.update({"rect_y": rect[1]})
+        self.param.update({"rect_w": rect[2]})
+        self.param.update({"rect_h": rect[3]})
+        # show_flag = 0 #注意：不合理的渲染，会导致“倒帧”；
+        self.param.update({"show_flag": show_flag})
+        self.param.update({"osd": 0})
+        param_str = json2str(self.param)
+        self.lock.acquire()
+        self.load.lib.api_split_screen(self.handle, data, param_str, self.width)
+        self.param.update({"osd": self.osd})
+        self.lock.release()
     def sdl_refresh2(self, data, rect, show_flag):
         if self.handle == 0:
             return False
@@ -325,6 +346,13 @@ class ReadFrame(threading.Thread):
         self.denoise = 2
         self.devicetype = 3#2#1
         self.select_device = -1
+        self.yuvfilename = ""
+        self.width = 0
+        self.height = 0
+        self.frame_rate = 25
+        self.frame_size = int((self.width * self.height * 3) / 2)
+        self.imglist = []
+        self.img_num = 0
         self.sdl = None
         self.cap = None
     def __del__(self):
@@ -333,44 +361,69 @@ class ReadFrame(threading.Thread):
             del self.sdl
         if self.cap != None:
             del self.cap
+        if len(self.imglist) > 0:
+            for i in range(len(self.imglist)):
+                del self.imglist[0]
+            del self.imglist
         del self.load
         gc.collect()
     def init(self, screen_width, screen_height, cap_width, cap_height):
         self.sdl = MySDL(self.id, screen_width, screen_height)
         (self.sdl.width, self.sdl.height) = (cap_width, cap_height)
+        (self.width, self.height) = (cap_width, cap_height)
+        self.frame_size = int((self.width * self.height * 3) / 2)
         self.sdl.init()
-        self.cap = VideoCapture()
+
         # self.cap.input_name = "x11grab"
         # self.cap.device_name = ":0.0"
+        if self.devicetype > 0:
+            self.cap = VideoCapture()
+            if self.devicetype == 1:
+                self.cap.input_name = "v4l2"
+                self.cap.device_name = "/dev/video0"
+                self.cap.input_format = "mjpeg"
+                self.cap.select_device = self.select_device
+            elif self.devicetype == 2:
+                self.cap.input_name = "v4l2"
+                self.cap.device_name = "/dev/video0"
+                self.cap.input_format = "raw"
+                self.cap.select_device = self.select_device
+            elif self.devicetype == 3:
+                self.cap.input_name = "x11grab"
+                self.cap.device_name = ":0.0"
+                self.cap.input_format = "raw"
+                self.cap.select_device = self.select_device
+            else:
+                self.cap.input_name = self.input_name
+                self.cap.device_name = self.device_name
+                self.cap.input_format = self.input_format
+                self.cap.denoise = self.denoise
+                self.cap.select_device = -1
+            self.cap.framerate = 0  # 15#25#0
 
-        if self.devicetype == 1:
-            self.cap.input_name = "v4l2"
-            self.cap.device_name = "/dev/video0"
-            self.cap.input_format = "mjpeg"
-            self.cap.select_device = self.select_device
-        elif self.devicetype == 2:
-            self.cap.input_name = "v4l2"
-            self.cap.device_name = "/dev/video0"
-            self.cap.input_format = "raw"
-            self.cap.select_device = self.select_device
-        elif self.devicetype == 3:
-            self.cap.input_name = "x11grab"
-            self.cap.device_name = ":0.0"
-            self.cap.input_format = "raw"
-            self.cap.select_device = self.select_device
-        else:
-            self.cap.input_name = self.input_name
-            self.cap.device_name = self.device_name
-            self.cap.input_format = self.input_format
-            self.cap.denoise = self.denoise
-            self.cap.select_device = -1
-        self.cap.framerate = 0  # 15#25#0
-
-        (self.cap.cap_width, self.cap.cap_height) = (cap_width, cap_height)
-        (self.cap.width, self.cap.height) = (cap_width, cap_height)
-        self.cap.init()
-        self.cap.setDaemon(True)
-        self.cap.start()
+            (self.cap.cap_width, self.cap.cap_height) = (cap_width, cap_height)
+            (self.cap.width, self.cap.height) = (cap_width, cap_height)
+            self.cap.init()
+            self.cap.setDaemon(True)
+            self.cap.start()
+        if self.cap == None:  # or self.capture.status == False:
+            filename1 = loadlib.yuvfilename
+            if self.yuvfilename != "":
+                filename1 = self.yuvfilename
+            print("filename1= ", filename1)
+            self.fp = open(filename1, 'rb')
+            #
+            i = 0
+            if self.fp:
+                while True:
+                    data = self.fp.read(self.frame_size)
+                    if len(data) == self.frame_size:
+                        if (i & 1) in DISTILL_LIST:
+                            self.imglist.append(data)
+                            self.img_num += 1
+                        i += 1
+                    else:
+                        break
         # time.sleep(1)
         self.sdl.setDaemon(True)
         self.sdl.start()
@@ -410,80 +463,88 @@ class ReadFrame(threading.Thread):
 
     def run(self):
         print("ReadFrame: run 0")
+        interval = 1000.0 / float(self.frame_rate)
+        start_time = 0
+        renew_interval = 2000
         frame_idx = 0
         misscnt = 0
         while self.__running.isSet():
             self.__flag.wait()  # 为True时立即返回, 为False时阻塞直到内部的标识位为True后返回
-            if True:
+            now_time = time.time()
+            if start_time == 0:
+                start_time = now_time
+            ret = 0
+            if self.cap != None:
                 data = self.cap.ReadFrame()
                 ret = len(data)
-                #print("ReadFrame: cach miss: ret= ", ret)
-                if ret > 0:
-                    misscnt = 0
-                    #print("ReadFrame: ret= ", ret)
-                    if frame_idx % 2 in [0 ,1]:
-                        rect = (0, 0, self.cap.width, self.cap.height)
-                    else:
-                        rect = (0, 0, self.cap.width >> 1, self.cap.height >> 1)
-                    ret = self.sdl.sdl_refresh(data, rect, 1)
-                    if not ret:
-                        print("ReadFrame: cach miss :(ret, misscnt)= ", (ret, misscnt))
-                        misscnt += 1
-                        #self.load.lib.api_capture_close(self.handle)
-                        self.cap.stop()
-                        self.stop()
-                        break
-                    frame_idx += 1
-                    #time.sleep(0.04)
-                    #time.sleep(0.1)
-                    continue
+            elif self.img_num:
+                img_idx = frame_idx % self.img_num
+                img_floor = int(frame_idx / self.img_num)
+                if (img_floor & 1) == 1:
+                    img_idx = self.img_num - 1 - img_idx
+                data = self.imglist[img_idx]
+                ret = len(data)
+            #print("ReadFrame: cach miss: ret= ", ret)
+            if ret > 0:
+                misscnt = 0
+                # print("ReadFrame: ret= ", ret)
+                if frame_idx % 2 in [0, 1]:
+                    rect = (0, 0, self.width, self.height)
                 else:
-                    #print("ReadFrame: cach miss :misscnt= ", misscnt)
+                    rect = (0, 0, self.width >> 1, self.height >> 1)
+                ret = self.sdl.sdl_refresh(data, rect, 1)
+                if not ret:
+                    print("ReadFrame: cach miss :(ret, misscnt)= ", (ret, misscnt))
+                    misscnt += 1
+                    # self.load.lib.api_capture_close(self.handle)
+                    self.cap.stop()
+                    self.stop()
+                    break
+
+                # time.sleep(0.04)
+                # time.sleep(0.1)
+                # continue
+            else:
+                # print("ReadFrame: cach miss :misscnt= ", misscnt)
+                if self.cap != None:
                     if self.cap.status == False or self.sdl.status == False:
                         print("ReadFrame: stop")
                         self.stop()
                         break
-                    misscnt += 1
-                    #print("ReadFrame: run stop")
-                    #self.load.lib.api_capture_close(self.handle)
-                    #self.cap.stop()
-                    #self.stop()
-                    #break
-                    time.sleep(0.01)
-                    continue
-            ###
-            with open(self.yuvfilename, 'rb') as fp:
-                while (self.sdl.sdl_status() == 0):
-                    data = fp.read(self.frame_size)
-                    print("ReadFrame: run len(data)= ", len(data))
-                    if len(data) > 0:
-                        rect = (0, 0, loadlib.WIDTH >> 1, loadlib.HEIGHT >> 1)
-                        #self.sdl.sdl_refresh_0(data, rect, 1)
-                        # rect = (loadlib.WIDTH >> 1, loadlib.HEIGHT >> 1, loadlib.WIDTH, loadlib.HEIGHT)
-                        self.sdl.sdl_refresh(data, rect, 1)
-                        #self.sdl.sdl_test(data, loadlib.WIDTH, loadlib.HEIGHT, 1000)
-                        #time.sleep(1)
-                    else:
-                        fp.seek(0, os.SEEK_SET)
-                        # self.sdl.sdl_stop()
-                        break
-                    time.sleep(0.04)
-                    #time.sleep(0.001)
-                    print("ReadFrame: frame_idx= ", frame_idx)
-                    if frame_idx > 10:
-                        #self.sdl.sdl_stop()
-                        break
-                    frame_idx += 1
-            print("ReadFrame: run exit")
-            self.stop()
+                misscnt += 1
+                # print("ReadFrame: run stop")
+                # self.load.lib.api_capture_close(self.handle)
+                # self.cap.stop()
+                # self.stop()
+                # break
+                time.sleep(0.01)
+            now_time = time.time()
+
+            difftime = (int)((time.time() - start_time) * 1000)
+
+            cap_time = start_time * 1000 + frame_idx * interval
+            wait_time = cap_time - now_time * 1000
+            wait_time = float(wait_time) / 1000
+            wait_time = wait_time if wait_time > 0.001 else 0.001
+            if self.devicetype <= 0:
+                time.sleep(wait_time)
+            if difftime >= renew_interval and False:
+                start_time = now_time
+                frame_idx = 0
+            frame_idx += 1
+            continue
+
+        print("ReadFrame: run exit")
+        self.stop()
         #self.load.lib.api_capture_close(self.handle)
-        self.cap.stop()
+        if self.cap != None:
+            self.cap.stop()
         print("ReadFrame: run: self.cap.stop ok")
         self.sdl.sdl_stop()
         print("ReadFrame: run: self.sdl.sdl_stop ok")
         self.sdl.stop()
         print("ReadFrame: run: self.sdl.stop ok")
-        self.stop()
+        #self.stop()
         #del self.cap
         #del self.sdl
         print("ReadFrame: run: over")

@@ -33,20 +33,25 @@
 #include "inc.h"
 
 
-static int global_rtp_obj_status = 0;
-static RtpObj global_rtp_objs[MAX_OBJ_NUM];
-static char global_info_outparam[MAX_OBJ_NUM][MAX_OUTCHAR_SIZE];
-static char global_time_outparam[MAX_OBJ_NUM][TIME_OUTCHAR_SIZE];
+//static int global_rtp_obj_status = 0;
+//static RtpObj global_rtp_objs[MAX_OBJ_NUM];
+//static char global_info_outparam[MAX_OBJ_NUM][MAX_OUTCHAR_SIZE];
+//static char global_time_outparam[MAX_OBJ_NUM][TIME_OUTCHAR_SIZE];
 
 extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
 extern char* GetvalueStr(cJSON *json, char *key);
+extern int *GetArrayValueInt(cJSON *json, char *key, int *arraySize);
 extern cJSON* renewJson(cJSON *json, char *key, int ivalue, char *cvalue, cJSON *subJson);
 extern cJSON* renewJsonInt(cJSON *json, char *key, int ivalue);
 extern cJSON* renewJsonStr(cJSON *json, char *key, char *cvalue);
 extern cJSON* deleteJson(cJSON *json);
+extern cJSON* renewJsonArray1(cJSON *json, char *key, short *value, int len);
 extern cJSON* renewJsonArray2(cJSON *json, char *key, short *value);
+extern cJSON* renewJsonArray3(cJSON **json, cJSON **array, char *key, cJSON *item);
+extern long long *GetArrayObj(cJSON *json, char *key, int *arraySize);
 extern inline int GetRtpInfo(uint8_t* dataPtr, int insize, RtpInfo *info);
+extern inline int GetNetInfo(uint8_t* dataPtr, int insize, NetInfo *info);
 
 //extern int api_fec_encode(int id, char *data, char *param, char *outbuf, char *outparam[]);
 //extern int api_fec_decode(int id, char *data, char *param, char *outbuf, char *outparam[]);
@@ -202,12 +207,36 @@ void dump(NALU_t *n)
 	printf(" len: %d  ", n->len);
 	printf("nal_unit_type: %x\n", n->nal_unit_type);
 }
+#define GXH_DEBUG
 //static int GetAnnexbNALU (NALU_t *nalu,void *inbuf,int len)
 int GetAnnexbNALU(SVCNalu *svc_nalu, int i, int offset)
 {
   int pos = 0;
   int StartCodeFound, rewind;
+#ifndef GXH_DEBUG
+  char *filename = "/home/gxh/works/enc_nallayer.txt";
+  if(!svc_nalu->fp)
+  {
+    svc_nalu->fp = fopen(filename, "w");
+  }
+
+  if(svc_nalu->fp)
+  {
+    fprintf(svc_nalu->fp, "GetAnnexbNALU: svc_nalu= %x \n", svc_nalu);
+    fflush(svc_nalu->fp);
+  }
+#endif
   NALU_t *nalu = &svc_nalu->nal[i];
+#ifndef GXH_DEBUG
+  if(svc_nalu->fp)
+  {
+    fprintf(svc_nalu->fp, "GetAnnexbNALU: nalu=%x \n", nalu);
+    fprintf(svc_nalu->fp, "GetAnnexbNALU: i=%d \n", i);
+    fprintf(svc_nalu->fp, "GetAnnexbNALU: offset=%d \n", offset);
+    fprintf(svc_nalu->fp, "GetAnnexbNALU: svc_nalu->size=%d \n", svc_nalu->size);
+    fflush(svc_nalu->fp);
+  }
+#endif
   unsigned char *Buf = (unsigned char *)&svc_nalu->buf[offset];
   int len = svc_nalu->size - offset;
   //static int info2=0, info3=0;
@@ -245,7 +274,6 @@ int GetAnnexbNALU(SVCNalu *svc_nalu, int i, int offset)
 		 nalu->startcodeprefix_len = 4;
 		}
    }
-
    else
 	   {
 	   //如果是0x000001,得到开始前缀为3个字节
@@ -264,12 +292,31 @@ int GetAnnexbNALU(SVCNalu *svc_nalu, int i, int offset)
     {
       //nalu->len = (pos-1)-nalu->startcodeprefix_len;
 	  nalu->len = (pos)-nalu->startcodeprefix_len;//gxh_201025
+#ifndef GXH_DEBUG
+      int flag = (offset + nalu->startcodeprefix_len + nalu->len) == svc_nalu->size;
+      if(svc_nalu->fp)
+      {
+        fprintf(svc_nalu->fp, "GetAnnexbNALU: flag=%d \n", flag);//
+        fprintf(svc_nalu->fp, "GetAnnexbNALU: svc_nalu->nal_mem_num=%d \n", svc_nalu->nal_mem_num);
+        fprintf(svc_nalu->fp, "GetAnnexbNALU: nalu->buf=%x \n", nalu->buf);
+        fprintf(svc_nalu->fp, "GetAnnexbNALU: pos=%d \n", pos);
+        fprintf(svc_nalu->fp, "GetAnnexbNALU: nalu->len=%d \n", nalu->len);
+        fflush(svc_nalu->fp);
+     }
+#endif
       memcpy (nalu->buf, &Buf[nalu->startcodeprefix_len], nalu->len);
       nalu->forbidden_bit = nalu->buf[0] & 0x80; //1 bit
 	  nalu->nal_reference_idc = nalu->buf[0] & 0x60; // 2 bit
 	  nalu->nal_unit_type = (nalu->buf[0]) & 0x1f;// 5 bit
       //free(Buf);
       //return pos-1;
+#ifndef GXH_DEBUG
+      if(svc_nalu->fp)
+      {
+        fprintf(svc_nalu->fp, "GetAnnexbNALU: return: nalu->len=%d \n", nalu->len);
+        fflush(svc_nalu->fp);
+      }
+#endif
 	  return pos;
     }
     //Buf[pos++] = fgetc (bits);//读一个字节到BUF中
@@ -289,6 +336,14 @@ int GetAnnexbNALU(SVCNalu *svc_nalu, int i, int offset)
     //free(Buf);
 	//printf("GetAnnexbNALU: Cannot fseek in the bit stream file");
   }
+#ifndef GXH_DEBUG
+  if(svc_nalu->fp)
+  {
+    fprintf(svc_nalu->fp, "GetAnnexbNALU: (pos+rewind)=%d \n", (pos+rewind));
+    fflush(svc_nalu->fp);
+
+  }
+#endif
 
   // Here the Start code, the complete NALU, and the next start code is in the Buf.
   // The size of Buf is pos, pos+rewind are the number of bytes excluding the next
@@ -300,7 +355,14 @@ int GetAnnexbNALU(SVCNalu *svc_nalu, int i, int offset)
   nalu->nal_reference_idc = nalu->buf[0] & 0x60; // 2 bit
   nalu->nal_unit_type = (nalu->buf[0]) & 0x1f;// 5 bit
   //free(Buf);
-
+#ifndef GXH_DEBUG
+  if(svc_nalu->fp)
+  {
+    fprintf(svc_nalu->fp, "GetAnnexbNALU: end: (pos+rewind)=%d \n", (pos+rewind));
+    fflush(svc_nalu->fp);
+    //fclose(svc_nalu->fp);
+  }
+#endif
   return (pos+rewind);//返回两个开始字符之间间隔的字节数，即包含有前缀的NALU的长度
 }
 int SplitNal(SVCNalu *svc_nalu)
@@ -310,6 +372,12 @@ int SplitNal(SVCNalu *svc_nalu)
 	{
 		//printf("SplitNal: offset= %d \n", offset);
 		offset += GetAnnexbNALU(svc_nalu, i, offset);
+#ifndef GXH_DEBUG
+        if(i > 900)
+        {
+            printf("SplitNal: i=%d \n", i);
+        }
+#endif
 		i++;
 	}
 	return i;
@@ -331,7 +399,8 @@ int data2nalus(void *hnd, char *inBuf)
     }
 #endif
     //printf("data2nalus: start:size= %d \n", size);
-    int nal_mem_num = ((int)(size / mtu_size) << 1) + 3;//3:sps/pps/sei
+    int k = (int)(size / mtu_size);
+    int nal_mem_num = ((k ? k : 1) << 1) + 3;//3:sps/pps/sei
     //printf("data2nalus: start 0 \n");
     obj->rtpSize = calloc(1, sizeof(short) * nal_mem_num);
     svc_nalu->nal_mem_num = nal_mem_num;
@@ -428,6 +497,13 @@ int get_important_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rt
     int res_num = GetvalueInt(json, "res_num");
     int main_spatial_idx = GetvalueInt(json, "main_spatial_idx");
     int time_offset = GetvalueInt(json, "time_offset");
+    int selfChanId = GetvalueInt(json, "selfChanId");
+    int chanId = GetvalueInt(json, "chanId");
+    int loss_rate = GetvalueInt(json, "loss_rate");
+    int st0 = GetvalueInt(json, "st0");
+    int rt0 = GetvalueInt(json, "rt0");
+    int st1 = GetvalueInt(json, "st1");
+    int rt1 = GetvalueInt(json, "rt1");
     int nal_num = svc_nalu->nal_num;
     int slice_type = 0;
     int offset = 0;
@@ -513,13 +589,23 @@ int get_important_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rt
 				rtp_ext->enable_fec = 0;//svc_nalu->enable_fec;
 				rtp_ext->refresh_idr = svc_nalu->refresh_idr;
 				//
+				int64_t now_time = (int64_t)get_time_stamp();
+				rtp_ext->nack.time_info.time_stamp = now_time;
 				rtp_ext->nack.is_lost_packet = 0;
-				rtp_ext->nack.lost_packet_rate = 0;
+				rtp_ext->nack.loss_rate = 0;
+				//rtp_ext->nack.pkt_num = nal_num;
 				//if(!time_offset)
 				{
-				    rtp_ext->nack.time_status = 0;
+				    rtp_ext->nack.enable_nack = 0;
 				    rtp_ext->nack.time_offset = time_offset;
-				    rtp_ext->nack.time_info.time_stamp = (int64_t)get_time_stamp();
+
+				    rtp_ext->nack.time_info.rtt_list.st0 = now_time & 0xFFFF;
+				    rtp_ext->nack.time_info.rtt_list.rt0 = 0;
+				    rtp_ext->nack.time_info.rtt_list.st1 = 0;
+				    rtp_ext->nack.time_info.rtt_list.rt1 = 0;
+				    rtp_ext->nack.chanId = selfChanId;
+				    rtp_ext->nack.loss_rate = 0;
+				    rtp_ext->nack.info_status = 0;
 				}
 				//
 				//int picType = n->nal_reference_idc >> 5;
@@ -572,6 +658,14 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
     int res_num = GetvalueInt(json, "res_num");
     int main_spatial_idx = GetvalueInt(json, "main_spatial_idx");
     int time_offset = GetvalueInt(json, "time_offset");
+    int selfChanId = GetvalueInt(json, "selfChanId");
+    int chanId = GetvalueInt(json, "chanId");//已增1
+    int loss_rate = GetvalueInt(json, "loss_rate");
+    long long *objList = NULL;
+    int arraySize = 0;
+    int netIdx = 0;
+    int maxNetNum = 3;
+    int netStep = 1;
     int nal_num = svc_nalu->nal_num;
     int slice_type = 0;
     //int offset = 0;
@@ -581,6 +675,21 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
     int bytes = 0;
     int firstSlice = 0;
 	int nextFirstSlice = 0;
+    if(selfChanId > 0)
+    {
+        //控制每一帧的net信息个数
+        if(nal_num < maxNetNum)
+        {
+            netStep = 1;
+        }
+        else
+        {
+            netStep = nal_num / maxNetNum;
+        }
+        //printf("get_slice_packet: netStep = %d \n", netStep);
+        objList = GetArrayObj(json, "netInfo", &arraySize);
+        //printf("api_test_write_str: arraySize= %d\n",arraySize);
+    }
 	mtu_size = mtu_size ? mtu_size : FIX_MTU_SIZE;
     while(i < nal_num)
     {
@@ -655,19 +764,53 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
 				rtp_ext->refresh_idr = svc_nalu->refresh_idr;
 
 				//
+				rtp_ext->nack.enable_nack = 0;
 				rtp_ext->nack.is_lost_packet = 0;
-				rtp_ext->nack.lost_packet_rate = 0;
-				//if(!time_offset)
+				rtp_ext->nack.loss_rate = 0;
+				rtp_ext->nack.time_offset = time_offset;
+				int64_t now_time = (int64_t)get_time_stamp();
+				rtp_ext->nack.time_info.time_stamp = now_time;
+				//rtp_ext->nack.pkt_num = nal_num;
+				if(selfChanId > 0)
 				{
-				    rtp_ext->nack.time_status = 0;
-				    rtp_ext->nack.time_offset = time_offset;
-				    rtp_ext->nack.time_info.time_stamp = (int64_t)get_time_stamp();
+				    if((i % netStep) == 0)
+    				{
+	    			    rtp_ext->nack.enable_nack = 1;
+		    		    rtp_ext->nack.time_info.rtt_list.st0 = now_time & 0xFFFF;
+			    	    rtp_ext->nack.time_info.rtt_list.rt0 = 0;
+				        rtp_ext->nack.time_info.rtt_list.st1 = 0;
+				        rtp_ext->nack.time_info.rtt_list.rt1 = 0;
+    				    rtp_ext->nack.chanId = selfChanId;
+	    			    rtp_ext->nack.loss_rate = 0;
+		    		    rtp_ext->nack.info_status = 0;
+			    	}
+				    else{
+				        //接收端收到了对端的时间信息
+    				    if(netIdx < arraySize)
+	    			    {
+		    		        cJSON *thisjson = (cJSON *)objList[netIdx++];
+                            if(thisjson)
+                            {
+                                int chanId = GetvalueInt(thisjson, "chanId");//已增1，产生信息者，且是反馈的终极接收者
+                                int loss_rate = GetvalueInt(thisjson, "loss_rate");
+                                int st0 = GetvalueInt(thisjson, "st0");
+                                int rt0 = GetvalueInt(thisjson, "rt0");
+                                //int info_status = GetvalueInt(thisjson, "info_status");
+                                //int st1 = GetvalueInt(thisjson, "st1");
+                                //int rt1 = GetvalueInt(thisjson, "rt1");
+                                //printf("%d, %d, %d, %d, %d, %d \n", chanId, loss_rate, st0, rt0, st1, rt1);
+				                rtp_ext->nack.enable_nack = 1;
+				                rtp_ext->nack.loss_rate = loss_rate;//loss_rate in [1,101]
+				                rtp_ext->nack.time_info.rtt_list.st0 = st0;
+    				            rtp_ext->nack.time_info.rtt_list.rt0 = rt0;
+	    			            rtp_ext->nack.time_info.rtt_list.st1 = now_time & 0xFFFF;
+		    		            rtp_ext->nack.chanId = chanId;
+			    	            rtp_ext->nack.info_status = 1;//info_status == 1
+				                //printf("api_test_write_str: rtp_ext->nack.info_status= %d\n",rtp_ext->nack.info_status);
+				            }
+				        }
+				    }
 				}
-
-				//
-				//int picType = n->nal_reference_idc >> 5;;
-				//rtp_ext->is_b_slice = picType == 3 || picType == 2 || is_key_frame ? false : true;
-				//rtp_ext->pic_type = n->nal_reference_idc >> 5; //isKeyFrame;
 			}
 			if(firstSlice && nextFirstSlice)
 			{
@@ -840,6 +983,10 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
 	}
 	ret = *idx;
 	//ret = offset;
+	if(objList)
+	{
+	    free(objList);
+	}
     return ret;
 }
 int raw2rtp_packet(void *hnd, char *outBuf)
@@ -1105,8 +1252,8 @@ int rtp_unpacket(SVCNalu *svc_nalu, char *inBuf, short *rtpSize, int count, int 
 		        int qua_num = rtp_ext->qua_num;
 		        int qua_idx = rtp_ext->qua_idx;
 		        int is_lost_packet = rtp_ext->nack.is_lost_packet;
-		        int lost_packet_rate = rtp_ext->nack.lost_packet_rate;
-		        int time_status = rtp_ext->nack.time_status;
+		        int loss_rate = rtp_ext->nack.loss_rate;
+		        //int time_status = rtp_ext->nack.time_status;
 		        int time_offset = rtp_ext->nack.time_offset;
 		        int64_t packet_time_stamp = rtp_ext->nack.time_info.time_stamp;
             }
@@ -1584,15 +1731,129 @@ int api_rtp_packet2raw(char *handle, char *data, char *param, char *outbuf, char
 	        printf("error: api_rtp_packet2raw: sum= %d \n", sum);
 	        printf("error:api_rtp_packet2raw: ret= %d \n", ret);
 	    }
-
-	    free(svc_nalu->nal);
-	    free(obj->rtpSize);
-	    deleteJson(obj->json);
-	    obj->json = NULL;
+        if(svc_nalu->nal)
+        {
+            free(svc_nalu->nal);
+        }
+	    if(obj->rtpSize)
+	    {
+	        free(obj->rtpSize);
+	    }
+	    if(obj->json)
+	    {
+	        deleteJson(obj->json);
+	        obj->json = NULL;
+	    }
 	}
     return ret;
 }
 //
+int get_net_info(NetInfo *info, char *outBuf)
+{
+    int ret = 0;
+    if(true)
+    {
+        int len0 = strlen(outBuf);
+        if(len0 > 0)
+        {
+            strcat(outBuf,";");
+        }
+        strcat(outBuf,"{");
+
+        strcat(outBuf, "\"");
+        strcat(outBuf,"info_status");
+        strcat(outBuf, "\":");
+        sprintf(&outBuf[strlen(outBuf)], "%d", info->info_status);
+        strcat(outBuf, ",");
+
+        strcat(outBuf, "\"");
+        strcat(outBuf,"chanId");
+        strcat(outBuf, "\":");
+        sprintf(&outBuf[strlen(outBuf)], "%d", info->chanId);
+        strcat(outBuf, ",");
+
+        strcat(outBuf, "\"");
+        strcat(outBuf,"loss_rate");
+        strcat(outBuf, "\":");
+        sprintf(&outBuf[strlen(outBuf)], "%d", info->loss_rate);
+        strcat(outBuf, ",");
+
+        strcat(outBuf, "\"");
+        strcat(outBuf,"st0");
+        strcat(outBuf, "\":");
+        sprintf(&outBuf[strlen(outBuf)], "%d", info->st0);
+        strcat(outBuf, ",");
+
+        strcat(outBuf, "\"");
+        strcat(outBuf,"rt0");
+        strcat(outBuf, "\":");
+        sprintf(&outBuf[strlen(outBuf)], "%d", info->rt0);
+        strcat(outBuf, ",");
+
+        strcat(outBuf, "\"");
+        strcat(outBuf,"st1");
+        strcat(outBuf, "\":");
+        sprintf(&outBuf[strlen(outBuf)], "%d", info->st1);
+        strcat(outBuf, ",");
+
+        strcat(outBuf, "\"");
+        strcat(outBuf,"rt1");
+        strcat(outBuf, "\":");
+        sprintf(&outBuf[strlen(outBuf)], "%d", info->rt1);
+        strcat(outBuf, "}");
+        int len1 = strlen(outBuf);
+        ret = len1 - len0;
+    }
+    return ret;
+}
+cJSON *get_net_info2(NetInfo *info, cJSON *pJsonRoot)
+{
+    char *ret = NULL;
+    if(true)
+    {
+        //cJSON *pJsonRoot  = NULL;
+		char *key = "info_status";
+		int ivalue = info->info_status;
+		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+
+		key = "chanId";
+		ivalue = info->chanId;
+		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//8
+
+		key = "loss_rate";
+		ivalue = info->loss_rate;
+		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//12
+
+		key = "st0";
+		ivalue = info->st0;
+		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//11
+
+		key = "rt0";
+		ivalue = info->rt0;
+		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//11
+
+		key = "st1";
+		ivalue = info->st1;
+		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//11
+
+		key = "rt1";
+		ivalue = info->rt1;
+		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//11
+
+		key = "tstmp0";
+		ivalue = (int)((uint64_t)info->time_stamp & 0xFFFFFFFF);
+		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//11
+
+		key = "tstmp1";
+		ivalue = (int)((uint64_t)info->time_stamp >> 32);
+		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//11
+
+		//ret = cJSON_Print(pJsonRoot); //free(ret);//返回json字符串，注意外面用完要记得释放空间
+
+		//deleteJson(pJsonRoot);
+    }
+    return pJsonRoot;
+}
 char *get_extern_info(char *data)
 {
     char *ret = NULL;
@@ -1612,8 +1873,8 @@ char *get_extern_info(char *data)
 		int enable_fec = rtp_ext->enable_fec;
 		int refresh_idr = rtp_ext->refresh_idr;
 		int is_lost_packet = rtp_ext->nack.is_lost_packet;
-		int lost_packet_rate = rtp_ext->nack.lost_packet_rate;
-		int time_status = rtp_ext->nack.time_status;
+		int loss_rate = rtp_ext->nack.loss_rate;
+		//int time_status = rtp_ext->nack.time_status;
 		int time_offset = rtp_ext->nack.time_offset;
 		int seqnum = rtp_hdr->seq_no;
 
@@ -1646,12 +1907,12 @@ char *get_extern_info(char *data)
 		key = "is_lost_packet";
 		ivalue = is_lost_packet;
 		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
-		key = "lost_packet_rate";
-		ivalue = lost_packet_rate;
+		key = "loss_rate";
+		ivalue = loss_rate;
 		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
-		key = "time_status";
-		ivalue = time_status;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		//key = "time_status";
+		//ivalue = time_status;
+		//pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
 		key = "time_offset";
 		ivalue = time_offset;
 		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
@@ -1752,15 +2013,141 @@ static int adapt_by_cpu(int ref_idx, int refs, int pict_type)
     return ret;
 }
 //
+#if 1
+#define PKT_LOSS_INTERVAL 100
+#define MAX_PKT_DELAY 100
+static int count_loss_rate(void *hnd)
+{
+    int ret = 0;
+    RtpObj *obj = (RtpObj *)hnd;
+    RTP_FIXED_HEADER  *rtp_hdr = NULL;
+    if(true)
+    {
+        int64_t time_stamp = get_sys_time();
+        if(!obj->net_time_stamp)
+        {
+            obj->net_time_stamp = time_stamp;
+            return ret;
+        }
+        int diff_time = (int)(time_stamp - obj->net_time_stamp);
+
+        if(diff_time > PKT_LOSS_INTERVAL)
+        {
+            //printf("count_loss_rate: diff_time=%d \n", diff_time);
+            int I0 = obj->min_packet % obj->buf_size;
+            int I1 = obj->max_packet % obj->buf_size;
+            //printf("get_frame: obj->min_packet= %u \n", obj->min_packet);
+            //printf("get_frame: obj->max_packet= %u \n", obj->max_packet);
+            uint8_t *buf0 = (uint8_t *)&obj->recv_buf[I0][sizeof(int)];
+            uint8_t *buf1 = (uint8_t *)&obj->recv_buf[I1][sizeof(int)];
+            RTP_FIXED_HEADER *rtp_hdr0 = (RTP_FIXED_HEADER *)buf0;
+            RTP_FIXED_HEADER *rtp_hdr1 = (RTP_FIXED_HEADER *)buf1;
+            int *p0 = (int *)&obj->recv_buf[I0][0];
+            int size0 = p0[0];
+            int *p1 = (int *)&obj->recv_buf[I1][0];
+            int size1 = p1[0];
+            //printf("get_frame: buf0= %lld \n", (long long)buf0);
+            //printf("get_frame: I0= %d \n", I0);
+            //printf("get_frame: I1= %d \n", I1);
+            int64_t timestamp0 = rtp_hdr0->timestamp;
+            int64_t timestamp1 = rtp_hdr1->timestamp;
+            int delay = (int)(timestamp1 - timestamp0) / 90;//90000Hz
+            if(timestamp0 > timestamp1)
+            {
+                delay = (int)((timestamp1 + LEFT_SHIFT32 - timestamp0) / 90);
+            }
+            //printf("count_loss_rate: delay=%d \n", delay);
+            if(delay > (PKT_LOSS_INTERVAL + MAX_PKT_DELAY))
+            {
+                printf("count_loss_rate: delay=%d \n", delay);
+                int start = obj->min_packet;
+                int end = obj->max_packet;
+                if(start > end)
+                {
+                    end += LEFT_SHIFT16;//MAX_USHORT;
+                }
+                int last_seq_num = -1;
+                int loss_num = 0;
+                int pkt_num = 0;
+                int i = 0;
+                int j = 0;
+                for(i = start; i < end; i++)
+                {
+                    int this_seq_num = i % LEFT_SHIFT16;//i > MAX_USHORT ? (i - MAX_USHORT) : i;
+                    int I = this_seq_num % obj->buf_size;
+                    uint8_t *buf = (uint8_t *)&obj->recv_buf[I][sizeof(int)];
+                    int *p = (int *)&obj->recv_buf[I][0];
+                    int size = p[0];
+
+                    if(size > 0)
+                    {
+                        rtp_hdr = (RTP_FIXED_HEADER *)buf;
+                        int64_t this_timestamp = rtp_hdr->timestamp;
+                        int this_seqnum = rtp_hdr->seq_no;
+
+                        if(this_timestamp >= 0 && this_seqnum >= 0)
+                        {
+                            delay = (int)(this_timestamp - timestamp0) / 90;//90000Hz
+                            if(timestamp0 > timestamp1)
+                            {
+                                delay = (int)((this_timestamp + LEFT_SHIFT32 - timestamp0) / 90);
+                            }
+                            //printf("count_loss_rate: delay=%d \n", delay);
+                            if(delay >= PKT_LOSS_INTERVAL)
+                            {
+                                if(!pkt_num)
+                                {
+                                    printf("error: count_loss_rate: start= %d, end= %d \n", start, end);
+                                }
+                                ret = (int)(100 * ((float)loss_num / pkt_num));
+                                if(loss_num != j)
+                                {
+                                    //printf("warning: CountLossRate: j= %d, loss_num= %d \n", j, loss_num);
+                                }
+                                obj->net_time_stamp = get_sys_time();
+                                break;
+                            }
+                            if(last_seq_num >= 0)
+                            {
+                                int diff_seqnum = this_seqnum - last_seq_num;
+                                if(this_seqnum < last_seq_num)
+                                {
+                                    diff_seqnum = (this_seqnum + LEFT_SHIFT16) - last_seq_num;
+                                }
+                                loss_num += (diff_seqnum - 1);
+                            }
+                            pkt_num = i - start;
+                            last_seq_num = this_seqnum;
+                        }
+                        else{
+                            j++;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    return ret;
+}
+#endif
 int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *extend_info, long long *frame_timestamp)
 {
     int ret = 0;
     RtpObj *obj = (RtpObj *)hnd;
     cJSON *json = obj->json;
+    cJSON *jsonInfo = NULL;
+    cJSON *jsonArray = NULL;
     //int insize = GetvalueInt(json, "insize");
     int delay_time = GetvalueInt(json, "delay_time");
     int qos_level = GetvalueInt(json, "qos_level");
     int adapt_cpu = GetvalueInt(json, "adapt_cpu");
+    int selfChanId = GetvalueInt(json, "selfChanId");
+    int loss_rate = GetvalueInt(json, "loss_rate");
+    int chanNum = 0;
+    int *chanIdList = GetArrayValueInt(json, "chanId", &chanNum);
+    int counted_loss = 0;
+    int counted_loss_rate = 0;
     RTP_FIXED_HEADER  *rtp_hdr = NULL;
 	EXTEND_HEADER *rtp_ext = NULL;
 	NALU_HEADER *nalu_hdr   = NULL;
@@ -1824,7 +2211,7 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                     int *p = (int *)&obj->recv_buf[I][0];
                     int size = p[0];
                     if(!size)
-                        printf("warning: get_frame: t= %d, t.size=%d \n", t, size);
+                        printf("warning: video: get_frame: t= %d, t.size=%d \n", t, size);
                 }
                 //int I = obj->min_packet % obj->buf_size;
                 //uint8_t *buf = (uint8_t *)&obj->recv_buf[I][sizeof(int)];
@@ -1862,7 +2249,8 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                 int loss_num = 0;
                 int last_seq_num = -1;
                 int test_end_packet = 0;
-                char *p_extend_info = NULL;
+                int this_seqnum = -1;
+                //char *p_extend_info = NULL;
                 uint16_t start_seq_num = obj->min_packet;
                 uint16_t stop_seq_num = obj->min_packet;
                 int start = obj->min_packet;
@@ -1918,7 +2306,7 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                         rtp_hdr = (RTP_FIXED_HEADER *)buf;
                         int nal_unit_type = -1;
                         int extlen = 0;
-                        int this_seqnum = rtp_hdr->seq_no;
+                        this_seqnum = rtp_hdr->seq_no;
                         RtpInfo info = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
                         int is_hcsvc_rtp = GetRtpInfo((uint8_t*)buf, size, &info);
@@ -1957,6 +2345,17 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                         if(last_timestamp && (last_timestamp != timestamp))
                         {
                             //next frame
+                            if(last_seq_num >= 0)
+                            {
+                                int diff_seqnum = this_seqnum - last_seq_num;
+                                if(this_seqnum < last_seq_num)
+                                {
+                                    diff_seqnum = (this_seqnum + LEFT_SHIFT16) - last_seq_num;
+                                }
+                                loss_num += (diff_seqnum - 1);
+
+                                //complete_flag += (diff_seqnum - 1);
+                            }
                             //obj->last_frame_time_stamp = last_timestamp;
                             //ret = offset;
                             //obj->min_packet = this_seqnum;
@@ -1967,6 +2366,62 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                             break;
                         }
                         else{
+                            if(selfChanId > 0)
+                            {
+                                NetInfo netInfo = {};
+                                int enable_nack = GetNetInfo((uint8_t*)buf, size, &netInfo);
+                                if(enable_nack)
+                                {
+                                    if(!netInfo.info_status)
+                                    {
+                                        //待反馈信息，非测试情况下，存在netInfo.chanId == selfChanId
+                                        //printf("get_frame: netInfo.st0= %d \n", netInfo.st0);
+                                        //printf("get_frame: netInfo.rt0= %d \n", netInfo.rt0);
+                                        //printf("get_frame: netInfo.chanId= %d \n", netInfo.chanId);
+                                        cJSON *thisjson = NULL;
+#if 0
+                                        if(!counted_loss)
+                                        {
+                                            counted_loss_rate = count_loss_rate(hnd);
+                                            printf("get_frame: counted_loss_rate= %d \n", counted_loss_rate);
+                                        }
+                                        if(counted_loss_rate > 0)
+                                        {
+                                            netInfo.loss_rate = counted_loss_rate + 1;
+                                        }
+#else
+                                        if(loss_rate > 0)
+                                        {
+                                            netInfo.loss_rate = loss_rate + 1;
+                                        }
+#endif
+                                        thisjson = get_net_info2(&netInfo, thisjson);
+                                        cJSON * jsonRet = renewJsonArray3(&jsonInfo, &jsonArray, "netInfo", thisjson);
+
+                                    }
+                                    else{
+                                        //从中调出本端信息，其他的丢弃，此处获得的是终极信息
+                                        if(chanNum > 0)
+                                        {
+                                            //
+                                            for(int jj = 0; jj < chanNum; jj++)
+                                            {
+                                                //
+                                                int chanId = chanIdList[jj];
+                                                if((chanId + 1) == netInfo.chanId)
+                                                {
+                                                    //printf("get_frame: netInfo.chanId= %d \n", netInfo.chanId);
+                                                    //int ret3 = get_net_info(&netInfo, extend_info);
+                                                    cJSON *thisjson = NULL;
+                                                    thisjson = get_net_info2(&netInfo, thisjson);
+                                                    cJSON * jsonRet = renewJsonArray3(&jsonInfo, &jsonArray, "netInfo", thisjson);
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            stop_seq_num = this_seqnum;
                             memcpy(&outbuf[offset], buf, size);
                             offset += size;
                             rtpSize[j] = size;
@@ -1981,7 +2436,7 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                             //}
                             //obj->min_packet = this_seqnum;//
                         }
-                        stop_seq_num = this_seqnum;
+                        //stop_seq_num = this_seqnum;
 #if 0
                         if(rtp_hdr->extension)
 			            {
@@ -2072,12 +2527,14 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                             }
 			            }
 			            else{
+#if 0
 			                if(extend_info && !p_extend_info)
                             {
                                 p_extend_info = get_extern_info(buf);
                                 memcpy(extend_info, p_extend_info, strlen(p_extend_info));
                                 free(p_extend_info);
                             }
+#endif
 			            }
                         if(rtp_hdr->marker)
                         {
@@ -2251,7 +2708,7 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                         //
                         if(obj->max_packet < QUART_USHORT && seqnum > HALF_QUART_USHORT)
                         {
-
+                            //printf("warning: get_frame: obj->max_packet= %u \n", obj->max_packet);
                         }
                         else if(seqnum >= obj->max_packet)
                         {
@@ -2329,6 +2786,21 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
         }
      }
     //printf("get_frame: end: ret= %d \n", ret);
+    if(chanIdList)
+    {
+        free(chanIdList);
+    }
+    if(jsonInfo)
+    {
+        char *jsonStr = cJSON_Print(jsonInfo);//比较耗时
+        deleteJson(jsonInfo);
+        strcpy(extend_info, jsonStr);
+        if(strlen(extend_info) >= MAX_OUTCHAR_SIZE)
+        {
+            printf("error: get_frame: strlen(extend_info)= %d \n", strlen(extend_info));
+        }
+        free(jsonStr);
+    }
     return ret;
 }
 
@@ -2549,7 +3021,6 @@ int resort_packet(void *hnd, char *data, char *outbuf, short *rtpSize, char *com
                 else{
                     obj->max_packet = seqnum;
                 }
-
             }
         }
         else{
@@ -2605,6 +3076,7 @@ int resort_packet(void *hnd, char *data, char *outbuf, short *rtpSize, char *com
             //從緩存中獲取一幀數據
             long long frame_timestamp = 0;
             ret = get_frame(hnd, outbuf, rtpSize, complete, extend_info, &frame_timestamp);
+            //printf("resort_packet: strlen(extend_info)= %d \n", strlen(extend_info));
             //printf("resort_packet: ret= %d \n", ret);
             if(ret > 0)
             {
@@ -2684,7 +3156,7 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
 
         obj->json = mystr2json(param);
         obj->param = param;
-
+        int selfChanId = GetvalueInt(obj->json, "selfChanId");
         int insize = GetvalueInt(obj->json, "insize");
         if(!insize)
         {
@@ -2693,10 +3165,15 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
         }
 
         //printf("api_resort_packet: 0 \n");
-        short rtpSize[MAX_PKT_NUM];
+        short rtpSize[MAX_FEC_PKT_NUM];
         //int complete = 0;
-        char *extend_info = obj->outparam[1];
-        memset(obj->outparam[1], 0, sizeof(char) * MAX_OUTCHAR_SIZE);
+        char *extend_info = NULL;
+        //printf("api_resort_packet: selfChanId=%d \n", selfChanId);
+        if(selfChanId > 0)
+        {
+            extend_info = obj->outparam[1];
+            memset(obj->outparam[1], 0, sizeof(char) * MAX_OUTCHAR_SIZE);
+        }
         memset(obj->outparam[2], 0, sizeof(char) * 16);
         memset(obj->outparam[3], 0, sizeof(char) * 16);
         outparam[0] = obj->outparam[0];
@@ -2718,14 +3195,35 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
             outparam[1] = obj->outparam[1];
         }
 #endif
+        //printf("api_resort_packet: strlen(extend_info)= %d \n", strlen(extend_info));
         if(ret > 0)// && !strlen(outparam[0]) && !strlen(outparam[1]))
         {
             //char text[2048] = "";//2048/4=512//512*1400=700kB
             //printf("api_resort_packet: tail \n");
-
+            if(selfChanId > 0)
+            {
+                //printf("api_resort_packet: strlen(extend_info)=%d \n", strlen(extend_info));
+            }
             char *text = obj->outparam[0];
 	        int sum = 0;
 	        memset(obj->outparam[0], 0, sizeof(char) * MAX_OUTCHAR_SIZE);
+#if 1
+            for (int i = 0; i < ret; i++)
+	        {
+	            int size = rtpSize[i];
+                sum += size;
+	        }
+
+            cJSON *json = NULL;
+            //json = renewJsonArray2(json, "oRtpSize", rtpSize);
+            json = renewJsonArray1(json, "oRtpSize", rtpSize, ret);
+            char *jsonStr = cJSON_Print(json);
+            strcpy(outparam[0], jsonStr);
+            deleteJson(json);
+            free(jsonStr);
+
+            ret = sum;
+#else
 	        for (int i = 0; i < ret; i++)
 	        {
                 char ctmp[32] = "";
@@ -2740,6 +3238,7 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
 	        }
 	        ret = sum;
 	        outparam[0] = text;
+#endif
 	        //if(complete)
 	        //{
 	        //    outparam[2] = "complete";
@@ -2755,6 +3254,102 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
     }
     return ret;
 }
+HCSVC_API
+void api_test_write_str(int num)
+{
+    NetInfo netInfo = {0, 0, 0, 0, 0, 0, 1, 0};
+    int flag = 1;
+    if(flag == 1)
+    {
+        char pinfo[1024 * 1024];
+        memset(pinfo, 0, 1024 * 1024);
 
+        cJSON *json = NULL;
+        cJSON *array = NULL;
+
+        for(int i = 0; i < num; i++)
+        {
+            cJSON *thisjson = NULL;
+            thisjson = get_net_info2(&netInfo, thisjson);
+            cJSON * jsonRet = renewJsonArray3(&json, &array, "arraytest", thisjson);
+        }
+        //
+        int flag2 = 1;//0;
+        if(flag2)
+        {
+            int arraySize = 0;
+            long long *objList = GetArrayObj(json, "arraytest", &arraySize);
+            printf("api_test_write_str: arraySize= %d\n",arraySize);
+            if(objList)
+            {
+                for(int i = 0; i < arraySize; i++)
+                {
+                    cJSON *thisjson = (cJSON *)objList[i];
+                    if(thisjson)
+                    {
+                        int chanId = GetvalueInt(thisjson, "chanId");//已增1
+                        int loss_rate = GetvalueInt(thisjson, "loss_rate");
+                        int st0 = GetvalueInt(thisjson, "st0");
+                        int rt0 = GetvalueInt(thisjson, "rt0");
+                        int st1 = GetvalueInt(thisjson, "st1");
+                        int rt1 = GetvalueInt(thisjson, "rt1");
+                        printf("%d, %d, %d, %d, %d, %d \n", chanId, loss_rate, st0, rt0, st1, rt1);
+                    }
+                }
+                free(objList);
+            }
+        }
+        //
+        char *ret = cJSON_Print(json);//比较耗时
+        //printf("api_test_write_str: ret= %s\n",ret);
+        deleteJson(json);
+        strcpy(pinfo, ret);
+        free(ret);
+    }
+    else if(flag == 2)
+    {
+        cJSON *json = NULL;
+        char *key = "arraytest";
+        if(NULL == json)
+        {
+            json = cJSON_CreateObject(); //创建JSON对象
+        }
+
+        cJSON *array = cJSON_CreateArray();
+        cJSON_AddItemToObject(json, key, array);
+        for(int i = 0; i < num; i++)
+        {
+            cJSON *thisjson = NULL;
+            thisjson = get_net_info2(&netInfo, thisjson);
+            cJSON_AddItemToArray(array, thisjson);//cJSON_CreateNumber(value[i]));
+            //cJSON_AddItemToArray(array, cJSON_CreateObject(thisjson));
+        }
+        char *ret = cJSON_Print(json);
+        //printf("api_test_write_str: ret= %s\n",ret);
+    }
+    else if(flag == 3)
+    {
+        cJSON *pJsonRoot = NULL;
+        for(int i = 0; i < num; i++)
+        {
+            pJsonRoot = get_net_info2(&netInfo, pJsonRoot);
+        }
+    }
+    else{
+        char pinfo[1024 * 1024];
+        memset(pinfo, 0, 1024 * 1024);
+        int sumsize = 0;
+        for(int i = 0; i < num; i++)
+        {
+
+            int ret3 = get_net_info(&netInfo, pinfo);
+            sumsize += ret3;
+            if(sumsize >= 1024 * 1024)
+            {
+                break;
+            }
+        }
+    }
+}
 //==============================================================================
 

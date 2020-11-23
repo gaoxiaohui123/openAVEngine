@@ -408,7 +408,7 @@ def TestGetTime2():
     print("TestGetTime: time1= ", time1)
     difftime = int(time1 - time0)
     print("TestGetTime: difftime= ", difftime)
-def TeseGetCpuInfo():
+def TestGetCpuInfo():
     array_type = c_char_p * 1
     outparam = array_type()
     databuf = create_string_buffer(1024)
@@ -418,6 +418,12 @@ def TeseGetCpuInfo():
     infolist = outparam[0].split(b';')
     print("TeseGetCpuInfo: infolist=", infolist)
     print("TeseGetCpuInfo: outparam[0]=", outparam[0])
+def TestWriteStr():
+    t0 = time.time()
+    gload.lib.api_test_write_str(1024)
+    t1 = time.time()
+    difftime = (t1 - t0) * 100
+    print("TestWriteStr: difftime= ", difftime)
 def TestPcm2Wav():
     srcfile = "/home/gxh/works/aac_decode_0.pcm"
     dstfile = "/home/gxh/works/aac_decode_0.wav"
@@ -537,7 +543,8 @@ if __name__ == '__main__':
     #TestApi()
     #TestDevice()
     #TestGetTime2()
-    TeseGetCpuInfo()
+    #TestGetCpuInfo()
+    TestWriteStr()
     #TestAudio()
     ##TestPcm2Wav()
     #TestCmd()

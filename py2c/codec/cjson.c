@@ -84,6 +84,26 @@ cJSON* renewJsonArray(cJSON *json, char *key, int *value, int len)
     }
     return json;
 }
+cJSON* renewJsonArray1(cJSON *json, char *key, short *value, int len)
+{
+    if(NULL == json)
+    {
+        json = cJSON_CreateObject(); //创建JSON对象
+
+        if(NULL == json)
+        {
+            //error happend here
+            return NULL;
+        }
+    }
+    cJSON *array = cJSON_CreateArray();
+    cJSON_AddItemToObject(json, key, array);
+    for(int i = 0; i < len; i++)
+    {
+        cJSON_AddItemToArray(array, cJSON_CreateNumber(value[i]));
+    }
+    return json;
+}
 cJSON* renewJsonArray2(cJSON *json, char *key, short *value)
 {
     if(NULL == json)
@@ -105,6 +125,25 @@ cJSON* renewJsonArray2(cJSON *json, char *key, short *value)
         i++;
     }
     return json;
+}
+cJSON* renewJsonArray3(cJSON **json, cJSON **array, char *key, cJSON *item)
+{
+    if(NULL == *json)
+    {
+        *json = cJSON_CreateObject(); //创建JSON对象
+
+        if(NULL == *json)
+        {
+            //error happend here
+            return NULL;
+        }
+        *array = cJSON_CreateArray();
+        cJSON_AddItemToObject(*json, key, *array);
+    }
+
+    cJSON_AddItemToArray(*array, item);
+
+    return array;
 }
 cJSON* renewJsonFloat(cJSON *json, char *key, float fvalue)
 {
@@ -351,6 +390,78 @@ char* GetvalueStr(cJSON *json, char *key)
         return item->valuestring;
     }
     return "";
+}
+int *GetArrayValueInt(cJSON *json, char *key, int *arraySize)
+{
+    int *ret = NULL;
+    cJSON *cjsonArr = cJSON_GetObjectItem(json, key);
+    if( NULL != cjsonArr ){
+        int i = 0;
+        do
+        {
+            cJSON *cjsonTmp = cJSON_GetArrayItem(cjsonArr, i);
+            if( NULL == cjsonTmp )
+            {
+                //printf("GetArrayValueInt: no member \n");
+                break;
+            }
+            int num = cjsonTmp->valueint;
+            //printf("GetArrayValueInt: num= %d \n", num);
+            i++;
+        }while(1);
+
+        //int  array_size = cJSON_GetArraySize(cjsonArr);
+        //nal_mem_num = array_size;
+        int nal_mem_num = i;
+        arraySize[0] = i;
+        //printf("GetArrayValueInt: nal_mem_num= %d \n", nal_mem_num);
+        ret = calloc(1, sizeof(int) * nal_mem_num);
+
+        for( int i = 0 ; i < nal_mem_num ; i ++ ){
+            cJSON * pSub = cJSON_GetArrayItem(cjsonArr, i);
+            if(NULL == pSub ){ continue ; }
+            //char * ivalue = pSub->valuestring ;
+            int ivalue = pSub->valueint;
+            ret[i] = (short)ivalue;//可以不用傳入，通過擴展字段讀入：rtpSize[idx] = rtp_pkt_size;
+            //rtpLen += ivalue;
+
+        }
+    }
+    return ret;
+}
+long long *GetArrayObj(cJSON *json, char *key, int *arraySize)
+{
+    long long *ret = NULL;
+    cJSON *cjsonArr = cJSON_GetObjectItem(json, key);
+    if( NULL != cjsonArr ){
+        int i = 0;
+        do
+        {
+            cJSON *cjsonTmp = cJSON_GetArrayItem(cjsonArr, i);
+            if( NULL == cjsonTmp )
+            {
+                //printf("GetArrayValueInt: no member \n");
+                break;
+            }
+            int num = cjsonTmp->valueint;
+            //printf("GetArrayValueInt: num= %d \n", num);
+            i++;
+        }while(1);
+
+        //int  array_size = cJSON_GetArraySize(cjsonArr);
+        //nal_mem_num = array_size;
+        int nal_mem_num = i;
+        arraySize[0] = i;
+        //printf("GetArrayValueInt: nal_mem_num= %d \n", nal_mem_num);
+        ret = calloc(1, sizeof(long long) * nal_mem_num);
+
+        for( int i = 0 ; i < nal_mem_num ; i ++ ){
+            cJSON * pSub = cJSON_GetArrayItem(cjsonArr, i);
+            if(NULL == pSub ){ continue ; }
+            ret[i] = (long long)pSub;
+        }
+    }
+    return ret;
 }
 //cjson 遍历
 static void foreach()

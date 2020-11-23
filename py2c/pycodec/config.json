@@ -1,301 +1,232 @@
 {
+    "general": {
+        "mode": {
+            "modeId": 2,
+            "modePos": [
+                {
+                    "chanId": 0,
+                    "deviceId": -1,
+                    "pos": [
+                        0,
+                        180,
+                        640,
+                        360
+                    ]
+                },
+                {
+                    "chanId": 1,
+                    "deviceId": 0,
+                    "pos": [
+                        640,
+                        180,
+                        640,
+                        360
+                    ]
+                }
+            ]
+        },
+        "supprams": {
+            "serverAddr": "127.0.0.1:10088",
+            "spatiallayer": {
+                "name": "1",
+                "value": 0
+            },
+            "uploadlayers": [
+                0
+            ],
+            "osd": 5,
+            "temporallayer": {
+                "name": "16",
+                "value": 4
+            },
+            "compatible": 0
+        },
+        "mcu": {}
+    },
+    "conference": {
+        "sessionId": 59563,
+        "ownerName": "ndaovmbgw",
+        "width": 1280,
+        "height": 720
+    },
     "multdevice": {
         "0": {
             "audios": {
-                "audiofmt": {
-                    "value": 0,
-                    "name": "default"
+                "codec": {
+                    "name": "AAC",
+                    "value": 0
                 },
-                "recorder": {
-                    "value": 1,
-                    "name": "hw:0,0"
-                },
+                "vad": 0,
                 "agc": 0,
-                "framesize": {
-                    "value": 2,
-                    "name": "2048"
+                "bitrate": {
+                    "name": "24000",
+                    "value": 1
                 },
                 "samplerate": {
-                    "value": 4,
-                    "name": "48000"
-                },
-                "bitrate": {
-                    "value": 1,
-                    "name": "24000"
-                },
-                "denoise": 1,
-                "channels": {
-                    "value": 1,
-                    "name": "2"
+                    "name": "48000",
+                    "value": 4
                 },
                 "aec": 0,
-                "vad": 0,
+                "recorder": {
+                    "name": "hw:1,0",
+                    "value": 1
+                },
+                "denoise": 1,
+                "audiofmt": {
+                    "name": "default",
+                    "value": 0
+                },
                 "detect": 0,
-                "codec": {
-                    "value": 0,
-                    "name": "AAC"
+                "framesize": {
+                    "name": "2048",
+                    "value": 2
+                },
+                "channels": {
+                    "name": "2",
+                    "value": 1
                 }
             },
             "videos": {
-                "capture": {
-                    "value": 2,
-                    "name": "video0:mjpeg"
+                "codec": {
+                    "name": "HCSVC",
+                    "value": 0
                 },
-                "resolution": {
-                    "value": 1,
-                    "name": "1280x720"
+                "yuvfilename": "/home/gxh/works/datashare/CrowdRun_1280x720.yuv",
+                "capture": {
+                    "name": "video0:mjpeg",
+                    "value": 0
                 },
                 "denoise": 0,
                 "bitrate": {
-                    "value": 0,
-                    "name": "default"
+                    "name": "default",
+                    "value": 0
                 },
-                "framerate": {
-                    "value": 2,
-                    "name": "25fps"
+                "resolution": {
+                    "name": "1280x720",
+                    "value": 1
                 },
                 "fec": 1,
-                "codec": {
-                    "value": 0,
-                    "name": "HCSVC"
+                "framerate": {
+                    "name": "25fps",
+                    "value": 2
                 }
             }
         },
         "1": {
             "audios": {
-                "audiofmt": {
-                    "value": 0,
-                    "name": "default"
+                "codec": {
+                    "name": "AAC",
+                    "value": 0
                 },
-                "recorder": {
-                    "value": 1,
-                    "name": "hw:0,0"
-                },
+                "vad": 0,
                 "agc": 0,
-                "framesize": {
-                    "value": 2,
-                    "name": "2048"
+                "bitrate": {
+                    "name": "24000",
+                    "value": 1
                 },
                 "samplerate": {
-                    "value": 4,
-                    "name": "48000"
-                },
-                "bitrate": {
-                    "value": 1,
-                    "name": "24000"
-                },
-                "denoise": 0,
-                "channels": {
-                    "value": 1,
-                    "name": "2"
+                    "name": "48000",
+                    "value": 4
                 },
                 "aec": 0,
-                "vad": 0,
+                "recorder": {
+                    "name": "hw:1,0",
+                    "value": 1
+                },
+                "denoise": 0,
+                "audiofmt": {
+                    "name": "default",
+                    "value": 0
+                },
                 "detect": 0,
-                "codec": {
-                    "value": 0,
-                    "name": "AAC"
+                "framesize": {
+                    "name": "2048",
+                    "value": 2
+                },
+                "channels": {
+                    "name": "2",
+                    "value": 1
                 }
             },
             "videos": {
-                "capture": {
-                    "value": 2,
-                    "name": "video0:mjpeg"
+                "codec": {
+                    "name": "HCSVC",
+                    "value": 0
                 },
-                "resolution": {
-                    "value": 1,
-                    "name": "1280x720"
+                "capture": {
+                    "name": "video0:mjpeg",
+                    "value": 0
                 },
                 "denoise": 0,
                 "bitrate": {
-                    "value": 3,
-                    "name": "800kbps"
+                    "name": "800kbps",
+                    "value": 3
                 },
-                "framerate": {
-                    "value": 2,
-                    "name": "25fps"
+                "resolution": {
+                    "name": "1280x720",
+                    "value": 1
                 },
                 "fec": 0,
-                "codec": {
-                    "value": 0,
-                    "name": "HCSVC"
+                "framerate": {
+                    "name": "25fps",
+                    "value": 2
                 }
             }
         }
     },
     "control": {
+        "mode": 6,
         "rect": [
             {
+                "chanId": 0,
                 "pos": [
                     0,
                     0,
                     1280,
                     720
                 ],
-                "deviceId": -1,
-                "chanId": 0
+                "deviceId": -1
             },
             {
+                "chanId": 1,
                 "pos": [
                     960.0,
                     0.0,
                     320.0,
                     180.0
                 ],
-                "deviceId": 0,
-                "chanId": 1
+                "deviceId": 0
             },
             {
+                "chanId": 2,
                 "pos": [
                     960.0,
                     180.0,
                     320.0,
                     180.0
                 ],
-                "deviceId": -1,
-                "chanId": 2
+                "deviceId": -1
             },
             {
+                "chanId": 3,
                 "pos": [
                     960.0,
                     360.0,
                     320.0,
                     180.0
                 ],
-                "deviceId": -1,
-                "chanId": 3
+                "deviceId": -1
             },
             {
+                "chanId": 4,
                 "pos": [
                     960.0,
                     540.0,
                     320.0,
                     180.0
                 ],
-                "deviceId": -1,
-                "chanId": 4
+                "deviceId": -1
             }
-        ],
-        "mode": 6
-    },
-    "general": {
-        "supprams": {
-            "osd": 5,
-            "serverAddr": "127.0.0.1:10088",
-            "uploadlayers": [
-                0
-            ],
-            "temporallayer": {
-                "name": "16",
-                "value": 4
-            },
-            "compatible": 0,
-            "spatiallayer": {
-                "name": "1",
-                "value": 0
-            }
-        },
-        "mcu": {},
-        "mode": {
-            "modePos": [
-                {
-                    "deviceId": -1,
-                    "chanId": 0,
-                    "pos": [
-                        0,
-                        0,
-                        426.6666666666667,
-                        240.0
-                    ]
-                },
-                {
-                    "deviceId": 0,
-                    "chanId": 1,
-                    "pos": [
-                        426.6666666666667,
-                        0,
-                        426.6666666666667,
-                        240.0
-                    ]
-                },
-                {
-                    "deviceId": -1,
-                    "chanId": 2,
-                    "pos": [
-                        853.3333333333334,
-                        0,
-                        426.6666666666667,
-                        240.0
-                    ]
-                },
-                {
-                    "deviceId": -1,
-                    "chanId": 3,
-                    "pos": [
-                        0,
-                        240.0,
-                        426.6666666666667,
-                        240.0
-                    ]
-                },
-                {
-                    "deviceId": -1,
-                    "chanId": 4,
-                    "pos": [
-                        426.6666666666667,
-                        240.0,
-                        426.6666666666667,
-                        240.0
-                    ]
-                },
-                {
-                    "deviceId": -1,
-                    "chanId": 5,
-                    "pos": [
-                        853.3333333333334,
-                        240.0,
-                        426.6666666666667,
-                        240.0
-                    ]
-                },
-                {
-                    "deviceId": -1,
-                    "chanId": 6,
-                    "pos": [
-                        0,
-                        480.0,
-                        426.6666666666667,
-                        240.0
-                    ]
-                },
-                {
-                    "deviceId": -1,
-                    "chanId": 7,
-                    "pos": [
-                        426.6666666666667,
-                        480.0,
-                        426.6666666666667,
-                        240.0
-                    ]
-                },
-                {
-                    "deviceId": -1,
-                    "chanId": 8,
-                    "pos": [
-                        853.3333333333334,
-                        480.0,
-                        426.6666666666667,
-                        240.0
-                    ]
-                }
-            ],
-            "modeId": 18
-        }
-    },
-    "conference": {
-        "width": 1280,
-        "ownerName": "xdmyjehrc",
-        "height": 720,
-        "sessionId": 32661
+        ]
     }
 }

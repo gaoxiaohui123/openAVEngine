@@ -73,9 +73,9 @@ extern cJSON* deleteJson(cJSON *json);
 
 extern unsigned char test_data[100 * 1024];
 
-static int global_fec_obj_status = 0;
-FecObj global_fec_objs[MAX_OBJ_NUM];
-char global_fec_outparam[MAX_OBJ_NUM][MAX_OUTCHAR_SIZE];
+//static int global_fec_obj_status = 0;
+//FecObj global_fec_objs[MAX_OBJ_NUM];
+//char global_fec_outparam[MAX_OBJ_NUM][MAX_OUTCHAR_SIZE];
 
 int fec_encode_close(FecObj *obj)
 {
@@ -157,6 +157,7 @@ int fec_init(FecObj *obj)
 
     return ret;
 }
+#if 0
 int init_fec_obj(int id)
 {
     if (global_fec_obj_status <= 0)
@@ -172,6 +173,7 @@ int init_fec_obj(int id)
     }
     return global_fec_obj_status;
 }
+#endif
 int get_symbol_size(FecObj *obj, char *data, short *inSize)
 {
     int ret = 0;
@@ -782,7 +784,7 @@ int api_fec_encode(char *handle, char *data, char *param, char *outbuf, char *ou
             fec_init(obj);
             obj->Obj_id = id;
         }
-        //printf("0: api_fec_encode: obj->rand_order= %d \n", obj->rand_order);
+        //printf("api_fec_encode: obj->rand_order= %d \n", obj->rand_order);
 
         obj->json = mystr2json(param);
         int symbol_size = GetvalueInt(obj->json, "symbol_size");
@@ -796,6 +798,9 @@ int api_fec_encode(char *handle, char *data, char *param, char *outbuf, char *ou
         {
             obj->k = k;
         }
+        //printf("api_fec_encode: symbol_size= %d \n", symbol_size);
+        //printf("api_fec_encode: k= %d \n", k);
+
         float loss_rate = GetvalueFloat(obj->json, "loss_rate");
         if(loss_rate)
         {
@@ -864,8 +869,12 @@ int api_fec_encode(char *handle, char *data, char *param, char *outbuf, char *ou
             }
 #endif
         //printf("2: api_fec_encode: obj->rand_order= %d \n", obj->rand_order);
-        //printf("api_fec_encode: pkt_mem_num= %d \n", pkt_mem_num);
-        short pktSize[MAX_PKT_NUM];
+        if(pkt_mem_num > 600)
+        {
+            printf("warning: api_fec_encode: pkt_mem_num= %d \n", pkt_mem_num);
+        }
+        //
+        short pktSize[MAX_FEC_PKT_NUM];
         //ret = fec_encode(obj, NULL, obj->inSize, outbuf, pktSize);
         ret = fec_encode2(obj, data, obj->inSize, outbuf, pktSize);
         //printf("api_fec_encode: ret=%d \n ", ret);

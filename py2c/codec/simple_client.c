@@ -84,8 +84,8 @@ extern cJSON* renewJsonStr(cJSON *json, char *key, char *cvalue);
 extern cJSON* deleteJson(cJSON *json);
 //extern int init_fec_obj(int id);
 extern int fec_init(FecObj *obj);
-extern FecObj global_fec_objs[MAX_OBJ_NUM];
-extern char global_fec_outparam[MAX_OBJ_NUM][MAX_OUTCHAR_SIZE];
+//extern FecObj global_fec_objs[MAX_OBJ_NUM];
+//extern char global_fec_outparam[MAX_OBJ_NUM][MAX_OUTCHAR_SIZE];
 
 extern unsigned char test_data[100 * 1024];
 
@@ -1189,7 +1189,7 @@ int api_fec_decode(char *handle, char *data, char *param, char *outbuf, char *ou
             return ret;
         }
         //printf("api_fec_decode: pkt_mem_num= %d \n", pkt_mem_num);
-        short pktSize[MAX_PKT_NUM];
+        short pktSize[MAX_FEC_PKT_NUM];
         //ret = fec_decode(obj, data, obj->inSize, outbuf, pktSize);
         ret = fec_decode2(obj, data, obj->inSize, outbuf, pktSize);
         //printf("api_fec_decode: ret= %d \n", ret);

@@ -6,6 +6,7 @@ import os
 import shutil
 import time
 import cv2
+import threading
 
 #import matplotlib.pyplot as plt # plt 用于显示图片
 #from matplotlib import pyplot as plt
@@ -46,6 +47,7 @@ class CallAudioCodec(object):
         self.load = loadlib.gload
         self.obj_id = id
         self.codec_type = type
+        self.lock = threading.Lock()
         ###
         self.handle_size = 8
         self.handle = create_string_buffer(self.handle_size)
@@ -66,6 +68,7 @@ class CallAudioCodec(object):
         self.out_nb_samples = 2048#1024
         self.out_channel_layout = "AV_CH_LAYOUT_STEREO"
         self.param = {}
+        self.param2 = {}
         self.outbuf = None
         if type > 0:
             self.init()
@@ -78,6 +81,7 @@ class CallAudioCodec(object):
         self.buf_size = 1 << 10
         self.qos_level = 0
         self.seqnum = 0
+        self.fec_seqnum = 0
         self.pkt_buf = create_string_buffer(self.mtu_size)
         self.resort_buf = create_string_buffer(self.mtu_size)
 
@@ -157,20 +161,30 @@ class CallAudioCodec(object):
                 print("(timestamp, self.last_timestamp)= ", (timestamp, self.last_timestamp))
             self.last_timestamp = timestamp
         return timestamp
+    def reset_seqnum(self, data):
+        #ret = -1
+        #self.lock.acquire()
+        self.fec_seqnum = self.load.lib.api_audio_reset_seqnum(self.handle, data, len(data), self.fec_seqnum)
+        ret = self.fec_seqnum
+        #self.lock.release()
+        return ret
     def rtppacket(self, data, insize):
         ret = 0
         if insize > 0:
             self.param.update({"insize": insize})
             timestamp = self.createtimestamp()
+            #print("rtppacket: timestamp= ", timestamp)
             self.param.update({"timestamp": timestamp})
             self.param.update({"seqnum": self.seqnum})
             param_str = json2str(self.param)
             ###
             self.outparam[0] = b""
             self.pkt_buf[0:insize] = data[0:insize]
+            #self.lock.acquire()
             ret = self.load.lib.api_audio_raw2rtp_packet(self.handle, self.pkt_buf, param_str, self.outbuf, self.outparam)
             if ret > 0:
                 self.seqnum = int(self.outparam[1])
+            #self.lock.release()
         return (ret, self.outbuf, self.outparam)
     def rtpunpacket(self, data, insize):
         ret = 0
@@ -187,15 +201,15 @@ class CallAudioCodec(object):
     def resort(self, data, insize):
         ret = 0
         frame_timestamp = 0
-        self.param.update({"min_distance": self.min_distance})
-        self.param.update({"delay_time": self.delay_time})
-        self.param.update({"buf_size": self.buf_size})
-        self.param.update({"qos_level": self.qos_level})
-        self.param.update({"loglevel": 1})
+        self.param2.update({"min_distance": self.min_distance})
+        self.param2.update({"delay_time": self.delay_time})
+        self.param2.update({"buf_size": self.buf_size})
+        self.param2.update({"qos_level": self.qos_level})
+        self.param2.update({"loglevel": 1})
 
         if insize > 0:
-            self.param.update({"insize": insize})
-            param_str = json2str(self.param)
+            self.param2.update({"insize": insize})
+            param_str = json2str(self.param2)
             #print("resort:param_str= ", param_str)
             ###
             self.outparam[0] = b""
