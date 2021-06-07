@@ -31,15 +31,19 @@
 #endif
 #endif
 
+#define USE_DSHOW 1
+
 extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
-extern char* GetvalueStr(cJSON *json, char *key);
+extern char* GetvalueStr(cJSON *json, char *key, char *result);
 extern cJSON* deleteJson(cJSON *json);
 extern int64_t get_sys_time();
 
-#if 1
+static int glob_ffmpeg_reg_idx = 0;
 
 #if 1
+
+
 //#define linux
 
 //Show Device
@@ -48,19 +52,27 @@ void show_dshow_device(){
 	AVDictionary* options = NULL;
 	av_dict_set(&options,"list_devices","true",0);
 	AVInputFormat *iformat = av_find_input_format("dshow");
-	printf("Device Info=============\n");
+	printf("show_dshow_device: \n");
 	avformat_open_input(&pFormatCtx,"video=dummy",iformat,&options);
+	AVDictionaryEntry *t = NULL;
+    while((t = av_dict_get(options, "list_devices", t, AV_DICT_IGNORE_SUFFIX))){
+        av_log(NULL, AV_LOG_DEBUG, "%s", "%s", t->key, t->value);
+    }
 	printf("========================\n");
 }
 
-//Show Device Option
+//Show Device Option//详细的信息
 void show_dshow_device_option(){
 	AVFormatContext *pFormatCtx = avformat_alloc_context();
 	AVDictionary* options = NULL;
 	av_dict_set(&options,"list_options","true",0);
 	AVInputFormat *iformat = av_find_input_format("dshow");
-	printf("Device Option Info======\n");
+	printf("show_dshow_device_option: \n");
 	avformat_open_input(&pFormatCtx,"video=Integrated Camera",iformat,&options);
+	AVDictionaryEntry *t = NULL;
+    while((t = av_dict_get(options, "list_options", t, AV_DICT_IGNORE_SUFFIX))){
+        av_log(NULL, AV_LOG_DEBUG, "%s", "%s", t->key, t->value);
+    }
 	printf("========================\n");
 }
 
@@ -68,7 +80,7 @@ void show_dshow_device_option(){
 void show_vfw_device(){
 	AVFormatContext *pFormatCtx = avformat_alloc_context();
 	AVInputFormat *iformat = av_find_input_format("vfwcap");
-	printf("VFW Device Info======\n");
+	printf("show_vfw_device: \n");
 	avformat_open_input(&pFormatCtx,"list",iformat,NULL);
 	printf("=====================\n");
 }
@@ -79,7 +91,7 @@ void show_avfoundation_device(){
 	AVDictionary* options = NULL;
 	av_dict_set(&options,"list_devices","true",0);
 	AVInputFormat *iformat = av_find_input_format("avfoundation");
-	printf("AVFoundation Device Info=============\n");
+	printf("show_avfoundation_device: \n");
 	avformat_open_input(&pFormatCtx,"",iformat,&options);
 	printf("========================\n");
 }
@@ -89,12 +101,12 @@ void show_linux_device(){
 	AVDictionary* options = NULL;
 	//av_dict_set(&options,"list_devices","true",0);
 	AVInputFormat *iformat = av_find_input_format("video4linux2");
-	printf("AVFoundation Device Info=============\n");
+	printf("show_linux_device: \n");
 	avformat_open_input(&pFormatCtx,"/dev/video0",iformat,&options);
 	//avformat_open_input(&pFormatCtx,"",iformat,&options);
 	printf("========================\n");
 }
-#endif
+
 
 #if 1
 char* input_name= "video4linux2";
@@ -201,7 +213,7 @@ void captureOneFrame2(void){
 		}
 	if(videoindex==-1){
 		printf("Didn't find a video stream.\n");
-		return -1;
+		return;
 	}
 
 	pCodecCtx = fmtCtx->streams[videoindex]->codec;
@@ -234,34 +246,49 @@ void captureOneFrame2(void){
     avformat_close_input(&fmtCtx);
  }
 
-int video_capture();
+int video_capture0();
 #endif
+
+HCSVC_API
+void api_ffmpeg_register()
+{
+    if(!glob_ffmpeg_reg_idx)
+    {
+        av_log_set_level(AV_LOG_QUIET);//( AV_LOG_DEBUG );
+        //av_log_set_level(AV_LOG_DEBUG);
+        av_register_all();
+        avcodec_register_all();
+        avformat_network_init();
+        avdevice_register_all();
+        glob_ffmpeg_reg_idx++;
+    }
+}
 
 HCSVC_API
 void api_show_device()
 {
-    av_log_set_level(AV_LOG_DEBUG);//( AV_LOG_DEBUG );
-    av_register_all();
-    avcodec_register_all();
-    avformat_network_init();
+    //av_log_set_level(AV_LOG_DEBUG);//( AV_LOG_DEBUG );
+    //av_register_all();
+    //avcodec_register_all();
+    //avformat_network_init();
 
-    avdevice_register_all();
+    //avdevice_register_all();
 
 #ifdef _WIN32
     //Show Dshow Device
 	show_dshow_device();
 	//Show Device Options
-	show_dshow_device_option();
+	///show_dshow_device_option();
 	//Show VFW Options
-	show_vfw_device();
+	///show_vfw_device();
 #elif defined linux
-    ///show_linux_device();
+    show_linux_device();
 #elif defined macOS
     show_avfoundation_device();
 #endif
     //captureOneFrame();
     //captureOneFrame2();
-    video_capture();
+    ///video_capture();
     //av_log_set_level(AV_LOG_QUIET);
 }
 
@@ -367,16 +394,16 @@ int sfp_refresh_thread(void *opaque)
 	return 0;
 }
 
-int video_capture()
+int video_capture0()
 {
-
+    printf("video_capture: start \n");
 	AVFormatContext	*pFormatCtx;
 	int				i, videoindex;
 	AVCodecContext	*pCodecCtx;
 	AVCodec			*pCodec;
 
-	av_register_all();
-	avformat_network_init();
+	//av_register_all();
+	//avformat_network_init();
 	pFormatCtx = avformat_alloc_context();
 
 	//Open File
@@ -384,17 +411,17 @@ int video_capture()
 	//avformat_open_input(&pFormatCtx,filepath,NULL,NULL)
 
 	//Register Device
-	avdevice_register_all();
+	//avdevice_register_all();
 
 //Windows
 #ifdef _WIN32
 
 	//Show Dshow Device
-	show_dshow_device();
+	//show_dshow_device();
 	//Show Device Options
-	show_dshow_device_option();
+	//show_dshow_device_option();
     //Show VFW Options
-    show_vfw_device();
+    //show_vfw_device();
 
 #if USE_DSHOW
 	AVInputFormat *ifmt=av_find_input_format("dshow");
@@ -618,6 +645,7 @@ int video_capture()
 
 #define __STDC_CONSTANT_MACROS
 
+#if 0
 #ifdef _WIN32
 //Windows
 extern "C"
@@ -641,6 +669,7 @@ extern "C"
 #include <SDL2/SDL.h>
 #ifdef __cplusplus
 };
+#endif
 #endif
 #endif
 
@@ -675,7 +704,7 @@ int sfp_refresh_thread(void *opaque){
 	return 0;
 }
 
-int video_capture()
+int video_capture0()
 {
 
 	AVFormatContext	*pFormatCtx = NULL;
@@ -707,11 +736,62 @@ int video_capture()
 
 
     AVInputFormat *inputFmt;
-    inputFmt = av_find_input_format (input_name);
 
+#ifdef _WIN32
+
+//#define GRAP
+#define GDIGRAP
+#if USE_DSHOW
+
+#ifndef GRAP
+    inputFmt = av_find_input_format("dshow");
+	//Set own video device's name
+	if(avformat_open_input(&pFormatCtx,"video=Integrated Camera",inputFmt, NULL)!=0){
+		printf("Couldn't open input stream.\n");
+		return -1;
+	}
+#else
+
+#ifndef GDIGRAP
+    inputFmt = av_find_input_format("dshow");
+    //使用dshow抓屏需要安装抓屏软件：screen-capture-recorder
+    //软件地址： http://sourceforge.net/projects/screencapturer/
+	if(avformat_open_input(&pFormatCtx,"video=screen-capture-recorder",inputFmt,NULL)!=0){
+        printf("Couldn't open input stream.（无法打开输入流）\n");
+        return -1;
+    }
+#else
+    //Use gdigrab
+    AVDictionary* options = NULL;
+    //Set some options
+    //grabbing frame rate
+    //av_dict_set(&options,"framerate","5",0);
+    //The distance from the left edge of the screen or desktop
+    //av_dict_set(&options,"offset_x","20",0);
+    //The distance from the top edge of the screen or desktop
+    //av_dict_set(&options,"offset_y","40",0);
+    //Video frame size. The default is to capture the full screen
+    //av_dict_set(&options,"video_size","640x480",0);
+    inputFmt = av_find_input_format("gdigrab");
+    if(avformat_open_input(&pFormatCtx,"desktop",inputFmt,&options)!=0){
+        printf("Couldn't open input stream.（无法打开输入流）\n");
+        return -1;
+    }
+#endif
+
+#endif
+#else
+	AVInputFormat *ifmt=av_find_input_format("vfwcap");
+	if(avformat_open_input(&pFormatCtx,"0",inputFmt, NULL)!=0){
+		printf("Couldn't open input stream.\n");
+		return -1;
+	}
+#endif
+#else
+    inputFmt = av_find_input_format (input_name);
     if (inputFmt == NULL)    {
         printf("can not find_input_format\n");
-        return;
+        return -2;
     }
     printf("video_capture 1 \n");
     AVDictionary* options = NULL;
@@ -723,6 +803,7 @@ int video_capture()
     if (avformat_open_input ( &pFormatCtx, file_name, inputFmt, &options) < 0){
         printf("can not open_input_file\n");         return -1;
     }
+#endif
     printf("video_capture 2 \n");
 	//pFormatCtx = avformat_alloc_context();
 
@@ -868,6 +949,7 @@ int video_capture()
 #endif
 
 
+
 void get_screen_wxh(int *width, int *height)
 {
 #ifdef linux
@@ -950,16 +1032,18 @@ int api_list_devices(char *input_name0, char *device_name0)
     printf("api_list_devices: %d*%d\n",vinfo.xres,vinfo.yres);
     close(fd);
 #endif
-    av_register_all();
-	avformat_network_init();
-    avdevice_register_all();
+    //av_register_all();
+	//avformat_network_init();
+    //avdevice_register_all();
 
     AVFormatContext	*pFormatCtx = NULL;
     AVInputFormat *inputFmt;
     int64_t time0 = get_sys_time();
     inputFmt = av_find_input_format (input_name0);
+#ifdef _WIN32
     //AVInputFormat *iformat = av_find_input_format("dshow");
-
+    inputFmt = av_find_input_format ("dshow");
+#endif
     if (inputFmt == NULL)    {
         printf("api_list_devices: can not find_input_format: input_name0=%s \n", input_name0);
         return -1;
@@ -980,10 +1064,20 @@ int api_list_devices(char *input_name0, char *device_name0)
 
 
 	time0 = get_sys_time();
+
+#ifdef _WIN32
+    char devname[256] = "video=";
+    strcat(devname, device_name0 );
+    if(avformat_open_input(&pFormatCtx, devname, inputFmt, &options) < 0){
+        printf("api_list_devices: can not open_input_file: windows \n");
+        return -1;
+    }
+#else
     if (avformat_open_input ( &pFormatCtx, device_name0, inputFmt, &options) < 0){
         printf("api_list_devices: can not open_input_file: device_name0=%s \n", device_name0);
-        ret = -1;
+        return -1;
     }
+#endif
     time1 = get_sys_time();
     difftime = (int)(time1 - time0);
     printf("api_list_devices: avformat_open_input: difftime=%d \n", difftime);
@@ -991,6 +1085,7 @@ int api_list_devices(char *input_name0, char *device_name0)
     while((t = av_dict_get(options, "", t, AV_DICT_IGNORE_SUFFIX))){
         av_log(NULL, AV_LOG_DEBUG, "%s", "%s", t->key, t->value);
     }
+    printf("api_list_devices: ok \n");
     return ret;
 }
 
@@ -1040,7 +1135,8 @@ int api_capture_init(char *handle, char *param)
         obj->orgY = GetvalueInt(obj->json, "orgY");
         obj->scale = GetvalueInt(obj->json, "scale");
         obj->color = GetvalueInt(obj->json, "color");
-        char *src_pix_fmt = GetvalueStr(obj->json, "src_pix_fmt");
+        char src_pix_fmt[64] = "";
+        GetvalueStr(obj->json, "src_pix_fmt", src_pix_fmt);
 	    if (strcmp(src_pix_fmt, ""))
 	    {
             if (!strcmp(src_pix_fmt, "AV_PIX_FMT_YUV420P"))
@@ -1062,12 +1158,12 @@ int api_capture_init(char *handle, char *param)
     printf("api_capture_init: obj->cap_height=%d \n", obj->cap_height);
     obj->framerate = GetvalueInt(obj->json, "framerate");
     printf("api_capture_init: obj->framerate=%d \n", obj->framerate);
-    obj->input_format = GetvalueStr(obj->json, "input_format");
+    GetvalueStr(obj->json, "input_format", obj->input_format);
     printf("api_capture_init: obj->input_format=%s \n", obj->input_format);
     //
-    obj->input_name = GetvalueStr(obj->json, "input_name");
+    GetvalueStr(obj->json, "input_name", obj->input_name);
     printf("api_capture_init: obj->input_name=%s \n", obj->input_name);
-    obj->device_name = GetvalueStr(obj->json, "device_name");
+    GetvalueStr(obj->json, "device_name", obj->device_name);
     printf("api_capture_init: obj->device_name=%s \n", obj->device_name);
 
     obj->denoise = GetvalueInt(obj->json, "denoise");
@@ -1089,23 +1185,25 @@ int api_capture_init(char *handle, char *param)
         //ISVCEncoder *encoder = NULL;
         //WelsDestroySVCEncoder(encoder);
     }
+    printf("api_capture_init: obj->denoise=%d \n", obj->denoise);
 
-    char *cscale_type = GetvalueStr(obj->json, "scale_type");
-    printf("api_capture_init: cscale_type=%s \n", cscale_type);
-    if (!strcmp(cscale_type, "SWS_BICUBIC"))
+    char ctmp[64] = "";
+    GetvalueStr(obj->json, "scale_type", ctmp);
+    printf("api_capture_init: cscale_type=%s \n", ctmp);
+    if (!strcmp(ctmp, "SWS_BICUBIC"))
 	{
        obj->scale_type = SWS_BICUBIC;
 	}
-	else if (!strcmp(cscale_type, "SWS_BILINEAR"))
+	else if (!strcmp(ctmp, "SWS_BILINEAR"))
 	{
        obj->scale_type = SWS_BILINEAR;
 	}
-    char *cpixformat = GetvalueStr(obj->json, "pixformat");
-	if (!strcmp(cpixformat, "AV_PIX_FMT_YUV420P"))
+    GetvalueStr(obj->json, "pixformat", ctmp);
+	if (!strcmp(ctmp, "AV_PIX_FMT_YUV420P"))
 	{
        obj->pixformat = AV_PIX_FMT_YUV420P;
 	}
-	else if (!strcmp(cpixformat, "SDL_PIXELFORMAT_YV12"))
+	else if (!strcmp(ctmp, "SDL_PIXELFORMAT_YV12"))
 	{
        obj->pixformat = SDL_PIXELFORMAT_YV12;
 	}
@@ -1128,16 +1226,22 @@ int api_capture_init(char *handle, char *param)
             printf("api_capture_init: obj->cap_buf[i]=%x, i=%d \n", obj->cap_buf[i], i);
         }
         obj->tmp_buf = (char *)av_malloc(cap_frame_size);//max is 4:4:4
+        obj->outbuf = NULL;//(char *)av_malloc(cap_frame_size);
         pthread_mutex_init(&obj->mutex,NULL);
 
     }
 
-	av_register_all();
-	avformat_network_init();
-    avdevice_register_all();
+	//av_register_all();
+	//avformat_network_init();
+    //avdevice_register_all();
 
     int64_t time0 = get_sys_time();
+#ifdef _WIN32
+    //strcpy(obj->input_name, "vfwcap")；
+    printf("api_list_devices: obj->input_name=%s \n", obj->input_name);
+#endif
     obj->inputFmt = av_find_input_format (obj->input_name);
+
     if (obj->inputFmt == NULL)    {
         printf("api_capture_init: can not find_input_format: obj->input_name=%s \n", obj->input_name);
         return -1;
@@ -1158,9 +1262,10 @@ int api_capture_init(char *handle, char *param)
             obj->cap_height = screen_height;
         }
     }
+
     AVDictionary* options = NULL;
     char text[16] = "";
-    char ctmp[16] = "";
+    //char ctmp[16] = "";
     //av_dict_set(&options,"list_formats","all",0);
     //av_dict_set(&options,"list_formats","raw",0);
     sprintf(text, "%d", obj->cap_width);
@@ -1170,7 +1275,53 @@ int api_capture_init(char *handle, char *param)
     av_dict_set(&options, "video_size", text, AV_DICT_MATCH_CASE);
 	//av_dict_set(&options,"video_size","320x180",0);
 	sprintf(text, "%d", obj->framerate);
-	if(obj->framerate > 0)
+
+    time0 = get_sys_time();
+#ifdef _WIN32
+    if(!strcmp(obj->input_name, "gdigrab"))
+    {
+        if(obj->framerate > 0)
+	    {
+	        av_dict_set(&options, "framerate", text, AV_DICT_MATCH_CASE);
+	    }
+        //av_dict_set(&options,"offset_x","20",0);
+        //The distance from the top edge of the screen or desktop
+        //av_dict_set(&options,"offset_y","40",0);
+        //Video frame size. The default is to capture the full screen
+        //av_dict_set(&options,"video_size","320x240",0);
+        if(avformat_open_input(&obj->pFormatCtx, "desktop", obj->inputFmt, &options) < 0){
+            printf("api_capture_init: can not avformat_open_input: windows: obj->inputFmt=%s \n", obj->inputFmt);
+            return -1;
+        }
+    }
+    else{
+        //要先获取设备的能力，再打开设备，否则，无论分辨率还是帧率不相称的参数都会导致摄像头打开失败
+        if(obj->framerate > 0)
+	    {
+	        //会导致打开摄像头失败
+	        ///av_dict_set(&options, "framerate", text, AV_DICT_MATCH_CASE);
+	    }
+
+	    if(!strcmp(obj->input_format, "mjpeg"))
+	    {
+	        av_dict_set(&options, "input_format", obj->input_format, AV_DICT_MATCH_CASE);
+	        printf("api_capture_init: obj->input_format=%s \n", obj->input_format);
+
+	    }
+
+        char devname[256] = "video=";
+        strcat(devname,obj->device_name );
+        printf("api_capture_init: devname=%s \n", devname);
+        if((ret = avformat_open_input(&obj->pFormatCtx, devname, obj->inputFmt, &options)) < 0){
+            fprintf(stderr, "api_capture_init:avformat_open_input:  %s\n", av_err2str(ret));
+            printf("api_capture_init: can not open_input_file: windows: devname=%s, ret=%d \n", devname, ret);
+            return -1;
+        }
+
+    }
+
+#else
+    if(obj->framerate > 0)
 	{
 	    av_dict_set(&options, "framerate", text, AV_DICT_MATCH_CASE);
 	}
@@ -1179,13 +1330,13 @@ int api_capture_init(char *handle, char *param)
 	{
 	    av_dict_set(&options, "input_format", obj->input_format, AV_DICT_MATCH_CASE);
 	}
-    time0 = get_sys_time();
     if (avformat_open_input ( &obj->pFormatCtx, obj->device_name, obj->inputFmt, &options) < 0){
         printf("api_capture_init: can not find_input_format: obj->input_name=%s \n", obj->input_name);
         printf("api_capture_init: can not open_input_file: obj->device_name=%s \n", obj->device_name);
         printf("api_capture_init: can not open_input_file: obj->input_format=%s \n", obj->input_format);
         return -1;
     }
+#endif
     time1 = get_sys_time();
     difftime = (int)(time1 - time0);
     printf("api_capture_init: avformat_open_input: difftime=%d \n", difftime);
@@ -1208,7 +1359,7 @@ int api_capture_init(char *handle, char *param)
     {
         av_log(NULL, AV_LOG_DEBUG, "list_formats: %s", t->value);
     }
-
+#if 0
     while((t = av_dict_get(options, "", t, AV_DICT_IGNORE_SUFFIX))){
         av_log(NULL, AV_LOG_DEBUG, "%s", "%s", t->key, t->value);
     }
@@ -1217,6 +1368,7 @@ int api_capture_init(char *handle, char *param)
         printf("api_capture_init: %s, %s \n", t->key, t->value);
     }
     printf("api_capture_init 2 \n");
+#endif
 	//pFormatCtx = avformat_alloc_context();
 
 	//if(avformat_open_input(&pFormatCtx,filepath,NULL,NULL)!=0){
@@ -1333,6 +1485,11 @@ void api_capture_close(char *handle)
             av_free(obj->tmp_buf);
             obj->tmp_buf = NULL;
         }
+        if(obj->outbuf)
+        {
+            av_free(obj->outbuf);
+            obj->outbuf = NULL;
+        }
         if(obj->img_hnd)
         {
             if(obj->denoise == 1)
@@ -1345,10 +1502,7 @@ void api_capture_close(char *handle)
              free(obj->img_hnd);
         }
         pthread_mutex_destroy(&obj->mutex);
-        if(obj->scale_handle)
-        {
-            //
-        }
+
         if(obj->json)
         {
             api_json_free(obj->json);
@@ -1725,7 +1879,8 @@ int api_capture_read_frame(char *handle, char *outbuf)
 {
     int ret = 0;
 
-    AVPacket *packet;
+    //AVPacket *packet;
+    AVPacket pkt;
     char *outbuffer = outbuf;
 
     long long *testp = (long long *)handle;
@@ -1735,17 +1890,17 @@ int api_capture_read_frame(char *handle, char *outbuf)
     obj->print = GetvalueInt(obj->json, "print");
     //printf("api_capture_read_frame: obj->print=%d \n", obj->print);
 
-	packet=(AVPacket *)av_malloc(sizeof(AVPacket));
+	//packet=(AVPacket *)av_malloc(sizeof(AVPacket));
     int64_t time0 = get_sys_time();
     while(1){
-        ret = av_read_frame(obj->pFormatCtx, packet);
+        ret = av_read_frame(obj->pFormatCtx, &pkt);
 	    if(ret < 0)
 	    {
 	        obj->cap_read_error_cnt++;
 	        return -1;
 	    }
 
-	    if(packet->stream_index==obj->videoindex)
+	    if(pkt.stream_index==obj->videoindex)
 	    {
 	        break;
 	    }
@@ -1755,12 +1910,11 @@ int api_capture_read_frame(char *handle, char *outbuf)
 	if(obj->print)
 	{
 	    printf("api_capture_read_frame: difftime0= %d \n", difftime);
-	    //printf("api_capture_read_frame: packet->stream_index= %d \n", packet->stream_index);
-	    //printf("api_capture_read_frame: packet->flags= %d \n", packet->flags);
-	    //printf("api_capture_read_frame: packet->pts= %d \n", packet->pts);
+	    //printf("api_capture_read_frame: pkt.stream_index= %d \n", pkt.stream_index);
+	    //printf("api_capture_read_frame: pkt.flags= %d \n", pkt.flags);
+	    //printf("api_capture_read_frame: pkt.pts= %d \n", pkt.pts);
         //printf("api_capture_read_frame: obj->pCodecCtx->pix_fmt= %d \n", obj->pCodecCtx->pix_fmt);
 	}
-
 
 	if(ret >= 0)
     {
@@ -1793,10 +1947,10 @@ int api_capture_read_frame(char *handle, char *outbuf)
                 int *p0 = (int *)obj->cap_buf[I];
                 int64_t *p1 = (int64_t *)&obj->cap_buf[I][sizeof(int64_t)];
                 char *data = &obj->cap_buf[I][obj->head_size];
-                p0[0] = packet->size;
+                p0[0] = pkt.size;
                 p1[0] = get_sys_time();
-                ret = packet->size;
-                memcpy(data, packet->data, ret);
+                ret = pkt.size;
+                memcpy(data, pkt.data, ret);
             }
 
 
@@ -1826,8 +1980,9 @@ int api_capture_read_frame(char *handle, char *outbuf)
     }
     //printf("api_capture_read_frame: obj->cap_read_error_cnt=%d \n", obj->cap_read_error_cnt);
 	//printf("api_capture_read_frame: ret=%d \n", ret);//
-	//printf("api_capture_read_frame: packet->duration=%d \n", packet->duration);
-	av_free_packet(packet);
+	//printf("api_capture_read_frame: pkt.duration=%d \n", pkt.duration);
+	//av_free_packet(packet);
+	av_packet_unref(&pkt);
 	return ret;
 }
 HCSVC_API
@@ -1916,7 +2071,8 @@ int api_capture_read_frame2(char *handle, char *outbuf)
     }
     if(ret <= 0)
     {
-        av_free_packet(&pkt);
+        //av_free_packet(&pkt);
+        av_packet_unref(&pkt);
         return ret;
     }
 	//
@@ -1927,6 +2083,7 @@ int api_capture_read_frame2(char *handle, char *outbuf)
 	if(ret < 0){
 	    printf("api_capture_read_frame: Decode Error.\n");
 	    obj->cap_read_error_cnt++;
+	    av_packet_unref(&pkt);
 		return -1;
 	}
 	//printf("api_capture_read_frame2: decode: ret=%d \n", ret);
@@ -2001,7 +2158,7 @@ int api_capture_read_frame2(char *handle, char *outbuf)
     int64_t now = api_get_time_stamp_ll();
     difftime = (int)(now - obj->start_time);
 
-    if(difftime > 1000)
+    if(difftime > 500)
     {
         float sum_time = (difftime / 1000.0);//s
         if((obj->frame_num % step) == (step - 1))
@@ -2026,6 +2183,7 @@ int api_capture_read_frame2(char *handle, char *outbuf)
             obj->json = api_renew_json_int(obj->json, "orgY", obj->orgY);
             obj->json = api_renew_json_int(obj->json, "scale", obj->scale);
             obj->json = api_renew_json_int(obj->json, "color", obj->color);
+
             obj->json = api_renew_json_str(obj->json, "src_pix_fmt", "AV_PIX_FMT_YUV420P");
 
             char* jsonstr2 = api_json2str(obj->json);
@@ -2041,11 +2199,12 @@ int api_capture_read_frame2(char *handle, char *outbuf)
             char context[255] = "";
             obj->json = api_renew_json_int(obj->json, "orgX", orgX);
             obj->json = api_renew_json_int(obj->json, "orgY", orgY);
-            sprintf(&context[strlen(context)], "  %d", obj->width);
-            sprintf(&context[strlen(context)], "   %d", obj->height);
-            sprintf(&context[strlen(context)], "   %2d", framerate);
+            sprintf(&context[strlen(context)], " %d", obj->width);
+            sprintf(&context[strlen(context)], "x%d", obj->height);
+            sprintf(&context[strlen(context)], " %2d", framerate);
             strcat(context, "  ");
             strcat(context, obj->input_format);
+            obj->json = api_delete_item(obj->json, "context");
             obj->json = api_renew_json_str(obj->json, "context", context);
             char* jsonstr2 = api_json2str(obj->json);
             int ret2 = api_simple_osd_process(  obj->osd_handle,
@@ -2055,7 +2214,29 @@ int api_capture_read_frame2(char *handle, char *outbuf)
             //printf("api_capture_read_frame2: ret2= %d \n", ret2);
       }
 	}
-    av_free_packet(&pkt);
+    //av_free_packet(&pkt);
+    av_packet_unref(&pkt);
 	obj->frame_num++;
+    return ret;
+}
+HCSVC_API
+int api_capture_read_frame3(char *handle, char **outbuf)
+{
+    int ret = 0;
+    if(!*outbuf)
+    {
+        long long *testp = (long long *)handle;
+        CaptureObj *obj = (CaptureObj *)testp[0];
+#if 0
+        *outbuf = (char *)av_malloc(obj->frame_size);
+#else
+        if(!obj->outbuf)
+        {
+            obj->outbuf = (char *)av_malloc(obj->frame_size);
+        }
+        *outbuf = obj->outbuf;
+#endif
+    }
+    ret = api_capture_read_frame2(handle, *outbuf);
     return ret;
 }

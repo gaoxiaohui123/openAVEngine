@@ -15,9 +15,10 @@
 #2. 丢包
 #丢包率 5%
 #sudo tc qdisc add dev eno1 root netem loss 5%
-#sudo tc qdisc del dev eno1 root netem loss 15%
-#sudo tc qdisc change dev eno1 root netem loss 15%
+#sudo tc qdisc change dev eno1 root netem loss 50%
 sudo tc qdisc del dev eno1 root
+#
+#sudo tc qdisc del dev eno1 root netem loss 15%
 
 #3. 包重复
 #sudo tc qdisc add dev eno1 root netem duplicate 1%

@@ -44,7 +44,7 @@
  */
 #define USE_DECODE_WITH_NEW_SYMBOL
 
-
+#ifdef linux
 /* Prototypes */
 
 /**
@@ -64,7 +64,7 @@ static SOCKET	init_socket (void);
 static of_status_t	get_next_pkt (SOCKET	so,
 				      void	**pkt,
 				      INT32	*len);
-
+#endif
 /**
  * Dumps len32 32-bit words of a buffer (typically a symbol).
  */
@@ -77,10 +77,10 @@ static void	dump_buffer_32 (void	*buf,
 
 extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
-extern char* GetvalueStr(cJSON *json, char *key);
 extern cJSON* renewJson(cJSON *json, char *key, int ivalue, char *cvalue, cJSON *subJson);
 extern cJSON* renewJsonInt(cJSON *json, char *key, int ivalue);
 extern cJSON* renewJsonStr(cJSON *json, char *key, char *cvalue);
+extern cJSON* renewJsonArray1(cJSON *json, char *key, short *value, int len);
 extern cJSON* deleteJson(cJSON *json);
 //extern int init_fec_obj(int id);
 extern int fec_init(FecObj *obj);
@@ -88,50 +88,6 @@ extern int fec_init(FecObj *obj);
 //extern char global_fec_outparam[MAX_OBJ_NUM][MAX_OUTCHAR_SIZE];
 
 extern unsigned char test_data[100 * 1024];
-
-int fec_decode_close(FecObj *obj)
-{
-    UINT32		esi;					/* Encoding Symbol ID, used to identify each encoding symbol */
-    /* Cleanup everything... */
-	if (obj->ses)
-	{
-		of_release_codec_instance(obj->ses);
-		obj->ses = NULL;
-	}
-	if (obj->params)
-	{
-		free(obj->params);
-		obj->params = NULL;
-	}
-	//if (obj->pkt_with_fpi)
-	//{
-	//	free(obj->pkt_with_fpi);
-	//	obj->pkt_with_fpi = NULL;
-	//}
-	obj->pkt_with_fpi = NULL;
-
-	if (obj->recvd_symbols_tab && obj->src_symbols_tab)
-	{
-		for (esi = 0; esi < obj->n; esi++)
-		{
-			if (obj->recvd_symbols_tab[esi])
-			{
-				/* this is a symbol received from the network, without its FPI that starts 4 bytes before */
-				free((char*)obj->recvd_symbols_tab[esi] - 4);
-			}
-			else if (esi < obj->k && obj->src_symbols_tab[esi])
-			{
-				/* this is a source symbol decoded by the openfec codec, so free it */
-				ASSERT(obj->recvd_symbols_tab[esi] == NULL);
-				free(obj->src_symbols_tab[esi]);
-			}
-		}
-		free(obj->recvd_symbols_tab);
-		obj->recvd_symbols_tab = NULL;
-		free(obj->src_symbols_tab);
-		obj->src_symbols_tab = NULL;
-	}
-}
 
 int fec_decode_close2(FecObj *obj)
 {
@@ -179,298 +135,22 @@ int fec_decode_close2(FecObj *obj)
 	}
 }
 
-int fec_decode(FecObj *obj, char *indata, short *inSize, char *outbuf, short *pktSize)
-{
-    int ret = 0;
-    UINT32		esi;					/* Encoding Symbol ID, used to identify each encoding symbol */
-    INT32		len;
-    UINT32		n_received	= 0;
-    int idx = 0;
-    int offset = 0;
-    bool		done		= false;		/* true as soon as all source symbols have been received or recovered */
 
-    len = sizeof(fec_oti_t);		/* size of the expected packet */
-	//if ((ret = get_next_pkt(so, (void**)&fec_oti, &len)) != OF_STATUS_OK)
-	//{
-	//	OF_PRINT_ERROR(("get_next_pkt failed (FEC OTI reception)\n"))
-	//	ret = -1;
-	//	goto end;
-	//}
-	if(inSize[idx] != len)
-	{
-	    ret = -1;
-		goto end;
-	}
-	memcpy((void *)&obj->fec_oti, &indata[offset], inSize[idx]);
-	offset += inSize[idx];
-    idx += 1;
-
-	/* convert back to host endianess */
-	obj->codec_id = obj->fec_oti.codec_id;//ntohl(obj->fec_oti.codec_id);
-	obj->k = obj->fec_oti.k;//ntohl(obj->fec_oti.k);
-	obj->n = obj->fec_oti.n	;//ntohl(obj->fec_oti.n);
-	obj->symb_sz_32 = obj->fec_oti.symbol_size;
-	obj->symbol_size = obj->symb_sz_32 << 2;
-
-	printf("fec_decode: obj->k= %d \n", obj->k);
-	printf("fec_decode: obj->n= %d \n", obj->n);
-	printf("fec_decode: obj->codec_id= %d \n", obj->codec_id);
-
-	//printf("\nReceiving packets from %s/%d\n", DEST_IP, DEST_PORT);
-
-	/* and check the correctness of data received */
-	if (obj->k > obj->n || obj->k > 40000 || obj->n > 40000)
-	{
-		OF_PRINT_ERROR(("Invalid FEC OTI received: k=%u or n=%u received are probably out of range\n", obj->k, obj->n))
-		ret = -1;
-		goto end;
-	}
-	/* now we know which codec the sender has used along with the codec parameters, we can prepar the params structure accordingly */
-	switch (obj->codec_id) {
-	case OF_CODEC_REED_SOLOMON_GF_2_M_STABLE: {
-		/* fill in the code specific part of the of_..._parameters_t structure */
-		of_rs_2_m_parameters_t	*my_params;
-
-		printf("\nInitialize a Reed-Solomon over GF(2^m) codec instance, (n, k)=(%u, %u)...\n", obj->n, obj->k);
-		if ((my_params = (of_rs_2_m_parameters_t *)calloc(1, sizeof(* my_params))) == NULL)
-		{
-			OF_PRINT_ERROR(("no memory for codec %d\n", obj->codec_id))
-			ret = -1;
-			goto end;
-		}
-		my_params->m = 8;
-		obj->params = (of_parameters_t *) my_params;
-		break;
-		}
-
-	case OF_CODEC_LDPC_STAIRCASE_STABLE: {
-		/* fill in the code specific part of the of_..._parameters_t structure */
-		of_ldpc_parameters_t	*my_params;
-
-		printf("\nInitialize an LDPC-Staircase codec instance, (n, k)=(%u, %u)...\n", obj->n, obj->k);
-		if ((my_params = (of_ldpc_parameters_t *)calloc(1, sizeof(* my_params))) == NULL)
-		{
-			OF_PRINT_ERROR(("no memory for codec %d\n", obj->codec_id))
-			ret = -1;
-			goto end;
-		}
-		my_params->prng_seed	= rand();
-		my_params->N1		= 7;
-		obj->params = (of_parameters_t *) my_params;
-		break;
-		}
-
-	default:
-		OF_PRINT_ERROR(("Invalid FEC OTI received: codec_id=%u received is not valid\n", obj->codec_id))
-		ret = -1;
-		goto end;
-	}
-	obj->params->nb_source_symbols	= obj->k;		/* fill in the generic part of the of_parameters_t structure */
-	obj->params->nb_repair_symbols	= obj->n - obj->k;
-	obj->params->encoding_symbol_length	= obj->symbol_size;
-
-	/* Open and initialize the openfec decoding session now that we know the various parameters used by the sender/encoder... */
-	if ((ret = of_create_codec_instance(&obj->ses, obj->codec_id, OF_DECODER, VERBOSITY)) != OF_STATUS_OK)
-	{
-		OF_PRINT_ERROR(("of_create_codec_instance() failed\n"))
-		ret = -1;
-		goto end;
-	}
-	if (of_set_fec_parameters(obj->ses, obj->params) != OF_STATUS_OK)
-	{
-		OF_PRINT_ERROR(("of_set_fec_parameters() failed for codec_id %d\n", obj->codec_id))
-		ret = -1;
-		goto end;
-	}
-
-	printf( "\nDecoding in progress. Waiting for new packets...\n" );
-
-	/* allocate a table for the received encoding symbol buffers. We'll update it progressively */
-	if (((obj->recvd_symbols_tab = (void**) calloc(obj->n, sizeof(void*))) == NULL) ||
-	    ((obj->src_symbols_tab = (void**) calloc(obj->n, sizeof(void*))) == NULL))
-	{
-		OF_PRINT_ERROR(("no memory (calloc failed for enc_symbols_tab, n=%u)\n", obj->n))
-		ret = -1;
-		goto end;
-	}
-
-
-#ifdef USE_DECODE_WITH_NEW_SYMBOL
-	/*
-	 * this is the standard method: submit each fresh symbol to the library ASAP, upon reception
-	 * (or later, but using the standard of_decode_with_new_symbol() function).
-	 */
-	 printf("USE_DECODE_WITH_NEW_SYMBOL \n");
-	///while ((ret = get_next_pkt(so, &pkt_with_fpi, &len)) == OF_STATUS_OK)
-	do
-	{
-	    len = obj->symbol_size + 4;	/* size of the expected packet */
-	    if ((obj->pkt_with_fpi = malloc(len)) == NULL)
-	    {
-		    ret = -1;
-		    goto end;
-	    }
-	    memcpy(obj->pkt_with_fpi, &indata[offset], inSize[idx]);
-
-        //printf("indata= ");
-	    //dump_buffer_32(&obj->pkt_with_fpi[4], 1);//test
-	    //printf("indata= ");
-	    //for(int I = 0; I < 4; I++)
-	    //{
-	    //    unsigned char value = indata[offset + I + 4];
-	    //    printf("%2x",value);
-	    //}
-	    //printf("\n");
-
-	    offset += inSize[idx];
-        idx += 1;
-		/* OK, new packet received... */
-		n_received++;
-		esi = ntohl(*(UINT32*)obj->pkt_with_fpi);
-
-		printf("fec_decode: esi= %d \n", esi);
-
-		if (esi > obj->n)		/* a sanity check, in case... */
-		{
-			OF_PRINT_ERROR(("invalid esi=%u received in a packet's FPI\n", esi))
-			ret = -1;
-			goto end;
-		}
-		obj->recvd_symbols_tab[esi] = (char*)obj->pkt_with_fpi + 4;	/* remember */
-		//printf("%05d => receiving symbol esi=%u (%s)\n", n_received, esi, (esi < obj->k) ? "src" : "repair");
-		if (of_decode_with_new_symbol(obj->ses, (char*)obj->pkt_with_fpi + 4, esi) == OF_STATUS_ERROR) {
-			OF_PRINT_ERROR(("of_decode_with_new_symbol() failed\n"))
-			ret = -1;
-			goto end;
-		}
-		//printf("recvd_symbols_tab= ");
-		//dump_buffer_32(obj->recvd_symbols_tab[esi], 1);//test
-
-		/* check if completed in case we received k packets or more */
-		if ((n_received >= obj->k) && (of_is_decoding_complete(obj->ses) == true)) {
-			/* done, we recovered everything, no need to continue reception */
-			done = true;
-			break;
-		}
-		len = obj->symbol_size + 4;	/* make sure len contains the size of the expected packet */
-	}while(inSize[idx] > 0);
-	printf("fec_decode: idx= %d \n", idx);
-#else
-	/*
-	 * this is the alternative method: wait to receive all the symbols, then submit them all to
-	 * the library using the of_set_available_symbols() function. In that case decoding will occur
-	 * during the of_finish_decoding() call.
-	 */
-	printf("wait to receive all the symbols \n");
-	///while ((ret = get_next_pkt(so, &pkt_with_fpi, &len)) == OF_STATUS_OK)
-	do
-	{
-	    len = obj->symbol_size + 4;	/* size of the expected packet */
-	    if ((obj->pkt_with_fpi = malloc(len)) == NULL)
-	    {
-		    ret = -1;
-		    goto end;
-	    }
-
-	    memcpy(obj->pkt_with_fpi, &indata[offset], inSize[idx]);
-	    offset += inSize[idx];
-        idx += 1;
-		/* OK, new packet received... */
-		n_received++;
-		esi = ntohl(*(UINT32*)obj->pkt_with_fpi);
-		if (esi > n)		/* a sanity check, in case... */
-		{
-			OF_PRINT_ERROR(("invalid esi=%u received in a packet's FPI\n", esi))
-			ret = -1;
-			goto end;
-		}
-		obj->recvd_symbols_tab[esi] = (char*)obj->pkt_with_fpi + 4;	/* remember */
-		printf("%05d => receiving symbol esi=%u (%s)\n", n_received, esi, (esi < obj->k) ? "src" : "repair");
-		len = obj->symbol_size + 4;	/* make sure len contains the size of the expected packet */
-	}while(inSize[idx] > 0);
-	/* now we received everything, submit them all to the codec if we received a sufficiently high number of symbols (i.e. >= k) */
-	if (n_received >= obj->k && (of_set_available_symbols(obj->ses, obj->recvd_symbols_tab) != OF_STATUS_OK))
-	{
-		OF_PRINT_ERROR(("of_set_available_symbols() failed with error (%d)\n", ret))
-		ret = -1;
-		goto end;
-	}
-#endif
-	if (!done && (ret == OF_STATUS_FAILURE) && (n_received >= obj->k))
-	{
-		/* there's no packet any more but we received at least k, and the use of of_decode_with_new_symbol() didn't succedd to decode,
-		 * so try with of_finish_decoding.
-		 * NB: this is useless with MDS codes (e.g. Reed-Solomon), but it is essential with LDPC-Staircase as of_decode_with_new_symbol
-		 * performs ITerative decoding, whereas of_finish_decoding performs ML decoding */
-		ret = of_finish_decoding(obj->ses);
-		if (ret == OF_STATUS_ERROR || ret == OF_STATUS_FATAL_ERROR)
-		{
-			OF_PRINT_ERROR(("of_finish_decoding() failed with error (%d)\n", ret))
-			ret = -1;
-			goto end;
-		}
-		else if (ret == OF_STATUS_OK)
-		{
-			done = true;
-		}
-		/* else ret == OF_STATUS_FAILURE, meaning of_finish_decoding didn't manage to recover all source symbols */
-	}
-	if (done)
-	{
-		/* finally, get a copy of the pointers to all the source symbols, those received (that we already know) and those decoded.
-		 * In case of received symbols, the library does not change the pointers (same value). */
-		if (of_get_source_symbols_tab(obj->ses, obj->src_symbols_tab) != OF_STATUS_OK)
-		{
-			OF_PRINT_ERROR(("of_get_source_symbols_tab() failed\n"))
-			ret = -1;
-			goto end;
-		}
-		printf("\nDone! All source symbols rebuilt after receiving %u packets\n", n_received);
-		if (VERBOSITY > 1)
-		{
-			for (esi = 0; esi < obj->k; esi++) {
-				printf("src[%u]= ", esi);
-				dump_buffer_32(obj->src_symbols_tab[esi], 1);
-			}
-		}
-		offset = 0;
-		for(int i = 0; i < obj->k; i++)
-		{
-		    pktSize[i] = strlen(obj->src_symbols_tab[i]);
-		    memcpy((void *)&outbuf[offset],(void*)obj->src_symbols_tab[i], pktSize[i]);
-		}
-#ifdef TEST
-        int offset2 = 0;
-        for(int i = 0; i < obj->k; i++)
-		{
-		    for(int j = 0; j < pktSize[i]; j++)
-		    {
-		        unsigned char *p0 = (unsigned char *)obj->src_symbols_tab[i];
-		        int value0 = p0[j];
-		        int value1 = test_data[offset2];
-		        if(value0 != value1)
-		        {
-		            printf("error: fec_decode: i= %d, j= %d \n", i, j);
-		            printf("error: fec_decode: pktSize[i]= %d \n", pktSize[i]);
-		        }
-		        offset2 += 1;
-		    }
-        }
-#endif
-		ret = obj->k;
-	}
-	else
-	{
-		printf("\nFailed to recover all erased source symbols even after receiving %u packets\n", n_received);
-	}
-end:
-    fec_decode_close(obj);
-    return ret;
-}
 void fec_free(FecObj *obj)
 {
     if(obj->recvd_symbols_tab)
     {
+        for(int i = 0; i < obj->n; i++)
+        {
+            if(obj->recvd_symbols_tab[i])
+            {
+                free(obj->recvd_symbols_tab[i]);
+            }
+            else if (i < obj->k && obj->src_symbols_tab[i])
+			{
+			    free(obj->src_symbols_tab[i]);//added by_gxh_20210304
+			}
+        }
         free(obj->recvd_symbols_tab);
         obj->recvd_symbols_tab = NULL;
     }
@@ -517,9 +197,9 @@ int unpacket_fec(FecObj *obj, char *indata, short *inSize, char *outbuf, short *
         int rtp_extend_length = rtp_ext->rtp_extend_length;
 		rtp_extend_length = ((rtp_extend_length & 0xFF) << 8) | ((rtp_extend_length >> 8));
 		int	extlen = (rtp_extend_length + 1) << 2;
-		int	rtp_pkt_size = rtp_ext->rtp_pkt_size;
+		unsigned int	rtp_pkt_size = rtp_ext->rtp_pkt_size;
 
-        int nal_unit_type = rtp_ext->type;
+        int nal_unit_type = rtp_ext->nal_type;
 
         fec_hdr = (FEC_HEADER *)&p0[rptHeadSize + extlen0];
         //printf("unpacket_fec: extlen0= %d \n", extlen0);
@@ -568,7 +248,8 @@ int unpacket_fec(FecObj *obj, char *indata, short *inSize, char *outbuf, short *
 
         //printf("unpacket_fec: fec_hdr->n= %d \n", fec_hdr->n);
         //printf("unpacket_fec: fec_hdr->k= %d \n", fec_hdr->k);
-
+        //printf("unpacket_fec: i= %d \n", i);
+        //printf("unpacket_fec: extlen= %d \n", extlen);
         if(extlen != (headSize - rptHeadSize))
 		{
 		    printf("error: unpacket_fec: extlen= %d \n", extlen);
@@ -578,8 +259,11 @@ int unpacket_fec(FecObj *obj, char *indata, short *inSize, char *outbuf, short *
 		    ret = -2;
             return ret;
 		}
-		if(rtp_pkt_size > (headSize + obj->symbol_size) ||
-		    rtp_pkt_size > size || (headSize + obj->symbol_size) != size)
+		//if(rtp_pkt_size > (headSize + obj->symbol_size) ||
+		//    rtp_pkt_size > size ||
+		//    (headSize + obj->symbol_size) != size
+		//    )
+		if(rtp_pkt_size != size)
 		{
 		    printf("error: unpacket_fec: rtp_pkt_size= %d \n", rtp_pkt_size);
 		    printf("error: unpacket_fec: headSize= %d \n", headSize);
@@ -590,7 +274,6 @@ int unpacket_fec(FecObj *obj, char *indata, short *inSize, char *outbuf, short *
 		    ret = -2;
             return ret;
 		}
-
 
         if(obj->recvd_symbols_tab == NULL)
         {
@@ -614,24 +297,35 @@ int unpacket_fec(FecObj *obj, char *indata, short *inSize, char *outbuf, short *
         }
         //printf("unpacket_fec: esi= %d \n", esi);
         //printf("unpacket_fec: obj->k= %d \n", obj->k);
-        obj->recvd_symbols_tab[esi] = (char*)&p0[headSize];
+        char *p1 = calloc(1, obj->symbol_size * sizeof(char));
+        obj->recvd_symbols_tab[esi] = p1;
+        memcpy(p1, (char*)&p0[headSize], inSize[i] - headSize);
 
+        //printf("unpacket_fec: inSize[i]=%d, i=%d \n", inSize[i], i);
         if(esi < obj->k)
         {
             //printf("unpacket_fec: (esi < obj->k)= %d \n", (esi < obj->k));
             char *p1 = (char *)&outbuf[offset2];
-            short *raw_size = (short *)&p0[size - 2];
-            if(raw_size[0] > obj->symbol_size)
-            {
-		        printf("error: unpacket_fec: raw_size[0]= %d \n", raw_size[0]);
-		        fec_free(obj);
-		        ret = -2;
-                return ret;
+            //short *raw_size = (short *)&p0[size - 2];
+            //if(raw_size[0] > obj->symbol_size)
+            //{
+		    //    printf("error: unpacket_fec: raw_size[0]= %d \n", raw_size[0]);
+		    //    fec_free(obj);
+		    //    ret = -2;
+            //    return ret;
+		    //}
+		    //int size2 = headSize + raw_size[0];
+		    unsigned int size2 = rtp_pkt_size;//get_pkt_size(p0, (headSize ));
+		    unsigned int rawSize = rtp_pkt_size - headSize;
+		    int padSize = obj->symbol_size - rawSize;
+		    if(rawSize != obj->symbol_size)
+		    {
+		        //printf("unpacket_fec: rawSize= %d \n", rawSize);
 		    }
-		    int size2 = headSize + raw_size[0];
 		    memcpy(p1, p0, size2);
-            pktSize[i] = size2;
-            offset2 += size2;
+		    //memset(&p1[size2], 0, padSize);
+            pktSize[i] = size2;// + padSize;
+            offset2 += size2;// + padSize;
             //printf("unpacket_fec: raw_size[0]= %d \n", raw_size[0]);
             //printf("unpacket_fec: offset2= %d \n", offset2);
         }
@@ -695,6 +389,55 @@ int unpacket_fec(FecObj *obj, char *indata, short *inSize, char *outbuf, short *
     }
     return ret;
 }
+int get_payload_size(char *data, int size)
+{
+    int ret = 0;
+    int step = sizeof(uint64_t);
+    uint64_t *p0 = (uint64_t *)data;
+    uint64_t *p1 = (uint64_t *)&data[size - step];
+    int count = 0;
+    if(!p1[0])
+    {
+        while(p1 > p0)
+        {
+            if(p1[0])
+            {
+                break;
+            }
+            p1--;
+            count++;
+        }
+    }
+    else{
+        //printf("get_payload_size: 0: no zero \n");
+    }
+    ret = (int64_t)p1 - (int64_t)data;
+    //printf("get_payload_size: p1=%x \n", p1);
+    //printf("get_payload_size: data=%x \n", data);
+    //printf("get_payload_size: 0: count=%d \n", count);
+    //printf("get_payload_size: 0: ret=%d \n", ret);
+
+    uint8_t *p2 = (uint8_t *)p1;
+    uint8_t *p3 = (uint8_t *)&p2[step - 1];
+    //count = 0;
+    if(!p3[0])
+    {
+        while(p3 > p2)
+        {
+            if(p3[0])
+            {
+                break;
+            }
+            p3--;
+            //count++;
+        }
+    }
+    else{
+        //printf("get_payload_size: 1: no zero \n");
+    }
+    ret = (char *)p3 - data + 1;
+    return ret;
+}
 int fec2packet(FecObj *obj, char *indata, short *inSize, char *outbuf, short *pktSize)
 {
     int ret = 0;
@@ -711,13 +454,22 @@ int fec2packet(FecObj *obj, char *indata, short *inSize, char *outbuf, short *pk
     char *rtp_head = indata;
     int base_esi = -1;
     int base_seqnum = -1;
-
+    int *rawSize = calloc(1, obj->k * sizeof(int));
 	for(i = 0; i < obj->k; i++)
 	{
 	    char *p0 = (char *)obj->src_symbols_tab[i];
-	    short *raw_size = (short *)&p0[obj->symbol_size - 2];
+	    //short *raw_size = (short *)&p0[obj->symbol_size - 2];
 	    //printf("fec2packet: raw_size[0]=%d \n", raw_size[0]);
-	    total_size += raw_size[0] + headSize;
+#ifndef TEST_RAW_DATA
+        //printf("fec2packet: obj->symbol_size=%d \n", obj->symbol_size);
+        //int payload_size = get_payload_size(p0, obj->symbol_size - 2);
+        int payload_size = get_payload_size(p0, obj->symbol_size);
+        rawSize[i] = payload_size;
+        //printf("fec2packet: raw_size[0]=%d \n", raw_size[0]);
+        //printf("fec2packet: payload_size=%d \n", payload_size);
+#endif
+	    //total_size += raw_size[0] + headSize;
+	    total_size += payload_size + headSize;
 	}
 	while(pktSize[j] > 0){
 
@@ -733,14 +485,20 @@ int fec2packet(FecObj *obj, char *indata, short *inSize, char *outbuf, short *pk
                 base_seqnum = this_seqnum;
                 base_esi = esi;
             }
-#if 1
+#if 0
 	        //test
             {
                 int rtp_extend_length = rtp_ext->rtp_extend_length;
 			    rtp_extend_length = ((rtp_extend_length & 0xFF) << 8) | ((rtp_extend_length >> 8));
 			    int extlen = (rtp_extend_length + 1) << 2;
-			    int rtp_pkt_size = rtp_ext->rtp_pkt_size;
-			    //printf("fec2packet: rtp_pkt_size=%d \n", rtp_pkt_size);
+			    unsigned int rtp_pkt_size = rtp_ext->rtp_pkt_size;
+			    if((rawSize[esi] + headSize) != rtp_pkt_size)
+			    {
+			        printf("error: fec2packet: rtp_pkt_size=%d \n", rtp_pkt_size);
+			        printf("error: fec2packet: rawSize[esi]=%d \n", rawSize[esi]);
+			        printf("error: fec2packet: esi=%d \n", esi);
+			    }
+			    //
                 //printf("fec2packet: extlen=%d \n", extlen);
             }
 #endif
@@ -763,8 +521,9 @@ int fec2packet(FecObj *obj, char *indata, short *inSize, char *outbuf, short *pk
 	for(i = obj->k - 1; i >= 0; i--)
 	{
 	    char *p0 = (char *)obj->src_symbols_tab[i];
-	    short *raw_size = (short *)&p0[obj->symbol_size - 2];
-	    int rtp_pkt_size = raw_size[0] + headSize;
+	    //short *raw_size = (short *)&p0[obj->symbol_size - 2];
+	    //int rtp_pkt_size = raw_size[0] + headSize;
+	    unsigned int rtp_pkt_size = rawSize[i] + headSize;
 	    offset -= rtp_pkt_size;
 	    char *p1 = (char *)&outbuf[offset];
 	    char *p2 = NULL;
@@ -793,7 +552,8 @@ int fec2packet(FecObj *obj, char *indata, short *inSize, char *outbuf, short *pk
             {
                 if(p1 != p2)
                 {
-                    memcpy(p1, p2, pktSize[j]);
+                    //memcpy(p1, p2, pktSize[j]);
+                    memmove(p1, p2, pktSize[j]);
                     pktSize[i] = pktSize[j];
                 }
 
@@ -804,7 +564,8 @@ int fec2packet(FecObj *obj, char *indata, short *inSize, char *outbuf, short *pk
                 offset2 += pktSize[j];
                 //printf("fec2packet: miss: i= %d \n", i);
                 memcpy(&p1[0], rtp_head, headSize);
-                memcpy(&p1[headSize], p0, raw_size[0]);
+                //memcpy(&p1[headSize], p0, raw_size[0]);
+                memcpy(&p1[headSize], p0, rawSize[i]);
                 pktSize[i] = rtp_pkt_size;
                 rtp_hdr = (RTP_FIXED_HEADER *)p1;
                 int this_seqnum = -1;
@@ -820,6 +581,10 @@ int fec2packet(FecObj *obj, char *indata, short *inSize, char *outbuf, short *pk
 			    {
 				    this_seqnum = this_seqnum - MAX_USHORT;
 			    }
+			    if(this_seqnum < 0)
+			    {
+			        printf("error: fec2packet: miss: this_seqnum= %d \n", this_seqnum);
+			    }
 
                 rtp_hdr->seq_no = this_seqnum;
                 //printf("fec2packet: miss: this_seqnum= %d \n", this_seqnum);
@@ -834,7 +599,8 @@ int fec2packet(FecObj *obj, char *indata, short *inSize, char *outbuf, short *pk
 	    else{
 	        //printf("fec2packet: miss: i= %d \n", i);
             memcpy(&p1[0], rtp_head, headSize);
-            memcpy(&p1[headSize], p0, raw_size[0]);
+            //memcpy(&p1[headSize], p0, raw_size[0]);
+            memcpy(&p1[headSize], p0, rawSize[i]);
             pktSize[i] = rtp_pkt_size;
             rtp_hdr = (RTP_FIXED_HEADER *)p1;
             int this_seqnum = -1;
@@ -850,6 +616,10 @@ int fec2packet(FecObj *obj, char *indata, short *inSize, char *outbuf, short *pk
 			{
 			    this_seqnum = this_seqnum - MAX_USHORT;
 			}
+			if(this_seqnum < 0)
+			{
+			    printf("error: fec2packet: miss: this_seqnum= %d \n", this_seqnum);
+			}
             rtp_hdr->seq_no = this_seqnum;
             //printf("fec2packet: miss: this_seqnum= %d \n", this_seqnum);
             //printf("fec2packet: miss: base_esi= %d \n", base_esi);
@@ -863,6 +633,7 @@ int fec2packet(FecObj *obj, char *indata, short *inSize, char *outbuf, short *pk
     }
     ret = obj->k;
     pktSize[ret] = 0;
+    free(rawSize);
 	return ret;
 }
 int fec_decode2(FecObj *obj, char *indata, short *inSize, char *outbuf, short *pktSize)
@@ -1112,7 +883,6 @@ int fec_decode2(FecObj *obj, char *indata, short *inSize, char *outbuf, short *p
 	    printf("gxh: fec_decode2: obj->n= %d \n", obj->n);
 	    printf("gxh: fec_decode2: n_received= %d \n", n_received);
 	    printf("gxh: fec_decode2: done= %d \n", done);
-
 		printf("\ngxh: error: Failed to recover all erased source symbols even after receiving %u packets\n", n_received);
 	}
 end:
@@ -1129,12 +899,12 @@ int api_fec_decode(char *handle, char *data, char *param, char *outbuf, char *ou
     {
         long long *testp = (long long *)handle;
         CodecObj *codecObj = (CodecObj *)testp[0];
-        FecObj *obj = (FecObj *)codecObj->fecObj;//&global_fec_objs[id];
+        FecObj *obj = (FecObj *)codecObj->fecDecObj;//&global_fec_objs[id];
         int id = codecObj->Obj_id;
         if (!obj)
         {
             obj = (FecObj *)calloc(1, sizeof(FecObj));
-            codecObj->fecObj = obj;
+            codecObj->fecDecObj = obj;
             fec_init(obj);
             obj->Obj_id = id;
         }
@@ -1193,72 +963,41 @@ int api_fec_decode(char *handle, char *data, char *param, char *outbuf, char *ou
         //ret = fec_decode(obj, data, obj->inSize, outbuf, pktSize);
         ret = fec_decode2(obj, data, obj->inSize, outbuf, pktSize);
         //printf("api_fec_decode: ret= %d \n", ret);
+        outparam[0] = obj->outparam[0];
+        outparam[1] = obj->outparam[1];
         if(ret > 0)
         {
-#ifdef TEST
-            int offset = 0;
-            int sum0 = 0;
-            int headSize0 = sizeof(RTP_FIXED_HEADER) + sizeof(EXTEND_HEADER);
-            int headSize1 = sizeof(RTP_FIXED_HEADER) + sizeof(EXTEND_HEADER) + sizeof(FEC_HEADER);
-            int flag = 0;
-            printf("api_fec_decode: headSize0= %d, headSize1= %d \n", headSize0, headSize1);
-            for(int i = 0; i < pkt_mem_num; i++) //pkt_mem_num
-            {
-                for(int j = 0; j < pktSize[i]; j++)
-                {
-                    unsigned char value = outbuf[offset + j];
-                    if(j >= headSize0 && j < headSize1)
-                    {
-                    }
-                    else{
-                        unsigned char value2 = test_data[sum0];
-                        if(value2 != value && j >= headSize1 && !flag)
-                        {
-                            flag = 1;
-                            printf("error: api_fec_decode: i= %d, j= %d \n", i, j);
-                            for(int l=0;l<3;l++)
-                            {
-                                printf("#####################################################################\n");
-                            }
-                        }
-                        //printf("%2x",value);
-                        sum0++;
-                    }
-
-                }
-                offset += pktSize[i];
-            }
-
-            printf("\n");
-#endif
             //char text[2048] = "";//2048/4=512//512*1400=700kB
-            outparam[1] = obj->outparam[1];
-            char *text = obj->outparam[0];
+
 	        int sum = 0;
-	        memset(obj->outparam[0], 0, sizeof(char) * MAX_OUTCHAR_SIZE);
-	        for (int i = 0; i < ret; i++)
+
+            for (int i = 0; i < ret; i++)
 	        {
-                char ctmp[32] = "";
-                int size = pktSize[i];
+	            int size = pktSize[i];
                 sum += size;
-	            sprintf(ctmp, "%d", size);
-	            if(i)
-	            {
-	                strcat(text, ",");
-	            }
-                strcat(text, ctmp);
 	        }
-	        ret = sum;
-	        outparam[0] = text;
-            outparam[2] = "complete";
+
+	        cJSON *json2 = NULL;
+            json2 = renewJsonArray1(json2, "rtpSize", pktSize, ret);
+            char *jsonStr = cJSON_Print(json2);//比较耗时
+            deleteJson(json2);
+            strcpy(obj->outparam[0], jsonStr);
+            cJSON_free(jsonStr);
+            ret = sum;
+            //outparam[2] = "complete";
             //printf("api_fec_decode: sum= %d \n", sum);
+        }
+        if(obj->inSize)
+        {
+            free(obj->inSize);
+            obj->inSize = NULL;
         }
         deleteJson(obj->json);
         obj->json = NULL;
     }
     return ret;
 }
-
+#ifdef linux
 HCSVC_API
 int api_fec_client_main () //int argc, char* argv[]
 {
@@ -1663,7 +1402,7 @@ get_next_pkt   (SOCKET		so,
 	}
 	return OF_STATUS_ERROR;	/* never called */
 }
-
+#endif
 
 /**
  * Dumps len32 32-bit words of a buffer (typically a symbol).

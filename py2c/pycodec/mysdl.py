@@ -54,6 +54,7 @@ class MySDL(threading.Thread):
         self.load = loadlib.gload
         self.id = id
         self.status = True
+        self.way = 0
         self.width = width
         self.height = height
         self.screen_width = width
@@ -92,7 +93,7 @@ class MySDL(threading.Thread):
         self.showlist = []
         self.showmap = {}
         self.layerlist = []
-        self.shownum = 0
+        #self.shownum = 0
         self.stacklist = []
     def init(self):
         self.param = {}
@@ -180,7 +181,7 @@ class MySDL(threading.Thread):
                 param.update({"show_flag": show_flag})
                 param_str = json2str(param)
                 #self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
-                self.load.lib.api_split_screen(self.handle, data, param_str, self.width)
+                self.load.lib.api_split_screen(self.handle, data, param_str, self.width, self.height)
                 refreshlist.append(idx0)
                 # print("mult_layer_refresh: 0: rect= ", rect)
             if idx1 not in refreshlist: #后刷新被遮挡
@@ -197,12 +198,12 @@ class MySDL(threading.Thread):
                 param.update({"show_flag": show_flag})
                 param_str = json2str(param)
                 #self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
-                self.load.lib.api_split_screen(self.handle, data, param_str, self.width)
+                self.load.lib.api_split_screen(self.handle, data, param_str, self.width, self.height)
                 refreshlist.append(idx1)
                 # print("mult_layer_refresh: 1: rect= ", rect)
             i += 1
 
-    def sdl_refresh(self, data, rect, show_flag):
+    def sdl_refresh_2(self, data, rect, show_flag):
         if self.handle == 0:
             return False
         # self.load.lib.api_sdl_clear(self.handle)
@@ -235,6 +236,81 @@ class MySDL(threading.Thread):
         else:
             self.showmap[idx]["data"] = data
             self.showmap[idx]["time"] = time.time()
+        ###
+
+        ###
+        self.layerlist = []
+        self.renew_layer(idx)
+        if len(self.layerlist) > 0:
+            # print("sdl_refresh: self.layerlist= ", self.layerlist)
+            #以下存在丢帧卡死现象
+            n = self.way
+            if idx in self.stacklist or len(self.stacklist) == n:
+                self.mult_layer_refresh() #视觉上存在“倒帧”
+                self.stacklist = []
+            else:
+                self.stacklist.append(idx)
+        else:
+            #print("sdl_refresh: rect= ", rect)
+            print("sdl_refresh: idx= ", idx)
+            #self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
+            #n = len(self.showlist)
+            n = self.way
+            #if n > 1:
+            #    if (self.shownum % n) == (n - 1) and False:
+            #        self.param.update({"show_flag": 1})
+            #        param_str = json2str(self.param)
+            if idx in self.stacklist or len(self.stacklist) == n:
+                # 注意：同一区域，同时推入多帧，可能会导致显示乱序，视觉上出现“倒帧”
+                if idx in self.stacklist:
+                    self.param.update({"show_flag": 2})
+                else:
+                    self.param.update({"show_flag": 1})
+                param_str = json2str(self.param)
+                self.stacklist = []
+            else:
+                self.stacklist.append(idx)
+            self.load.lib.api_split_screen(self.handle, data, param_str, self.width, self.height)
+            #print("sdl_refresh: param_str= ", param_str)
+            #print("sdl_refresh: show_flag= ", show_flag)
+            #print("sdl_refresh: len(self.showlist)= ", len(self.showlist))
+            #self.shownum += 1
+        self.lock.release()
+        return True
+
+    def sdl_refresh(self, data, rect, show_flag):
+        if self.handle == 0:
+            return False
+        # self.load.lib.api_sdl_clear(self.handle)
+        ##self.param = {}
+        self.param.update({"rect_x": rect[0]})
+        self.param.update({"rect_y": rect[1]})
+        self.param.update({"rect_w": rect[2]})
+        self.param.update({"rect_h": rect[3]})
+        # show_flag = 0 #注意：不合理的渲染，会导致“倒帧”；
+        self.param.update({"show_flag": show_flag})
+        param_str = json2str(self.param)
+        self.lock.acquire()
+        idx = -1
+        if rect not in self.showlist:
+            self.showlist.append(rect)
+            idx = self.showlist.index(rect)
+        else:
+            idx = self.showlist.index(rect)
+            # print("sdl_refresh: rect in sdl_refresh: idx= ", idx)
+            pass
+        # self.showmap[idx] = data
+        data2 = self.showmap.get(idx)
+        if data2 == None:
+            # print("sdl_refresh: data2 is None")
+            data2 = {}
+            data2.update({"data": data})
+            data2.update({"layer": 0})
+            data2.update({"time": time.time()})
+            self.showmap[idx] = data2
+        else:
+            self.showmap[idx]["data"] = data
+            self.showmap[idx]["time"] = time.time()
         self.layerlist = []
         self.renew_layer(idx)
         if len(self.layerlist) > 0:
@@ -242,7 +318,7 @@ class MySDL(threading.Thread):
             self.mult_layer_refresh()
         else:
             # print("sdl_refresh: rect= ", rect)
-            #self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
+            # self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
             n = len(self.showlist)
             if n > 1:
                 if (self.shownum % n) == (n - 1) and False:
@@ -255,10 +331,10 @@ class MySDL(threading.Thread):
                 self.stacklist = []
             else:
                 self.stacklist.append(idx)
-            self.load.lib.api_split_screen(self.handle, data, param_str, self.width)
-            #print("sdl_refresh: param_str= ", param_str)
-            #print("sdl_refresh: show_flag= ", show_flag)
-            #print("sdl_refresh: len(self.showlist)= ", len(self.showlist))
+            self.load.lib.api_split_screen(self.handle, data, param_str, self.width, self.height)
+            # print("sdl_refresh: param_str= ", param_str)
+            # print("sdl_refresh: show_flag= ", show_flag)
+            # print("sdl_refresh: len(self.showlist)= ", len(self.showlist))
             self.shownum += 1
         self.lock.release()
         return True
@@ -273,7 +349,7 @@ class MySDL(threading.Thread):
         self.param.update({"osd": 0})
         param_str = json2str(self.param)
         self.lock.acquire()
-        self.load.lib.api_split_screen(self.handle, data, param_str, self.width)
+        self.load.lib.api_split_screen(self.handle, data, param_str, self.width, self.height)
         self.param.update({"osd": self.osd})
         self.lock.release()
     def sdl_refresh2(self, data, rect, show_flag):
@@ -290,7 +366,7 @@ class MySDL(threading.Thread):
         self.lock.acquire()
         print("sdl_refresh_0")
         #self.load.lib.api_split_screen(self.handle, data, param_str, loadlib.WIDTH)
-        self.load.lib.api_split_screen(self.handle, data, param_str, self.width)
+        self.load.lib.api_split_screen(self.handle, data, param_str, self.width, self.height)
         self.lock.release()
         return True
 
@@ -334,6 +410,7 @@ class ReadFrame(threading.Thread):
     def __init__(self, id):
         threading.Thread.__init__(self)
         self.load = loadlib.gload
+        loadlib.gload.lib.api_av_sdl_init()
         self.id = id
         self.__flag = threading.Event()  # 用于暂停线程的标识
         self.__flag.set()  # 设置为True

@@ -40,18 +40,22 @@
 
 extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
-extern char* GetvalueStr(cJSON *json, char *key);
 extern int *GetArrayValueInt(cJSON *json, char *key, int *arraySize);
+extern short *GetArrayValueShort(cJSON *json, char *key, int *arraySize);
 extern cJSON* renewJson(cJSON *json, char *key, int ivalue, char *cvalue, cJSON *subJson);
 extern cJSON* renewJsonInt(cJSON *json, char *key, int ivalue);
 extern cJSON* renewJsonStr(cJSON *json, char *key, char *cvalue);
 extern cJSON* deleteJson(cJSON *json);
 extern cJSON* renewJsonArray1(cJSON *json, char *key, short *value, int len);
-extern cJSON* renewJsonArray2(cJSON *json, char *key, short *value);
+extern cJSON* renewJsonArray4(cJSON *json, char *key, int *value, int len);
+//extern cJSON* renewJsonArray2(cJSON *json, char *key, short *value);
 extern cJSON* renewJsonArray3(cJSON **json, cJSON **array, char *key, cJSON *item);
 extern long long *GetArrayObj(cJSON *json, char *key, int *arraySize);
-extern inline int GetRtpInfo(uint8_t* dataPtr, int insize, RtpInfo *info);
-extern inline int GetNetInfo(uint8_t* dataPtr, int insize, NetInfo *info);
+//extern inline int GetRtpInfo(uint8_t* dataPtr, int insize, RtpInfo *info);
+extern inline int GetNetInfo(uint8_t* dataPtr, int insize, NetInfo *info, int times);
+extern inline int GetRtpHeaderSize(uint8_t* dataPtr, int dataSize);
+extern int64_t get_sys_time();
+extern void netinfo_init(LossRateInfo *loss_rate_info);
 
 //extern int api_fec_encode(int id, char *data, char *param, char *outbuf, char *outparam[]);
 //extern int api_fec_decode(int id, char *data, char *param, char *outbuf, char *outparam[]);
@@ -63,38 +67,13 @@ unsigned char test_data[100 * 1024];
 static int test_flag0 = 0;
 static int test_flag1 = 0;
 
-#ifdef _WIN32
-int64_t get_sys_time()
-{
-	LARGE_INTEGER m_nFreq;
-	LARGE_INTEGER m_nTime;
-	QueryPerformanceFrequency(&m_nFreq); // ��ȡʱ������
-	QueryPerformanceCounter(&m_nTime);//��ȡ��ǰʱ��
-	//long long time = (m_nTime.QuadPart * 1000000 / m_nFreq.QuadPart);//΢��
-	int64_t time = (m_nTime.QuadPart * 1000 / m_nFreq.QuadPart);//����
-	return time;
-}
-#else
-#include <sys/time.h>
-int64_t get_sys_time()
-{
-	struct timeval tBegin;
-	//struct timeval tEnd;
-	gettimeofday(&tBegin, NULL);
-	//...process
-	//gettimeofday(&tEnd, NULL);
-	//long deltaTime = 1000000L * (tEnd.tv_sec - tBegin.tv_sec) + (tEnd.tv_usec - tBegin.tv_usec);
-	int64_t time = (1000000L * tBegin.tv_sec + tBegin.tv_usec) / 1000;//us-->ms
-    return time;
-}
-#endif
-
+#if 1
 void get_time(int64_t time, char *ctime, int offset)
 {
 #ifdef _WIN32
 	if (time == 0)
 	{
-		time = av_gettime() + offset;
+		time = (int64_t)av_gettime() + offset;
 	}
 	time += 11644473600000000;
 	time *= 10;
@@ -131,9 +110,10 @@ void get_time(int64_t time, char *ctime, int offset)
 #endif
     //printf("ctime = %s \n", ctime);
 }
+#endif
 int64_t get_time_stamp(void)
 {
-    int64_t time_stamp = get_sys_time();
+    int64_t time_stamp = api_get_time_stamp_ll();
     //printf("get_time_stamp: time_stamp= %lld \n", time_stamp);
     return time_stamp;
 }
@@ -150,6 +130,7 @@ static void ResetObj(RtpObj *obj)
     obj->last_frame_time_stamp = 0;
     obj->start_time_stamp = 0;
     obj->start_frame_time = 0;
+    obj->time0 = 0;
     obj->old_seqnum = -1;
     obj->json = NULL;
     obj->param = NULL;
@@ -165,24 +146,82 @@ static void ResetObj(RtpObj *obj)
     }
     memset(obj->sps, 0, sizeof(char) * MAX_SPS_SIZE);
     memset(obj->pps, 0, sizeof(char) * MAX_SPS_SIZE);
+    //
+    obj->delay_time = 0;
+    obj->offset_time = 1;
+    obj->delay_info[0].delay = -1;
+    obj->delay_info[0].max_delay = 0;
+    obj->delay_info[0].last_max_delay = 0;
+    obj->delay_info[0].sum_delay = 0;
+    obj->delay_info[0].cnt_delay = 0;
+    obj->delay_info[0].cnt_max = 1;
+    obj->delay_info[0].now_time = 0;
+    obj->delay_info[0].time_len = 40;
+    obj->delay_info[1].delay = -1;
+    obj->delay_info[1].max_delay = 0;
+    obj->delay_info[1].last_max_delay = 0;
+    obj->delay_info[1].sum_delay = 0;
+    obj->delay_info[1].cnt_delay = 0;
+    obj->delay_info[1].cnt_max = 10;
+    obj->delay_info[1].now_time = 0;
+    obj->delay_info[1].time_len = 1000;
+    obj->delay_info[2].delay = -1;
+    obj->delay_info[2].max_delay = 0;
+    obj->delay_info[2].last_max_delay = 0;
+    obj->delay_info[2].sum_delay = 0;
+    obj->delay_info[2].cnt_delay = 0;
+    obj->delay_info[2].cnt_max = 100;
+    obj->delay_info[2].now_time = 0;
+    obj->delay_info[2].time_len = 5000;
+    //
+    obj->delay_info[3].delay = -1;
+    obj->delay_info[3].max_delay = 0;
+    obj->delay_info[3].last_max_delay = 0;
+    obj->delay_info[3].sum_delay = 0;
+    obj->delay_info[3].cnt_delay = 0;
+    obj->delay_info[3].cnt_max = 10000;
+    obj->delay_info[3].now_time = 0;
+    obj->delay_info[3].time_len = 30 * 1000;
+
+#if 0
+    obj->loss_rate_info[0].loss_rate = -1;
+    obj->loss_rate_info[0].max_loss_rate = 0;
+    obj->loss_rate_info[0].last_max_loss_rate = 0;
+    obj->loss_rate_info[0].sum_loss_rate = 0;
+    obj->loss_rate_info[0].cnt_loss_rate = 0;
+    obj->loss_rate_info[0].cnt_max = 1;
+    obj->loss_rate_info[0].now_time = 0;
+    obj->loss_rate_info[0].time_len = 40;
+    obj->loss_rate_info[1].loss_rate = -1;
+    obj->loss_rate_info[1].max_loss_rate = 0;
+    obj->loss_rate_info[1].last_max_loss_rate = 0;
+    obj->loss_rate_info[1].sum_loss_rate = 0;
+    obj->loss_rate_info[1].cnt_loss_rate = 0;
+    obj->loss_rate_info[1].cnt_max = 10;
+    obj->loss_rate_info[1].now_time = 0;
+    obj->loss_rate_info[1].time_len = 1000;
+    obj->loss_rate_info[2].loss_rate = -1;
+    obj->loss_rate_info[2].max_loss_rate = 0;
+    obj->loss_rate_info[2].last_max_loss_rate = 0;
+    obj->loss_rate_info[2].sum_loss_rate = 0;
+    obj->loss_rate_info[2].cnt_loss_rate = 0;
+    obj->loss_rate_info[2].cnt_max = 100;//1000;//100;//统计最大丢包率发生的周期// > 40*100 = 4s
+    obj->loss_rate_info[2].now_time = 0;
+    obj->loss_rate_info[2].time_len = 4000;
+    //
+    obj->loss_rate_info[3].loss_rate = -1;
+    obj->loss_rate_info[3].max_loss_rate = 0;
+    obj->loss_rate_info[3].last_max_loss_rate = 0;
+    obj->loss_rate_info[3].sum_loss_rate = 0;
+    obj->loss_rate_info[3].cnt_loss_rate = 0;
+    obj->loss_rate_info[3].cnt_max = 10000;//1000;//100;//统计最大丢包率发生的周期// > 40*100 = 4s
+    obj->loss_rate_info[3].now_time = 0;
+    obj->loss_rate_info[3].time_len = 30 * 1000;
+#else
+    netinfo_init(obj->loss_rate_info);
+#endif
 }
-/*
-static int initobj(int id)
-{
-    if (global_rtp_obj_status <= 0)
-    {
-        for (int i = 0; i < MAX_OBJ_NUM; i++)
-        {
-            ResetObj(&global_rtp_objs[i]);
-        }
-        global_rtp_obj_status += 1;
-    }
-    else
-    {
-    }
-    return global_rtp_obj_status;
-}
-*/
+
 int FindStartCode2 (unsigned char *Buf)
 {
 
@@ -207,44 +246,20 @@ void dump(NALU_t *n)
 	printf(" len: %d  ", n->len);
 	printf("nal_unit_type: %x\n", n->nal_unit_type);
 }
-#define GXH_DEBUG
+
 //static int GetAnnexbNALU (NALU_t *nalu,void *inbuf,int len)
 int GetAnnexbNALU(SVCNalu *svc_nalu, int i, int offset)
 {
-  int pos = 0;
-  int StartCodeFound, rewind;
-#ifndef GXH_DEBUG
-  char *filename = "/home/gxh/works/enc_nallayer.txt";
-  if(!svc_nalu->fp)
-  {
-    svc_nalu->fp = fopen(filename, "w");
-  }
-
-  if(svc_nalu->fp)
-  {
-    fprintf(svc_nalu->fp, "GetAnnexbNALU: svc_nalu= %x \n", svc_nalu);
-    fflush(svc_nalu->fp);
-  }
-#endif
-  NALU_t *nalu = &svc_nalu->nal[i];
-#ifndef GXH_DEBUG
-  if(svc_nalu->fp)
-  {
-    fprintf(svc_nalu->fp, "GetAnnexbNALU: nalu=%x \n", nalu);
-    fprintf(svc_nalu->fp, "GetAnnexbNALU: i=%d \n", i);
-    fprintf(svc_nalu->fp, "GetAnnexbNALU: offset=%d \n", offset);
-    fprintf(svc_nalu->fp, "GetAnnexbNALU: svc_nalu->size=%d \n", svc_nalu->size);
-    fflush(svc_nalu->fp);
-  }
-#endif
-  unsigned char *Buf = (unsigned char *)&svc_nalu->buf[offset];
-  int len = svc_nalu->size - offset;
-  //static int info2=0, info3=0;
+    int pos = 0;
+    int StartCodeFound, rewind;
+    NALU_t *nalu = &svc_nalu->nal[i];
+    unsigned char *Buf = (unsigned char *)&svc_nalu->buf[offset];
+    int len = svc_nalu->size - offset;
 
   /*if ((Buf = (unsigned char*)calloc (nalu->max_size , sizeof(char))) == NULL)
 	  printf ("GetAnnexbNALU: Could not allocate Buf memory\n");*/
 
-  nalu->startcodeprefix_len = 3;//初始化码流序列的开始字符为3个字节
+    nalu->startcodeprefix_len = 3;//初始化码流序列的开始字符为3个字节
 
   // if (3 != fread (Buf, 1, 3, bits))//从码流中读3个字节
 	 //  {
@@ -252,34 +267,34 @@ int GetAnnexbNALU(SVCNalu *svc_nalu, int i, int offset)
 		//return 0;
 	 //  }
 
-   svc_nalu->info2 = FindStartCode2 (Buf);//判断是否为0x000001
-   if(svc_nalu->info2 != 1)
-   {
-	//如果不是，再读一个字节
-  //  if(1 != fread(Buf+3, 1, 1, bits))//读一个字节
+    svc_nalu->info2 = FindStartCode2 (Buf);//判断是否为0x000001
+    if(svc_nalu->info2 != 1)
+    {
+	    //如果不是，再读一个字节
+        //  if(1 != fread(Buf+3, 1, 1, bits))//读一个字节
 		//{
 		// free(Buf);
 		// return 0;
 		//}
-    svc_nalu->info3 = FindStartCode3 (Buf);//判断是否为0x00000001
-    if (svc_nalu->info3 != 1)//如果不是，返回-1
+        svc_nalu->info3 = FindStartCode3 (Buf);//判断是否为0x00000001
+        if (svc_nalu->info3 != 1)//如果不是，返回-1
 		{
-		 //free(Buf);
-		 return -1;
+		    //free(Buf);
+		    return -1;
 		}
+        else
+		{
+		    //如果是0x00000001,得到开始前缀为4个字节
+		    pos = 4;
+		    nalu->startcodeprefix_len = 4;
+		}
+    }
     else
-		{
-		//如果是0x00000001,得到开始前缀为4个字节
-		 pos = 4;
-		 nalu->startcodeprefix_len = 4;
-		}
-   }
-   else
-	   {
-	   //如果是0x000001,得到开始前缀为3个字节
+    {
+	    //如果是0x000001,得到开始前缀为3个字节
 		nalu->startcodeprefix_len = 3;
 		pos = 3;
-	   }
+	}
    //查找下一个开始字符的标志位
    StartCodeFound = 0;
    svc_nalu->info2 = 0;
@@ -292,31 +307,12 @@ int GetAnnexbNALU(SVCNalu *svc_nalu, int i, int offset)
     {
       //nalu->len = (pos-1)-nalu->startcodeprefix_len;
 	  nalu->len = (pos)-nalu->startcodeprefix_len;//gxh_201025
-#ifndef GXH_DEBUG
-      int flag = (offset + nalu->startcodeprefix_len + nalu->len) == svc_nalu->size;
-      if(svc_nalu->fp)
-      {
-        fprintf(svc_nalu->fp, "GetAnnexbNALU: flag=%d \n", flag);//
-        fprintf(svc_nalu->fp, "GetAnnexbNALU: svc_nalu->nal_mem_num=%d \n", svc_nalu->nal_mem_num);
-        fprintf(svc_nalu->fp, "GetAnnexbNALU: nalu->buf=%x \n", nalu->buf);
-        fprintf(svc_nalu->fp, "GetAnnexbNALU: pos=%d \n", pos);
-        fprintf(svc_nalu->fp, "GetAnnexbNALU: nalu->len=%d \n", nalu->len);
-        fflush(svc_nalu->fp);
-     }
-#endif
       memcpy (nalu->buf, &Buf[nalu->startcodeprefix_len], nalu->len);
       nalu->forbidden_bit = nalu->buf[0] & 0x80; //1 bit
 	  nalu->nal_reference_idc = nalu->buf[0] & 0x60; // 2 bit
 	  nalu->nal_unit_type = (nalu->buf[0]) & 0x1f;// 5 bit
       //free(Buf);
       //return pos-1;
-#ifndef GXH_DEBUG
-      if(svc_nalu->fp)
-      {
-        fprintf(svc_nalu->fp, "GetAnnexbNALU: return: nalu->len=%d \n", nalu->len);
-        fflush(svc_nalu->fp);
-      }
-#endif
 	  return pos;
     }
     //Buf[pos++] = fgetc (bits);//读一个字节到BUF中
@@ -336,15 +332,6 @@ int GetAnnexbNALU(SVCNalu *svc_nalu, int i, int offset)
     //free(Buf);
 	//printf("GetAnnexbNALU: Cannot fseek in the bit stream file");
   }
-#ifndef GXH_DEBUG
-  if(svc_nalu->fp)
-  {
-    fprintf(svc_nalu->fp, "GetAnnexbNALU: (pos+rewind)=%d \n", (pos+rewind));
-    fflush(svc_nalu->fp);
-
-  }
-#endif
-
   // Here the Start code, the complete NALU, and the next start code is in the Buf.
   // The size of Buf is pos, pos+rewind are the number of bytes excluding the next
   // start code, and (pos+rewind)-startcodeprefix_len is the size of the NALU excluding the start code
@@ -355,30 +342,22 @@ int GetAnnexbNALU(SVCNalu *svc_nalu, int i, int offset)
   nalu->nal_reference_idc = nalu->buf[0] & 0x60; // 2 bit
   nalu->nal_unit_type = (nalu->buf[0]) & 0x1f;// 5 bit
   //free(Buf);
-#ifndef GXH_DEBUG
-  if(svc_nalu->fp)
-  {
-    fprintf(svc_nalu->fp, "GetAnnexbNALU: end: (pos+rewind)=%d \n", (pos+rewind));
-    fflush(svc_nalu->fp);
-    //fclose(svc_nalu->fp);
-  }
-#endif
   return (pos+rewind);//返回两个开始字符之间间隔的字节数，即包含有前缀的NALU的长度
 }
-int SplitNal(SVCNalu *svc_nalu)
+int SplitNal(SVCNalu *svc_nalu, int nal_mem_num)
 {
 	int i = 0, offset = 0;
 	while(offset < svc_nalu->size)
 	{
 		//printf("SplitNal: offset= %d \n", offset);
 		offset += GetAnnexbNALU(svc_nalu, i, offset);
-#ifndef GXH_DEBUG
-        if(i > 900)
-        {
-            printf("SplitNal: i=%d \n", i);
-        }
-#endif
 		i++;
+		if(i >= nal_mem_num)
+		{
+		    printf("SplitNal: i= %d \n", i);
+		    printf("SplitNal: offset= %d \n", offset);
+		    printf("SplitNal: svc_nalu->size= %d \n", svc_nalu->size);
+		}
 	}
 	return i;
 }
@@ -400,7 +379,11 @@ int data2nalus(void *hnd, char *inBuf)
 #endif
     //printf("data2nalus: start:size= %d \n", size);
     int k = (int)(size / mtu_size);
+
+    k = k < 4 ? 4 : k;//test
+
     int nal_mem_num = ((k ? k : 1) << 1) + 3;//3:sps/pps/sei
+    nal_mem_num <<= 1;//预设冗余
     //printf("data2nalus: start 0 \n");
     obj->rtpSize = calloc(1, sizeof(short) * nal_mem_num);
     svc_nalu->nal_mem_num = nal_mem_num;
@@ -411,14 +394,20 @@ int data2nalus(void *hnd, char *inBuf)
     svc_nalu->buf = inBuf;
     svc_nalu->nal = calloc(1, sizeof(NALU_t) * nal_mem_num);
     //printf("data2nalus: svc_nalu->timestamp= %d  \n", svc_nalu->timestamp);
+    //printf("data2nalus: nal_mem_num= %d  \n", nal_mem_num);
     for(int i = 0; i < nal_mem_num; i++)
 	{
 		//nal[I].buf = new char [mtu_size+100];
 		svc_nalu->nal[i].buf = calloc(1, sizeof(char) * size);
 	}
 	//printf("data2nalus: start 2 \n");
-    int ret = SplitNal(svc_nalu);
+    int ret = SplitNal(svc_nalu, nal_mem_num);
+    //printf("data2nalus: ret= %d  \n", ret);
     svc_nalu->nal_num = ret;
+    if(ret > nal_mem_num)
+    {
+        printf("error: data2nalus: ret= %d, nal_mem_num=%d \n", ret, nal_mem_num);
+    }
     //printf("data2nalus: ret= %d \n", ret);
 
     return ret;
@@ -440,6 +429,8 @@ int Rtp2stapA(uint8_t* dataPtr, short *rtpSize, int rtpNum, unsigned char *dst)
             if(rtp_hdr->extension)
             {
                 EXTEND_HEADER *rtp_ext = (EXTEND_HEADER *)&dataPtr[offset + heardSize];
+                //memset(rtp_ext, 0, sizeof(EXTEND_HEADER));
+                rtp_ext->rtp_extend_profile = EXTEND_PROFILE_ID;
                 int rtp_extend_length = rtp_ext->rtp_extend_length;
                 rtp_extend_length = ((rtp_extend_length & 0xFF) << 8) | ((rtp_extend_length >> 8));
                 //printf("IsRtpData: rtp_extend_length= %d \n", rtp_extend_length);
@@ -479,9 +470,12 @@ int Rtp2stapA(uint8_t* dataPtr, short *rtpSize, int rtpNum, unsigned char *dst)
     }
     return ret;
 }
-int get_important_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSize, uint16_t *seq_num, uint16_t *idx)
+int get_important_packet(RtpObj *obj, char *outBuf, short *rtpSize, uint16_t start_seqnum, uint16_t *idx)
 {
     //int ret = 0;
+    SVCNalu *svc_nalu = &obj->svc_nalu;
+    cJSON *json = obj->json;
+    uint16_t *seq_num = &obj->seq_num;
     RTP_FIXED_HEADER        *rtp_hdr    = NULL;
 	NALU_HEADER		        *nalu_hdr   = NULL;
 	FU_INDICATOR	        *fu_ind     = NULL;
@@ -496,6 +490,7 @@ int get_important_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rt
     int res_idx = GetvalueInt(json, "res_idx");
     int res_num = GetvalueInt(json, "res_num");
     int main_spatial_idx = GetvalueInt(json, "main_spatial_idx");
+    uint32_t ssrc = (uint32_t)svc_nalu->ssrc;//GetvalueInt(json, "ssrc");
     int time_offset = GetvalueInt(json, "time_offset");
     int selfChanId = GetvalueInt(json, "selfChanId");
     int chanId = GetvalueInt(json, "chanId");
@@ -505,25 +500,40 @@ int get_important_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rt
     int st1 = GetvalueInt(json, "st1");
     int rt1 = GetvalueInt(json, "rt1");
     int nal_num = svc_nalu->nal_num;
-    int slice_type = 0;
+    //int slice_type = 0;
     int offset = 0;
     int i = 0;
     //int idx = 0;
     int extlen = 0;
     int bytes = 0;
     mtu_size = mtu_size ? mtu_size : FIX_MTU_SIZE;
+
+    //printf("0: %d \n",sizeof(FEC_HEADER));
+#if 0
+    //printf("0: %d \n",sizeof(NACK_TEST));
+    int64_t test_time = (int64_t)get_time_stamp();
+    uint64_t test_t0 = test_time & 0xFFFFFFFF;
+    uint64_t test_t1 = (test_time >> 32) & 0xFFFFFFFF;
+    int64_t test_time2 = test_t0 | (test_t1 << 32);
+    if(test_time != test_time2)
+    {
+        //printf("test_time=%lld \n",test_time);
+        //printf("test_time2=%lld \n",test_time2);
+        printf("test_time=%x \n",test_time);
+        printf("test_time2=%x \n",test_time2);
+        printf("test_t1=%x \n",test_t1);
+    }
+#endif
     while(i < nal_num)
     {
         NALU_t *n = &svc_nalu->nal[i];
-		//fprintf(logfp, "rtp count = %d \n", count); fflush(logfp);
-		//printf("get_important_packet: res_idx = %d \n", res_idx);
-		//printf("get_important_packet: res_num = %d \n", res_num);
 		if ( (n->nal_unit_type == 7) || (n->nal_unit_type == 8) || (n->nal_unit_type == 6))
 		{
 			if (n->nal_unit_type == 7)
 			{
 				//printf("enc IDR = %d \n", IDRCnt);
 				//LogOut(format1, (void *)&IDRCnt);
+				//printf("get_important_packet: n->len = %d \n", n->len);
 			}
             //is_key_frame = true;
 			sendptr = &outBuf[offset];
@@ -536,7 +546,7 @@ int get_important_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rt
 			rtp_hdr->extension	 = 1;//														X
 			rtp_hdr->payload     = H264_PLT;  //负载类型号
 			rtp_hdr->marker		 = 0;//(size >= len);   //标志位，由具体协议规定其值。		M
-			rtp_hdr->ssrc        = (unsigned int)svc_nalu;//htonl(10);    //随机指定为10，并且在本RTP会话中全局唯一	SSRC
+			rtp_hdr->ssrc        = ssrc;//(unsigned int)svc_nalu;//htonl(10);    //随机指定为10，并且在本RTP会话中全局唯一	SSRC
 
 			rtp_hdr->seq_no		 = (*seq_num);///htons(seq_num ++); //序列号，每发送一个RTP包增1	SQUENCE NUMBER
 			//(*seq_num)不存在(*seq_num) > MAX_USHORT,除非改成int類型
@@ -554,30 +564,21 @@ int get_important_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rt
 			{
 				rtp_ext = (EXTEND_HEADER *)&sendptr[sizeof(RTP_FIXED_HEADER)];
 				memset(rtp_ext, 0, sizeof(EXTEND_HEADER));
-				rtp_ext->rtp_extend_profile = 0;
+				rtp_ext->rtp_extend_profile = EXTEND_PROFILE_ID;//0;
 				extlen = (rtp_extend_length + 1) << 2;
 				rtp_ext->rtp_extend_length = ((rtp_extend_length & 0xFF) << 8) | ((rtp_extend_length >> 8));
 				//
-
+                rtp_ext->rtp_pkt_num = nal_num;
+                rtp_ext->start_seqnum = start_seqnum;
+                rtp_ext->nack_type = 0;
 				rtp_ext->refs = refs & 0x1F;
 				rtp_ext->ref_idx = ref_idx & 0x1F;
-				int ref_idc = ref_idx == 0 ? 0 : ref_idx == refs ? 1 : ref_idx == 1 ? 3 : 2;
 				if(refs == 1)
 				{
-				    int picType = n->nal_reference_idc >> 5;
-				    if(picType == 1)
-				    {
-				        ref_idc = 0;
-				    }
-				    else if(picType == 2)
-				    {
-				        ref_idc = 1;
-				    }
-				    else if(picType == 3)
-				    {
-				        ref_idc = 2;
-				    }
+				    rtp_ext->ref_idx = obj->frame_idx & 0x1F;
 				}
+				int ref_idc = ref_idx == 0 ? 0 : ref_idx == refs ? 1 : ref_idx == 1 ? 3 : 2;
+
 				rtp_ext->ref_idc = ref_idc & 0x3;
 				rtp_ext->res_num = res_num;//1;
 				rtp_ext->res_idx = res_idx;//0;
@@ -585,27 +586,33 @@ int get_important_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rt
 				rtp_ext->mult_spatial = 0;//res_num > 0;//默认只有一层给解码器
 				rtp_ext->qua_num = 0;
 				rtp_ext->qua_idx = 0;
-				rtp_ext->type = n->nal_unit_type;
+				rtp_ext->nal_type = n->nal_unit_type;
 				rtp_ext->enable_fec = 0;//svc_nalu->enable_fec;
 				rtp_ext->refresh_idr = svc_nalu->refresh_idr;
 				//
 				int64_t now_time = (int64_t)get_time_stamp();
-				rtp_ext->nack.time_info.time_stamp = now_time;
-				rtp_ext->nack.is_lost_packet = 0;
-				rtp_ext->nack.loss_rate = 0;
-				//rtp_ext->nack.pkt_num = nal_num;
+				rtp_ext->nack.nack0.time_info.time_stamp0 = now_time & 0xFFFFFFFF;
+			    rtp_ext->nack.nack0.time_info.time_stamp1 = (now_time >> 32) & 0xFFFFFFFF;
+				//rtp_ext->nack.nack0.time_info.time_stamp = now_time;
+				rtp_ext->nack.nack0.is_lost_packet = 0;
+				rtp_ext->nack.nack0.loss_rate = 0;
+				//rtp_ext->nack.nack0.pkt_num = nal_num;
 				//if(!time_offset)
 				{
-				    rtp_ext->nack.enable_nack = 0;
-				    rtp_ext->nack.time_offset = time_offset;
+				    rtp_ext->nack.nack0.enable_nack = 0;
+				    rtp_ext->nack.nack0.time_offset = time_offset;
+                    if(selfChanId > 0)
+                    {
+                        rtp_ext->nack.nack0.enable_nack = 1;
+                        rtp_ext->nack.nack0.time_info.rtt_list.rtt0.st0 = now_time & 0xFFFF;
+				        rtp_ext->nack.nack0.time_info.rtt_list.rtt0.rt0 = 0;
+				        rtp_ext->nack.nack0.time_info.rtt_list.rtt0.st1 = 0;
+				        rtp_ext->nack.nack0.time_info.rtt_list.rtt0.rt1 = 0;
+				        rtp_ext->nack.nack0.chanId = selfChanId;
+				        rtp_ext->nack.nack0.loss_rate = 0;
+				        rtp_ext->nack.nack0.info_status = 0;
+                    }
 
-				    rtp_ext->nack.time_info.rtt_list.st0 = now_time & 0xFFFF;
-				    rtp_ext->nack.time_info.rtt_list.rt0 = 0;
-				    rtp_ext->nack.time_info.rtt_list.st1 = 0;
-				    rtp_ext->nack.time_info.rtt_list.rt1 = 0;
-				    rtp_ext->nack.chanId = selfChanId;
-				    rtp_ext->nack.loss_rate = 0;
-				    rtp_ext->nack.info_status = 0;
 				}
 				//
 				//int picType = n->nal_reference_idc >> 5;
@@ -616,14 +623,19 @@ int get_important_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rt
 			extlen = rtp_hdr->extension ? extlen : 0;
 			//
 			nalu_hdr =(NALU_HEADER*)&sendptr[sizeof(RTP_FIXED_HEADER) + extlen];//sendbuf[RTPHEADSIZE + offset]; //将sendbuf[12]的地址赋给nalu_hdr，之后对nalu_hdr的写入就将写入sendbuf中；
-			nalu_hdr->F=n->forbidden_bit;
+#if 1
+			//n->forbidden_bit = 0;//20210113
+			nalu_hdr->F = n->forbidden_bit;
 			//if (n->forbidden_bit) printf("n->forbidden_bit \n", n->forbidden_bit);
-			nalu_hdr->NRI=n->nal_reference_idc>>5;//有效数据在n->nal_reference_idc的第6，7位，需要右移5位才能将其值赋给nalu_hdr->NRI。
-			nalu_hdr->TYPE=n->nal_unit_type;
+			nalu_hdr->NRI = n->nal_reference_idc>>5;//有效数据在n->nal_reference_idc的第6，7位，需要右移5位才能将其值赋给nalu_hdr->NRI。
+			nalu_hdr->TYPE = n->nal_unit_type;
 
-			nalu_payload=&sendptr[sizeof(RTP_FIXED_HEADER) + extlen + 1];//sendbuf[13 + offset];//同理将sendbuf[13]赋给nalu_payload
+			nalu_payload = &sendptr[sizeof(RTP_FIXED_HEADER) + extlen + 1];//sendbuf[13 + offset];//同理将sendbuf[13]赋给nalu_payload
 			memcpy(nalu_payload,n->buf + 1,n->len-1);//去掉nalu头的nalu剩余内容写入sendbuf[13]开始的字符串。
-			bytes=n->len + sizeof(RTP_FIXED_HEADER) + extlen;						//获得sendbuf的长度,为nalu的长度（包含NALU头但除去起始前缀）加上rtp_header的固定长度12字节
+#else
+			memcpy(nalu_hdr, n->buf, n->len);
+#endif
+			bytes = n->len + sizeof(RTP_FIXED_HEADER) + extlen;						//获得sendbuf的长度,为nalu的长度（包含NALU头但除去起始前缀）加上rtp_header的固定长度12字节
 			offset += bytes;
 			rtpSize[(*idx)++] = bytes;
             if(rtp_hdr->extension)
@@ -633,16 +645,19 @@ int get_important_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rt
 		}
 		else
 		{
-			slice_type = n->nal_reference_idc >> 5;
-			slice_type = slice_type == 3 ? AV_PICTURE_TYPE_I : slice_type == 2 ? AV_PICTURE_TYPE_P : AV_PICTURE_TYPE_B;
+			//slice_type = n->nal_reference_idc >> 5;
+			//slice_type = slice_type == 3 ? AV_PICTURE_TYPE_I : slice_type == 2 ? AV_PICTURE_TYPE_P : AV_PICTURE_TYPE_B;
 		}
 		i++;
     }
     return offset;
 }
-int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSize, uint16_t *seq_num, uint16_t *idx, int offset)
+int get_slice_packet(RtpObj *obj, char *outBuf, short *rtpSize, uint16_t start_seqnum, uint16_t *idx, int offset)
 {
     int ret = 0;
+    SVCNalu *svc_nalu = &obj->svc_nalu;
+    cJSON *json = obj->json;
+    uint16_t *seq_num = &obj->seq_num;
     RTP_FIXED_HEADER        *rtp_hdr    = NULL;
 	NALU_HEADER		        *nalu_hdr   = NULL;
 	FU_INDICATOR	        *fu_ind     = NULL;
@@ -651,33 +666,47 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
 	char *sendptr = NULL;
 	char* nalu_payload = NULL;
 	int rtp_extend_length = (sizeof(EXTEND_HEADER) >> 2) - 1;//rtp_extend_profile,rtp_extend_length之外1个字（4个字节）
+	//printf("get_slice_packet: sizeof(EXTEND_HEADER)= %d \n", sizeof(EXTEND_HEADER));
     int mtu_size = GetvalueInt(json, "mtu_size");
     int ref_idx = GetvalueInt(json, "ref_idx");
     int refs = GetvalueInt(json, "refs");
     int res_idx = GetvalueInt(json, "res_idx");
     int res_num = GetvalueInt(json, "res_num");
     int main_spatial_idx = GetvalueInt(json, "main_spatial_idx");
+    uint32_t ssrc = svc_nalu->ssrc;//GetvalueInt(json, "ssrc");
+    //printf("get_slice_packet: ssrc = %u \n", ssrc);
+    //if(!ssrc)
+    //{
+    //    ssrc = (unsigned int)svc_nalu;
+    //}
     int time_offset = GetvalueInt(json, "time_offset");
     int selfChanId = GetvalueInt(json, "selfChanId");
     int chanId = GetvalueInt(json, "chanId");//已增1
-    int loss_rate = GetvalueInt(json, "loss_rate");
+    //int loss_rate = GetvalueInt(json, "loss_rate");
     long long *objList = NULL;
+    long long *objList1 = NULL;
+    long long *objList2 = NULL;
     int arraySize = 0;
+    int arraySize1 = 0;
+    int arraySize2 = 0;
     int netIdx = 0;
+    int netIdx1 = 0;
+    int netIdx2 = 0;
     int maxNetNum = 3;
     int netStep = 1;
     int nal_num = svc_nalu->nal_num;
-    int slice_type = 0;
+    //int slice_type = 0;
     //int offset = 0;
-    int i = 0;
+    int i = 0, I = 0;
     //int idx = 0;
     int extlen = 0;
     int bytes = 0;
     int firstSlice = 0;
 	int nextFirstSlice = 0;
+
     if(selfChanId > 0)
     {
-        //控制每一帧的net信息个数
+        //控制每一帧的net信息个数,注意调节大丢包率下的平衡
         if(nal_num < maxNetNum)
         {
             netStep = 1;
@@ -688,13 +717,21 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
         }
         //printf("get_slice_packet: netStep = %d \n", netStep);
         objList = GetArrayObj(json, "netInfo", &arraySize);
-        //printf("api_test_write_str: arraySize= %d\n",arraySize);
+        objList1 = GetArrayObj(json, "rtxInfo", &arraySize1);
+        objList2 = GetArrayObj(json, "rttInfo", &arraySize2);
+        //printf("get_slice_packet: arraySize= %d\n",arraySize);
+        //printf("get_slice_packet: objList1= %x \n",objList1);
+        //printf("get_slice_packet: arraySize2= %d\n",arraySize2);
+        //maxNetNum = arraySize ? arraySize > arraySize2 : arraySize2;
+        maxNetNum = (arraySize + arraySize1 + arraySize2);
+        maxNetNum += 1;
     }
 	mtu_size = mtu_size ? mtu_size : FIX_MTU_SIZE;
     while(i < nal_num)
     {
         NALU_t *n = &svc_nalu->nal[i];
         //注意兼顾与sps/pps在一起和不在一起的情况；
+
 		if(n->startcodeprefix_len == 4)
 		{
 			firstSlice = 1;
@@ -703,6 +740,7 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
 		{
 			nextFirstSlice = 1;
 		}
+		//printf("get_slice_packet: n->nal_unit_type=%d, i=%d \n",n->nal_unit_type, i);
 		if ( (n->nal_unit_type != 7) && (n->nal_unit_type != 8) && (n->nal_unit_type != 6))
 		{
             rtp_hdr =(RTP_FIXED_HEADER*)&outBuf[offset];
@@ -711,7 +749,7 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
 			rtp_hdr->padding	 = 0;//														P
 			rtp_hdr->csrc_len	 = 0;//														CC
 			rtp_hdr->marker		 = 0;//(size >= len);   //标志位，由具体协议规定其值。		M
-			rtp_hdr->ssrc        = (unsigned int)svc_nalu;;//htonl(10);    //随机指定为10，并且在本RTP会话中全局唯一	SSRC
+			rtp_hdr->ssrc        = ssrc;//(unsigned int)svc_nalu;;//htonl(10);    //随机指定为10，并且在本RTP会话中全局唯一	SSRC
 			rtp_hdr->extension	 = 1;//														X
 			rtp_hdr->timestamp = svc_nalu->timestamp;///htonl(ts_current);
 			sendptr = &outBuf[sizeof(RTP_FIXED_HEADER) + offset];
@@ -727,30 +765,79 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
 			{
 				rtp_ext = (EXTEND_HEADER *)&sendptr[0];
 				memset(rtp_ext, 0, sizeof(EXTEND_HEADER));
-				rtp_ext->rtp_extend_profile = 0;
+				rtp_ext->rtp_extend_profile = EXTEND_PROFILE_ID;//0;
 				extlen = (rtp_extend_length + 1) << 2;
+				//printf("get_slice_packet: extlen= %d \n", extlen);
 				rtp_ext->rtp_extend_length = ((rtp_extend_length & 0xFF) << 8) | ((rtp_extend_length >> 8));
 				//
+				rtp_ext->rtp_pkt_num = nal_num;
+				rtp_ext->start_seqnum = start_seqnum;
+				rtp_ext->nack_type = 0;
 				rtp_ext->refs = refs & 0x1F;
 				rtp_ext->ref_idx = ref_idx & 0x1F;
-				int ref_idc = ref_idx == 0 ? 0 : ref_idx == refs ? 1 : ref_idx == 1 ? 3 : 2;
 				if(refs == 1)
 				{
-				    int picType = n->nal_reference_idc >> 5;
-				    if(picType == 1)
-				    {
+				    rtp_ext->ref_idx = obj->frame_idx & 0x1F;
+				}
+				int ref_idc = ref_idx == 0 ? 0 : ref_idx == refs ? 1 : ref_idx == 1 ? 3 : 2;
+#if 1//test_gxh_20210113
+				int picType = n->nal_reference_idc >> 5;
+				if(refs == 1)
+    			{
+	    		    int picType = n->nal_reference_idc >> 5;
+		    	    if(picType == 3)//I
+			        {
 				        ref_idc = 0;
 				    }
-				    else if(picType == 2)
-				    {
-				        ref_idc = 1;
+    			    else if(picType == 2)//P
+	    		    {
+		    	        ref_idc = 1;
+			        }
+				    else if(picType == 3)//B
+    			    {
+	    		        ref_idc = 2;
+		    	    }
+			    }
+				else if(refs == 2)
+    			{
+	    		    if(ref_idc == 0)
+		    	    {
+			            n->nal_reference_idc = 3 << 5;
 				    }
-				    else if(picType == 3)
+    			    else if(ref_idc == 1)
+	    		    {
+		    	        n->nal_reference_idc = 2 << 5;
+			        }
+				    else{
+				        n->nal_reference_idc = 1 << 5;
+    			    }
+	    		}
+		    	else
+			    {
+				    //if(ref_idc == 0)
+				    if(ref_idc == 0 || ref_idc == 1)
 				    {
-				        ref_idc = 2;
+    			        n->nal_reference_idc = 3 << 5;
+	    		    }
+		    	    //else if(ref_idc == 1 || ref_idc == 2)
+		    	    else if(ref_idc == 2)
+			        {
+				        n->nal_reference_idc = 2 << 5;
 				    }
-				    //printf("get_slice_packet: picType= %d \n", picType);
-				}
+    			    else if(ref_idc == 3)
+	    		    {
+		    	        n->nal_reference_idc = 1 << 5;
+			        }
+			    }
+#endif
+                //if((n->nal_reference_idc >> 5) == 2)
+                //{
+                //    n->nal_reference_idc = (1 << 5);
+                //    //n->nal_reference_idc = 0;//导致解码错误
+                //}
+                //n->nal_reference_idc = 0;
+				//printf("get_slice_packet: picType= %d \n", picType);
+
 				rtp_ext->ref_idc = ref_idc & 0x3;
 				rtp_ext->res_num = res_num;//1;
 				rtp_ext->res_idx = res_idx;//0;
@@ -759,35 +846,86 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
 				rtp_ext->qua_num = 0;
 				rtp_ext->qua_idx = 0;
 				rtp_ext->first_slice = firstSlice;
-				rtp_ext->type = n->nal_unit_type;
+				rtp_ext->nal_type = n->nal_unit_type;
 				rtp_ext->enable_fec = 0;//svc_nalu->enable_fec;
 				rtp_ext->refresh_idr = svc_nalu->refresh_idr;
 
 				//
-				rtp_ext->nack.enable_nack = 0;
-				rtp_ext->nack.is_lost_packet = 0;
-				rtp_ext->nack.loss_rate = 0;
-				rtp_ext->nack.time_offset = time_offset;
+				rtp_ext->nack.nack0.enable_nack = 0;
+				rtp_ext->nack.nack0.is_lost_packet = 0;
+				rtp_ext->nack.nack0.loss_rate = 0;
+				rtp_ext->nack.nack0.time_offset = time_offset;
 				int64_t now_time = (int64_t)get_time_stamp();
-				rtp_ext->nack.time_info.time_stamp = now_time;
-				//rtp_ext->nack.pkt_num = nal_num;
-				if(selfChanId > 0)
+				rtp_ext->nack.nack0.time_info.time_stamp0 = now_time & 0xFFFFFFFF;
+			    rtp_ext->nack.nack0.time_info.time_stamp1 = (now_time >> 32) & 0xFFFFFFFF;
+				//rtp_ext->nack.nack0.time_info.time_stamp = now_time;
+				RTT_HEADER *rtt_list = (RTT_HEADER *)&rtp_ext->nack.nack0.time_info.rtt_list;
+				//rtp_ext->nack.nack0.pkt_num = nal_num;
+				//printf("get_slice_packet: selfChanId=%d, I=%d, maxNetNum=%d \n",selfChanId, I, maxNetNum);
+				//printf("get_slice_packet: netIdx=%d, arraySize=%d \n",netIdx, arraySize);
+				//printf("get_slice_packet: netIdx2=%d, arraySize2=%d \n",netIdx2, arraySize2);
+				if(selfChanId > 0 && I < maxNetNum)
 				{
-				    if((i % netStep) == 0)
+				    //if((i % netStep) == 0)
+				    if(!I)
     				{
-	    			    rtp_ext->nack.enable_nack = 1;
-		    		    rtp_ext->nack.time_info.rtt_list.st0 = now_time & 0xFFFF;
-			    	    rtp_ext->nack.time_info.rtt_list.rt0 = 0;
-				        rtp_ext->nack.time_info.rtt_list.st1 = 0;
-				        rtp_ext->nack.time_info.rtt_list.rt1 = 0;
-    				    rtp_ext->nack.chanId = selfChanId;
-	    			    rtp_ext->nack.loss_rate = 0;
-		    		    rtp_ext->nack.info_status = 0;
+    				    if(ref_idc < 2)
+    				    {
+    				        //信息初建，原创
+    				        rtp_ext->nack_type = 1;
+	    			        rtp_ext->nack.nack0.enable_nack = 1;
+		    		        rtt_list->rtt0.st0 = now_time & 0xFFFF;
+			    	        rtt_list->rtt0.rt0 = 0;
+				            rtt_list->rtt0.st1 = 0;
+				            rtt_list->rtt0.rt1 = 0;
+    				        rtp_ext->nack.nack0.chanId = selfChanId;//原始信息创建者（本端编码器）
+    				        rtp_ext->nack.nack0.res_idx = res_idx;
+	    			        rtp_ext->nack.nack0.loss_rate = 0;
+		    		        rtp_ext->nack.nack0.info_status = 0;
+		    		        //printf("get_slice_packet: rtp_ext->nack.nack0.enable_nack= %d \n", rtp_ext->nack.nack0.enable_nack);
+#if 0
+		    		        //节省bit数，进行重用
+		    		        if(objList2 && (netIdx2 < arraySize2))
+    				        {
+    				            cJSON *thisjson = (cJSON *)objList2[netIdx2++];
+                                if(thisjson)
+                                {
+                                    int decodeId = GetvalueInt(thisjson, "decodeId");
+                                    int rtt = GetvalueInt(thisjson, "rtt");
+                                    rtt_list->rtt1.rtt = (rtt + 7) >> 3;
+		    		                rtt_list->rtt1.decodeId = decodeId;
+                                }
+    				        }
+#endif
+    				    }
+
+			    	}
+			    	else if(objList1 && I <= arraySize1)
+			    	{
+			    	    cJSON *thisjson = (cJSON *)objList1[netIdx1++];
+			    	    if(thisjson)
+                        {
+                            MYPRINT("get_slice_packet: arraySize1=%d \n",arraySize1);
+                            rtp_ext->nack_type = 2;
+                            rtp_ext->nack.nack1.send_time = (uint32_t)GetvalueInt(thisjson, "send_time");
+                            rtp_ext->nack.nack1.start_seqnum = GetvalueInt(thisjson, "start_seqnum");
+                            rtp_ext->nack.nack1.chanId = GetvalueInt(thisjson, "chanId");
+                            MYPRINT("get_slice_packet: rtp_ext->nack.nack1.start_seqnum=%d \n",rtp_ext->nack.nack1.start_seqnum);
+                            MYPRINT("get_slice_packet: rtp_ext->nack.nack1.chanId=%d \n",rtp_ext->nack.nack1.chanId);
+                            rtp_ext->nack.nack1.loss_type = (uint8_t)GetvalueInt(thisjson, "loss_type");
+                            rtp_ext->nack.nack1.loss0 = (uint8_t)GetvalueInt(thisjson, "loss0");
+                            rtp_ext->nack.nack1.loss1 = (uint32_t)GetvalueInt(thisjson, "loss1");
+                            rtp_ext->nack.nack1.loss2 = (uint32_t)GetvalueInt(thisjson, "loss2");
+                            rtp_ext->nack.nack1.loss3 = (uint32_t)GetvalueInt(thisjson, "loss3");
+                            rtp_ext->nack.nack1.loss4 = (uint32_t)GetvalueInt(thisjson, "loss4");
+                        }
 			    	}
 				    else{
 				        //接收端收到了对端的时间信息
-    				    if(netIdx < arraySize)
+    				    if(objList && netIdx < arraySize)
 	    			    {
+	    			        //信息复述，转发
+	    			        //printf("get_slice_packet: arraySize= %d \n", arraySize);
 		    		        cJSON *thisjson = (cJSON *)objList[netIdx++];
                             if(thisjson)
                             {
@@ -795,47 +933,63 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
                                 int loss_rate = GetvalueInt(thisjson, "loss_rate");
                                 int st0 = GetvalueInt(thisjson, "st0");
                                 int rt0 = GetvalueInt(thisjson, "rt0");
+                                int layerId = GetvalueInt(thisjson, "res_idx");
                                 //int info_status = GetvalueInt(thisjson, "info_status");
                                 //int st1 = GetvalueInt(thisjson, "st1");
                                 //int rt1 = GetvalueInt(thisjson, "rt1");
+
+                                //printf("get_slice_packet: rt0= %d\n",rt0);
                                 //printf("%d, %d, %d, %d, %d, %d \n", chanId, loss_rate, st0, rt0, st1, rt1);
-				                rtp_ext->nack.enable_nack = 1;
-				                rtp_ext->nack.loss_rate = loss_rate;//loss_rate in [1,101]
-				                rtp_ext->nack.time_info.rtt_list.st0 = st0;
-    				            rtp_ext->nack.time_info.rtt_list.rt0 = rt0;
-	    			            rtp_ext->nack.time_info.rtt_list.st1 = now_time & 0xFFFF;
-		    		            rtp_ext->nack.chanId = chanId;
-			    	            rtp_ext->nack.info_status = 1;//info_status == 1
-				                //printf("api_test_write_str: rtp_ext->nack.info_status= %d\n",rtp_ext->nack.info_status);
+                                rtp_ext->nack_type = 1;
+				                rtp_ext->nack.nack0.enable_nack = 1;
+				                rtp_ext->nack.nack0.loss_rate = loss_rate;//loss_rate in [1,101]//此刻写入的是谁的loss_rate?
+				                rtt_list->rtt0.st0 = st0;
+    				            rtt_list->rtt0.rt0 = rt0;
+	    			            rtt_list->rtt0.st1 = now_time & 0xFFFF;
+	    			            rtt_list->rtt0.rt1 = 0;//复用为(rtt,decodeId)
+	    			            //printf("get_slice_packet: chanId= %d\n",chanId);
+		    		            rtp_ext->nack.nack0.chanId = chanId;//原始信息创建者（异端编码器），且是未终结的信息
+		    		            rtp_ext->nack.nack0.res_idx = layerId;
+			    	            rtp_ext->nack.nack0.info_status = 1;//info_status == 1
+				                //printf("api_test_write_str: rtp_ext->nack.nack0.info_status= %d\n",rtp_ext->nack.nack0.info_status);
+				                //节省bit数，进行重用
+				                if(objList2 && (netIdx2 < arraySize2))
+    				            {
+    				                cJSON *thisjson = (cJSON *)objList2[netIdx2++];
+                                    if(thisjson)
+                                    {
+                                        //此信息与rtt0(chanId创建）的信息是不相关的
+                                        //decodeId可能与selfchanId及chanId均不同
+                                        int decodeId = GetvalueInt(thisjson, "decodeId");//终极信息，创建id与接收id相同，且为对端
+                                        int rtt = GetvalueInt(thisjson, "rtt");
+                                        rtt_list->rtt1.rtt = (rtt + 7) >> 3;
+		    		                    rtt_list->rtt1.decodeId = decodeId;
+		    		                    //printf("get_slice_packet: decodeId= %d\n",decodeId);
+		    		                    //printf("get_slice_packet: rtp_ext->nack.nack0.info_status= %d\n",rtp_ext->nack.nack0.info_status);
+                                    }
+    				            }
 				            }
 				        }
 				    }
 				}
 			}
-			if(firstSlice && nextFirstSlice)
+			//n->forbidden_bit = 0;//20210113
+			//if(firstSlice && nextFirstSlice)
+			if(true)
 			{
-			    //printf("get_slice_packet: 000000000000000000 \n");
-				//rtp_hdr->seq_no = 0;///htons(seq_num ++); //序列号，每发送一个RTP包增1
-				//设置rtp M 位；
-				//rtp_hdr->marker=1;
-				slice_type = n->nal_reference_idc >> 5;
-				slice_type = slice_type == 3 ? AV_PICTURE_TYPE_I : slice_type == 2 ? AV_PICTURE_TYPE_P : AV_PICTURE_TYPE_B;
-				//rtp_hdr->seq_no     = 0;///htons(seq_num ++); //序列号，每发送一个RTP包增1	SQUENCE NUMBER
-				//设置NALU HEADER,并将这个HEADER填入sendbuf[12]
-				//rtp_ext = (EXTEND_HEADER *)&sendptr[0];
-				//rtp_ext->rtp_extend_profile = 0;
-				//rtp_ext->rtp_extend_length = rtp_extend_length;//1;//0;
-				//extlen = (rtp_ext->rtp_extend_length + 1) << 2;
 				extlen = rtp_hdr->extension ? extlen : 0;
 				//rtp_ext->rtp_extend_length = ((rtp_extend_length & 0xFF) << 8) | ((rtp_extend_length >> 8));
 				nalu_hdr =(NALU_HEADER*)&sendptr[extlen];//&sendbuf[RTPHEADSIZE + offset]; //将sendbuf[12]的地址赋给nalu_hdr，之后对nalu_hdr的写入就将写入sendbuf中；
+#if 1
 				nalu_hdr->F = n->forbidden_bit;
 				//if (n->forbidden_bit) printf("n->forbidden_bit \n", n->forbidden_bit);
 				nalu_hdr->NRI = n->nal_reference_idc>>5;//有效数据在n->nal_reference_idc的第6，7位，需要右移5位才能将其值赋给nalu_hdr->NRI。
 				nalu_hdr->TYPE = n->nal_unit_type;
 				nalu_payload=&sendptr[extlen + 1];//sendbuf[13 + offset];//同理将sendbuf[13]赋给nalu_payload
 				memcpy(nalu_payload,n->buf+1,n->len-1);//去掉nalu头的nalu剩余内容写入sendbuf[13]开始的字符串。
-
+#else
+                memcpy(nalu_hdr, n->buf, n->len);
+#endif
                 //printf("get_slice_packet: nalu_hdr->TYPE = %d \n", nalu_hdr->TYPE);
 
 				///ts_current=ts_current+timestamp_increse;
@@ -844,23 +998,15 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
 
 				offset += bytes;//send( socket1, sendbuf, bytes, 0 );//发送rtp包
 				if(rtp_hdr->extension)
-					rtp_ext->rtp_pkt_size = bytes;
+				{
+				    rtp_ext->rtp_pkt_size = bytes;
+				}
+
 				firstSlice = 0;
 				nextFirstSlice = 0;
 			}
 			else if(firstSlice && !nextFirstSlice)//发送一个需要分片的NALU的第一个分片，置FU HEADER的S位
 			{
-			    //printf("get_slice_packet: 11111111111111111111 \n");
-				//rtp_hdr->extension	 = 1;//
-				slice_type = n->nal_reference_idc >> 5;
-				slice_type = slice_type == 3 ? AV_PICTURE_TYPE_I : slice_type == 2 ? AV_PICTURE_TYPE_P : AV_PICTURE_TYPE_B;
-				//设置rtp M 位；
-				//rtp_hdr->marker=0;
-				//设置FU INDICATOR,并将这个HEADER填入sendbuf[12]
-				//rtp_ext = (EXTEND_HEADER *)&sendptr[0];
-				//rtp_ext->rtp_extend_profile =0;
-				//rtp_ext->rtp_extend_length = rtp_extend_length;//1;//0;
-				//extlen = (rtp_ext->rtp_extend_length + 1) << 2;
 				extlen = rtp_hdr->extension ? extlen : 0;
 				//rtp_ext->rtp_extend_length = ((rtp_extend_length & 0xFF) << 8) | ((rtp_extend_length >> 8));
 
@@ -871,7 +1017,7 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
 				fu_ind->TYPE = 28;
                 if (rtp_hdr->extension)
 			    {
-			        rtp_ext->type = 28;
+			        rtp_ext->nal_type = 28;
 			    }
 				//设置FU HEADER,并将这个HEADER填入sendbuf[13]
 				fu_hdr = (FU_HEADER*)&sendptr[extlen + 1];//sendbuf[13  + VIDIORASHEADSIZE + offset];
@@ -894,16 +1040,6 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
 			}
 			else if(nextFirstSlice && !firstSlice)//发送的是最后一个分片，注意最后一个分片的长度可能超过1400字节（当l>1386时）。
 			{
-                //printf("get_slice_packet: 2222222222222222222222222 \n");
-				//设置rtp M 位；当前传输的是最后一个分片时该位置1
-				//rtp_hdr->marker = 0;//1;
-				//设置FU INDICATOR,并将这个HEADER填入sendbuf[12]
-				slice_type = n->nal_reference_idc >> 5;
-				slice_type = slice_type == 3 ? AV_PICTURE_TYPE_I : slice_type == 2 ? AV_PICTURE_TYPE_P : AV_PICTURE_TYPE_B;
-				//rtp_ext = (EXTEND_HEADER *)&sendptr[0];
-				//rtp_ext->rtp_extend_profile = 0;
-				//rtp_ext->rtp_extend_length = rtp_extend_length;//1;//0;
-				//extlen = (rtp_ext->rtp_extend_length + 1) << 2;
 				extlen = rtp_hdr->extension ? extlen : 0;
 				//rtp_ext->rtp_extend_length = ((rtp_extend_length & 0xFF) << 8) | ((rtp_extend_length >> 8));
 				fu_ind =(FU_INDICATOR*)&sendptr[extlen];//&sendbuf[RTPHEADSIZE + offset]; //将sendbuf[12]的地址赋给fu_ind，之后对fu_ind的写入就将写入sendbuf中；
@@ -913,7 +1049,7 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
 				fu_ind->TYPE=28;
                 if (rtp_hdr->extension)
 			    {
-			        rtp_ext->type = 28;
+			        rtp_ext->nal_type = 28;
 			    }
 				//设置FU HEADER,并将这个HEADER填入sendbuf[13]
 				fu_hdr =(FU_HEADER*)&sendptr[extlen + 1];//sendbuf[13 + offset];
@@ -934,16 +1070,6 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
 			}
 			else
 			{
-			    //printf("get_slice_packet: 333333333333333333333333 \n");
-				//设置rtp M 位；
-				//rtp_hdr->marker=0;
-				//设置FU INDICATOR,并将这个HEADER填入sendbuf[12]
-				slice_type = n->nal_reference_idc >> 5;
-				slice_type = slice_type == 3 ? AV_PICTURE_TYPE_I : slice_type == 2 ? AV_PICTURE_TYPE_P : AV_PICTURE_TYPE_B;
-				//rtp_ext = (EXTEND_HEADER *)&sendptr[0];
-				//rtp_ext->rtp_extend_profile = 0;
-				//rtp_ext->rtp_extend_length = rtp_extend_length;//1;//0;
-				//extlen = (rtp_ext->rtp_extend_length + 1) << 2;
 				extlen = rtp_hdr->extension ? extlen : 0;
 				//rtp_ext->rtp_extend_length = ((rtp_extend_length & 0xFF) << 8) | ((rtp_extend_length >> 8));
 				fu_ind =(FU_INDICATOR*)&sendptr[extlen];//&sendbuf[RTPHEADSIZE + offset]; //将sendbuf[12]的地址赋给fu_ind，之后对fu_ind的写入就将写入sendbuf中；
@@ -953,7 +1079,7 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
 				fu_ind->TYPE=28;
                 if (rtp_hdr->extension)
 			    {
-			        rtp_ext->type = 28;
+			        rtp_ext->nal_type = 28;
 			    }
 				//设置FU HEADER,并将这个HEADER填入sendbuf[13]
 				fu_hdr =(FU_HEADER*)&sendptr[extlen + 1];//sendbuf[13 + offset];
@@ -973,6 +1099,7 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
 				//send( socket1, sendbuf, bytes, 0 );//发送rtp包
 			}
 			rtpSize[(*idx)++] = bytes;
+			I++;
 		}
 		nextFirstSlice = 0;
 		i++;
@@ -986,6 +1113,14 @@ int get_slice_packet(SVCNalu *svc_nalu, cJSON *json, char *outBuf, short *rtpSiz
 	if(objList)
 	{
 	    free(objList);
+	}
+	if(objList1)
+	{
+	    free(objList1);
+	}
+	if(objList2)
+	{
+	    free(objList2);
 	}
     return ret;
 }
@@ -1005,9 +1140,11 @@ int raw2rtp_packet(void *hnd, char *outBuf)
     obj->enable_fec = GetvalueInt(json, "enable_fec");
     svc_nalu->refresh_idr = obj->refresh_idr;
     svc_nalu->enable_fec = obj->enable_fec;
+    svc_nalu->ssrc = obj->ssrc;
     unsigned short seq_num = obj->seq_num;
-    offset = get_important_packet(svc_nalu, json, outBuf, rtpSize, &obj->seq_num, &idx);
-#if 1
+    uint16_t start_seqnum = seq_num;
+    offset = get_important_packet(obj, outBuf, rtpSize, start_seqnum, &idx);
+#if 0//gxh_20210111
     if(offset > 0)
     {
         //printf("raw2rtp_packet: offset= %d \n", offset);
@@ -1031,8 +1168,31 @@ int raw2rtp_packet(void *hnd, char *outBuf)
 	    //printf("raw2rtp_packet: 2: offset= %d \n", offset);
     }
 #endif
-    ret = get_slice_packet(svc_nalu, json, outBuf, rtpSize, &obj->seq_num, &idx, offset);
+    ret = get_slice_packet(obj, outBuf, rtpSize, start_seqnum, &idx, offset);
     //
+    obj->frame_idx++;
+    if(obj->frame_idx >= 16)
+    {
+        obj->frame_idx = 0;
+    }
+    return ret;
+}
+uint32_t create_time_stamp(RtpObj *obj)
+{
+    uint32_t ret = 0;
+    if(obj)
+    {
+        int64_t now = api_get_time_stamp_ll();
+        if(!obj->time0)
+        {
+            obj->time0 = now;
+        }
+        int64_t difftime = now - obj->time0;
+        int64_t time_stamp = difftime * 90;//90000 / 1000; //90hz
+
+        ret = (uint32_t)(time_stamp % LEFT_SHIFT32);
+        ret = ret ? ret : 1;
+    }
 
     return ret;
 }
@@ -1040,9 +1200,8 @@ HCSVC_API
 int api_raw2rtp_packet(char *handle, char *data, char *param, char *outbuf, char *outparam[])
 {
     int ret = 0;
-
+    //printf("api_raw2rtp_packet: param= %s \n", param);
     //initobj(id);
-
     //if (id < MAX_OBJ_NUM)
     {
         long long *testp = (long long *)handle;
@@ -1055,6 +1214,7 @@ int api_raw2rtp_packet(char *handle, char *data, char *param, char *outbuf, char
             codecObj->rtpObj = obj;
             ResetObj(obj);
             obj->Obj_id = id;
+            printf("api_raw2rtp_packet: param= %s \n", param);
             //
             if(!obj->logfp)
             {
@@ -1068,6 +1228,7 @@ int api_raw2rtp_packet(char *handle, char *data, char *param, char *outbuf, char
             }
 
         }
+
         obj->json = mystr2json(param);
 
         unsigned int timestamp = (unsigned int)GetvalueInt(obj->json, "timestamp");
@@ -1080,64 +1241,92 @@ int api_raw2rtp_packet(char *handle, char *data, char *param, char *outbuf, char
             }
         }
         else{
-            obj->time_stamp += 40;//test
+            //obj->time_stamp += 40;//test
+            obj->time_stamp = create_time_stamp(obj);
         }
 
         //printf("api_raw2rtp_packet: id= %d \n", id);
         //printf("api_raw2rtp_packet: obj->time_stamp= %u \n", obj->time_stamp);
         int insize = GetvalueInt(obj->json, "insize");
-        //printf("api_raw2rtp_packet: param= %s \n", param);
+        uint32_t ssrc = GetvalueInt(obj->json, "ssrc");
+        if(!ssrc)
+        {
+            if(!obj->ssrc)
+            {
+                unsigned int range = MAX_UINT;
+                obj->ssrc = (unsigned int)api_create_id(range);
+            }
+        }
+        else{
+            obj->ssrc = ssrc;
+        }
         //printf("api_raw2rtp_packet: insize= %d \n", insize);
         //printf("api_raw2rtp_packet: mtu_size= %d \n", mtu_size);
 
         ret = data2nalus(obj, data);
 
-        //printf("api_raw2rtp_packet: ret= %d \n", ret);
-        //print output
         SVCNalu *svc_nalu = &obj->svc_nalu;
         int nal_num = svc_nalu->nal_num;
-        for(int i = 0; i < nal_num; i++)
-	    {
-	        int len = svc_nalu->nal[i].len;
-	        //printf("api_raw2rtp_packet: i= %d, len= %d \n", i, len);
-	    }
-	    //printf("api_raw2rtp_packet: nal_num= %d \n", nal_num);
-	    //
-	    //obj->time_stamp = (uint32_t)get_time_stamp();
+        //for(int i = 0; i < nal_num; i++)
+	    //{
+	    //    int len = svc_nalu->nal[i].len;
+	    //    //obj->rtpSize[i] = len;//test
+	    //    printf("api_raw2rtp_packet: i= %d, len= %d \n", i, len);
+	    //}
+
 	    ret = raw2rtp_packet(obj, outbuf);
-	    //printf("api_raw2rtp_packet: ret= %d \n", ret);
 
-        sprintf(obj->outparam[1], "%d", obj->seq_num);
+        //printf("api_raw2rtp_packet: raw2rtp_packet: ret= %d \n", ret);
+
+        outparam[0] = obj->outparam[0];
         outparam[1] = obj->outparam[1];
-	    //char text[2048] = "";//2048/4=512//512*1400=700kB
-	    char *text = obj->outparam[0];
-	    int sum = 0;
-	    memset(obj->outparam[0], 0, sizeof(char) * MAX_OUTCHAR_SIZE);
-	    for (int i = 0; i < ret; i++)
-	    {
-            char ctmp[32] = "";
-            int size = obj->rtpSize[i];
-            sum += size;
-	        sprintf(ctmp, "%d", size);
-	        if(i)
-	        {
-	            strcat(text, ",");
-	        }
-            strcat(text, ctmp);
+        sprintf(obj->outparam[1], "%d", obj->seq_num);
 
+	    //char text[2048] = "";//2048/4=512//512*1400=700kB
+
+	    int sum = 0;
+        for (int i = 0; i < ret; i++)
+	    {
+	        int size = obj->rtpSize[i];
+            sum += size;
 	    }
-	    ret = sum;
-	    outparam[0] = text;
+
+	    cJSON *json2 = NULL;
+        json2 = renewJsonArray1(json2, "rtpSize", obj->rtpSize, ret);
+        char *jsonStr = cJSON_Print(json2);//比较耗时
+        deleteJson(json2);
+        strcpy(obj->outparam[0], jsonStr);
+        cJSON_free(jsonStr);
+        //printf("api_raw2rtp_packet: obj->outparam[0]= %s \n", obj->outparam[0]);
+        ret = sum;
+
 	    //free
         int nal_mem_num = svc_nalu->nal_mem_num;
+        if(!nal_mem_num)
+        {
+            printf("error: api_raw2rtp_packet: nal_mem_num= %d \n", nal_mem_num);
+        }
         for(int i = 0; i < nal_mem_num; i++)
 	    {
 		    free(svc_nalu->nal[i].buf);
 	    }
-	    free(svc_nalu->nal);
-	    free(obj->rtpSize);
-	    deleteJson(obj->json);
-	    obj->json = NULL;
+	    if(svc_nalu->nal)
+	    {
+	        free(svc_nalu->nal);
+	        svc_nalu->nal = NULL;
+	    }
+	    if(obj->rtpSize)
+	    {
+	        free(obj->rtpSize);
+	        obj->rtpSize = NULL;
+	    }
+
+        if(obj->json)
+        {
+            deleteJson(obj->json);
+	        obj->json = NULL;
+        }
+
 	    //
 	    //outparam[0] = "api_raw2rtp_packet";
 	}
@@ -1167,7 +1356,7 @@ int rtp_unpacket(SVCNalu *svc_nalu, char *inBuf, short *rtpSize, int count, int 
 	unsigned short seqnum = 0;
 	int ssrc = 0;
 	int marker = 0;
-	short slice_type = 0;
+	//short slice_type = 0;
 	unsigned  long timestamp = 0;
 	int last_timestamp = 0;
 	int rptHeadSize = sizeof(RTP_FIXED_HEADER);
@@ -1176,7 +1365,7 @@ int rtp_unpacket(SVCNalu *svc_nalu, char *inBuf, short *rtpSize, int count, int 
 	static int frmnum = 0;
 	int discard = 0;
 	int sps_pps_flag = 0;
-	int rtp_pkt_size = 0;
+	unsigned int rtp_pkt_size = 0;
 	int flag = 0;
 	int ret = 0;
 	offset = 0;
@@ -1217,15 +1406,21 @@ int rtp_unpacket(SVCNalu *svc_nalu, char *inBuf, short *rtpSize, int count, int 
 		{
 			rtp_ext = (EXTEND_HEADER *)&receivebuf[offset + rptHeadSize];
 
-			extprofile = rtp_ext->rtp_extend_profile & 7;
+			extprofile = rtp_ext->rtp_extend_profile;// & 7;
 			rtp_extend_length = rtp_ext->rtp_extend_length;
 			rtp_extend_length = ((rtp_extend_length & 0xFF) << 8) | ((rtp_extend_length >> 8));
 			extlen = (rtp_extend_length + 1) << 2;
 			rtp_pkt_size = rtp_ext->rtp_pkt_size;
 			//printf("rtp_unpacket: rtpSize[idx]=%d \trtp_pkt_size=%d \n", rtpSize[idx], rtp_pkt_size);
-			rtpSize[idx] = rtp_pkt_size;
+            int rtpsize0 = rtpSize[idx];
+			if(rtpsize0 != rtp_pkt_size)
+			{
+			    printf("error: rtp_unpacket: rtp_pkt_size=%d \n",rtp_pkt_size);
+                printf("error: rtp_unpacket: rtpsize0=%d \n",rtpsize0);
+			}
 			if(rtp_pkt_size <=0 || rtp_pkt_size > mtu_size)
 			{
+
 				if(rtp_pkt_size < 1500 && rtp_pkt_size > mtu_size)
 				{
 
@@ -1233,8 +1428,14 @@ int rtp_unpacket(SVCNalu *svc_nalu, char *inBuf, short *rtpSize, int count, int 
 				else
 				{
                     //LogOut(" rtp_pkt_size = %d \n",(void *)&rtp_pkt_size);
+                    printf("error: rtp_unpacket: mtu_size=%d \n",mtu_size);
                     printf("error: rtp_unpacket: rtp_pkt_size=%d \n",rtp_pkt_size);
                     printf("error: rtp_unpacket: i=%d \n",i);
+                    for(int l = 0; l < svc_nalu->nal_mem_num; l++)
+                    {
+                        rtpsize0 = rtpSize[l];
+                        printf("error: rtp_unpacket: l=%d, rtpsize0=%d \n",l, rtpsize0);
+                    }
 					return -1;
 				}
 			}
@@ -1242,6 +1443,7 @@ int rtp_unpacket(SVCNalu *svc_nalu, char *inBuf, short *rtpSize, int count, int 
                 printf("error: rtp_unpacket: extlen=%d \n",extlen);
                 return -1;
             }
+            rtpSize[idx] = rtp_pkt_size;
             //get extend info
             {
                 int refs = rtp_ext->refs;
@@ -1251,11 +1453,14 @@ int rtp_unpacket(SVCNalu *svc_nalu, char *inBuf, short *rtpSize, int count, int 
 		        int res_idx = rtp_ext->res_idx;
 		        int qua_num = rtp_ext->qua_num;
 		        int qua_idx = rtp_ext->qua_idx;
-		        int is_lost_packet = rtp_ext->nack.is_lost_packet;
-		        int loss_rate = rtp_ext->nack.loss_rate;
-		        //int time_status = rtp_ext->nack.time_status;
-		        int time_offset = rtp_ext->nack.time_offset;
-		        int64_t packet_time_stamp = rtp_ext->nack.time_info.time_stamp;
+		        int is_lost_packet = rtp_ext->nack.nack0.is_lost_packet;
+		        int loss_rate = rtp_ext->nack.nack0.loss_rate;
+		        //int time_status = rtp_ext->nack.nack0.time_status;
+		        int time_offset = rtp_ext->nack.nack0.time_offset;
+		        uint64_t time_stamp0 = rtp_ext->nack.nack0.time_info.time_stamp0;
+	            uint64_t time_stamp1 = rtp_ext->nack.nack0.time_info.time_stamp1;
+	            int64_t packet_time_stamp = time_stamp0 | (time_stamp1 << 32);
+		        //int64_t packet_time_stamp = rtp_ext->nack.nack0.time_info.time_stamp;
             }
             //printf("rtp_unpacket: rtp_pkt_size=%d \n", rtp_pkt_size);
             //printf("rtp_unpacket: extlen=%d \n", extlen);
@@ -1296,8 +1501,8 @@ int rtp_unpacket(SVCNalu *svc_nalu, char *inBuf, short *rtpSize, int count, int 
 				n->buf[4] = n->forbidden_bit | n->nal_reference_idc |  n->nal_unit_type;
 				//& 0x80; //& 0x60;& 0x1f;//
 				//1 bit  // 2 bit	// 5 bit
-				slice_type = n->nal_reference_idc >> 5;
-				slice_type == 3 ? AV_PICTURE_TYPE_I : slice_type == 2 ? AV_PICTURE_TYPE_P : slice_type == 0 ? AV_PICTURE_TYPE_B : -1;
+				//slice_type = n->nal_reference_idc >> 5;
+				//slice_type == 3 ? AV_PICTURE_TYPE_I : slice_type == 2 ? AV_PICTURE_TYPE_P : slice_type == 0 ? AV_PICTURE_TYPE_B : -1;
 				n->len += starthead;
 				offset += rtpSize[idx++];
 				pos += n->len;
@@ -1313,7 +1518,7 @@ int rtp_unpacket(SVCNalu *svc_nalu, char *inBuf, short *rtpSize, int count, int 
 				n->buf[2] = 0;
 				n->buf[3] = 1;
 				n->buf[4] = n->forbidden_bit | n->nal_reference_idc |  n->nal_unit_type;
-				slice_type = AV_PICTURE_TYPE_I;
+				//slice_type = AV_PICTURE_TYPE_I;
 				sps_pps_flag |= 2;
 				//printf("dec IDRFrame = %d \n", IDRCnt);
 				//char format1[128] = "dec IDR = %d \n";
@@ -1379,6 +1584,7 @@ int rtp_unpacket(SVCNalu *svc_nalu, char *inBuf, short *rtpSize, int count, int 
 				//1 bit  // 2 bit	// 5 bit
 				n->len += starthead;
 				offset += rtpSize[idx++];
+				pos += n->len;
 				//printf("dec IDR = %d \n", IDRCnt);
 				//char format1[128] = "dec IDR = %d \n";
 				//LogOut(format1, (void *)&IDRCnt);
@@ -1412,7 +1618,7 @@ int rtp_unpacket(SVCNalu *svc_nalu, char *inBuf, short *rtpSize, int count, int 
 			        n->nal_unit_type = fu_ind->TYPE;
 			        n->nal_reference_idc = fu_ind->NRI << 5;
 			        n->forbidden_bit = fu_ind->F;
-			        if(itype == 6)
+			        if(itype == 6)//SEI
 			        {
 			            starthead = VIDIORASHEADSIZE - 1;
 			            n->buf[0] = 0;
@@ -1442,10 +1648,11 @@ int rtp_unpacket(SVCNalu *svc_nalu, char *inBuf, short *rtpSize, int count, int 
 				break;
 			}
 			case 28://片分组方式FU-A
-				slice_type = n->nal_reference_idc >> 5;
-				slice_type == 3 ? AV_PICTURE_TYPE_I : slice_type == 2 ? AV_PICTURE_TYPE_P : slice_type == 0 ? AV_PICTURE_TYPE_B : -1;
+				//slice_type = n->nal_reference_idc >> 5;
+				//slice_type == 3 ? AV_PICTURE_TYPE_I : slice_type == 2 ? AV_PICTURE_TYPE_P : slice_type == 0 ? AV_PICTURE_TYPE_B : -1;
 				//设置FU HEADER,并将这个HEADER填入sendbuf[13]
-				if(fu_hdr->S)
+				///if(fu_hdr->S)
+				if(true)
 				{
 					starthead =
 					n->startcodeprefix_len = VIDIORASHEADSIZE;
@@ -1473,6 +1680,7 @@ int rtp_unpacket(SVCNalu *svc_nalu, char *inBuf, short *rtpSize, int count, int 
 				else
 				{
 				    //forbidden_bit: 如果有语法冲突，则为 1。当网络识别此单元存在比特错误时，可将其设为 1，以便接收方丢掉该单元。
+				    //被复用为多SLICE与单SLICE的区分
 					if(!n->forbidden_bit)
 					{
 						starthead =
@@ -1510,6 +1718,12 @@ int rtp_unpacket(SVCNalu *svc_nalu, char *inBuf, short *rtpSize, int count, int 
                 pos += n->len;
 				break;
 			default:
+			    printf("error: rtp_unpacket: itype=%d \n",itype);
+			    for(int l = 0; l < svc_nalu->nal_mem_num; l++)
+                {
+                    int rtpsize0 = rtpSize[l];
+                    //printf("error: rtp_unpacket: l=%d, rtpsize0=%d \n",l, rtpsize0);
+                }
 				//n->len += starthead;
 				offset += rtpSize[idx++];
 				discard++;
@@ -1549,13 +1763,17 @@ int rtp_packet2raw(void *hnd, char *inBuf, char *outBuf)
     cJSON *json = obj->json;
     SVCNalu *svc_nalu = &obj->svc_nalu;
     int mtu_size = GetvalueInt(json, "mtu_size");
-    //printf("data2nalus: start \n");
     int nal_mem_num = 0;//((int)(size / mtu_size) << 1) + 3;//3:sps/pps/sei
     //printf("rtp_packet2raw: start 0 \n");
     int count = 0;//no used; use rtpLen
 	int rtpLen = 0;
 	int oSize = 0;
-
+#if 1
+    obj->rtpSize = GetArrayValueShort(json, "rtpSize", &nal_mem_num);
+    for( int i = 0 ; i < nal_mem_num ; i ++ ){
+        rtpLen += obj->rtpSize[i];
+    }
+#else
     cJSON *cjsonArr = cJSON_GetObjectItem(json, "rtpSize");
     if( NULL != cjsonArr ){
         int i = 0;
@@ -1583,7 +1801,7 @@ int rtp_packet2raw(void *hnd, char *inBuf, char *outBuf)
             if(NULL == pSub ){ continue ; }
             //char * ivalue = pSub->valuestring ;
             int ivalue = pSub->valueint;
-            obj->rtpSize[i] = (short)ivalue;//可以不用傳入，通過擴展字段讀入：rtpSize[idx] = rtp_pkt_size;
+            obj->rtpSize[i] = (unsigned short)ivalue;//可以不用傳入，通過擴展字段讀入：rtpSize[idx] = rtp_pkt_size;
             rtpLen += ivalue;
 
         }
@@ -1591,21 +1809,17 @@ int rtp_packet2raw(void *hnd, char *inBuf, char *outBuf)
     else{
         return ret;
     }
+#endif
     //printf("rtp_packet2raw: nal_mem_num= %d \n", nal_mem_num);
     svc_nalu->nal_mem_num = nal_mem_num;
     svc_nalu->buf = inBuf;
     svc_nalu->nal = calloc(1, sizeof(NALU_t) * (nal_mem_num << 1) );
-    //printf("data2nalus: start 1 \n");
-    //for(int i = 0; i < nal_mem_num; i++)
-	//{
-	//	svc_nalu->nal[i].buf = calloc(1, sizeof(char) * rtpLen);
-	//}
-	//printf("data2nalus: start 2 \n");
     short *rtpSize = obj->rtpSize;
 	ret = rtp_unpacket(svc_nalu, inBuf, rtpSize, count, rtpLen, mtu_size, outBuf, &oSize, &obj->seq_num);
     if(ret < 0)
     {
         //lost packet
+        return ret;
     }
     //printf("rtp_packet2raw: ret= %d \n", ret);
     ret = oSize;
@@ -1647,97 +1861,45 @@ int api_rtp_packet2raw(char *handle, char *data, char *param, char *outbuf, char
         ret = rtp_packet2raw((void *)obj, data, outbuf);
 
         //printf("api_rtp_packet2raw: ret= %d \n", ret);
-#if 0
-        if(!test_flag1)
+        if(ret > 0)
         {
-            printf("api_rtp_packet2raw: start test !!!!!!!!!!!\n");
-            int offset = 0;
-            for(int i = 0; i < ret; i++)
-            {
-                unsigned char v0 = test_data[i];
-                unsigned char v1 = outbuf[offset + i];
-                if(v0 != v1)
-                {
-                    //printf("error: i= %d \n", i);
-                    //break;
-                    offset += 1;
-                    for(int I = i-8; I < i+16; I++)
-                    {
-                        unsigned char v0 = test_data[I];
-                        printf("%02x", v0);
-                    }
-                    printf("\n");
-                    printf("\n");
-                    for(int I = i-8; I < i+16; I++)
-                    {
-                        unsigned char v0 = outbuf[offset + I];
-                        printf("%02x", v0);
-                    }
-                    printf("\n");
-                    printf("\n");
-                }
-                if(i < 2000)
-                {
-                    //printf("%02x", v0);
-                }
-            }
-            printf("\n");
-            printf("\n");
-#if 0
-            for(int i = 1000; i < ret; i++)
-            {
-                unsigned char v0 = test_data[i];
-                unsigned char v1 = outbuf[offset + i];
-                if(v0 != v1)
-                {
-                    //printf("error: i= %d \n", i);
-                    offset += 1;
-                }
-                if(i < 2000)
-                {
-                    printf("%02x", v1);
-                }
-            }
-#endif
-            printf("\n");
-            printf("offset= %d \n", offset);
-            test_flag1 = 1;
-        }
-#endif
-        //free
-        SVCNalu *svc_nalu = &obj->svc_nalu;
-        int nal_mem_num = svc_nalu->nal_mem_num;
-	    char *text = obj->outparam[0];
-	    int sum = 0;
-	    memset(obj->outparam[0], 0, sizeof(char) * MAX_OUTCHAR_SIZE);
-	    //printf("api_rtp_packet2raw: nal_mem_num= %d \n", nal_mem_num);
-	    for(int i = 0; i < nal_mem_num; i++)
-	    {
-	        //free(svc_nalu->nal[i].buf);
-            char ctmp[32] = "";
-            int size = svc_nalu->nal[i].len;
-            //printf("api_rtp_packet2raw: size= %d \n", size);
-            sum += size;
-	        sprintf(ctmp, "%d", size);
-	        if(i)
+            //free
+            SVCNalu *svc_nalu = &obj->svc_nalu;
+            int nal_mem_num = svc_nalu->nal_mem_num;
+	        int sum = 0;
+
+            short *rtpSize = calloc(1, nal_mem_num * sizeof(short));
+            outparam[0] = obj->outparam[0];
+            for(int i = 0; i < nal_mem_num; i++)
+    	    {
+	            int size = svc_nalu->nal[i].len;
+	            rtpSize[i] = size;
+                sum += size;
+    	    }
+
+	        cJSON *json2 = NULL;
+            json2 = renewJsonArray1(json2, "rtpSize", rtpSize, nal_mem_num);
+            char *jsonStr = cJSON_Print(json2);//比较耗时
+            deleteJson(json2);
+            strcpy(obj->outparam[0], jsonStr);
+            cJSON_free(jsonStr);
+            free(rtpSize);
+
+            if(sum != ret)
 	        {
-	            strcat(text, ",");
-	        }
-            strcat(text, ctmp);
-	    }
-	    outparam[0] = text;
-	    if(sum != ret)
-	    {
-	        printf("error: api_rtp_packet2raw: sum= %d \n", sum);
-	        printf("error:api_rtp_packet2raw: ret= %d \n", ret);
-	    }
-        if(svc_nalu->nal)
+	            printf("error: api_rtp_packet2raw: sum= %d \n", sum);
+	            printf("error:api_rtp_packet2raw: ret= %d \n", ret);
+    	    }
+        }
+        if(obj->svc_nalu.nal)
         {
-            free(svc_nalu->nal);
+            free(obj->svc_nalu.nal);
+            obj->svc_nalu.nal = NULL;
         }
 	    if(obj->rtpSize)
 	    {
 	        free(obj->rtpSize);
+	        obj->rtpSize = NULL;
 	    }
 	    if(obj->json)
 	    {
@@ -1748,6 +1910,7 @@ int api_rtp_packet2raw(char *handle, char *data, char *param, char *outbuf, char
     return ret;
 }
 //
+#if 0
 int get_net_info(NetInfo *info, char *outBuf)
 {
     int ret = 0;
@@ -1806,6 +1969,7 @@ int get_net_info(NetInfo *info, char *outBuf)
     }
     return ret;
 }
+#endif
 cJSON *get_net_info2(NetInfo *info, cJSON *pJsonRoot)
 {
     char *ret = NULL;
@@ -1818,6 +1982,14 @@ cJSON *get_net_info2(NetInfo *info, cJSON *pJsonRoot)
 
 		key = "chanId";
 		ivalue = info->chanId;
+		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//8
+
+		key = "res_idx";
+		ivalue = info->res_idx;
+		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//8
+
+		key = "decodeId";
+		ivalue = info->decodeId;
 		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//8
 
 		key = "loss_rate";
@@ -1838,6 +2010,10 @@ cJSON *get_net_info2(NetInfo *info, cJSON *pJsonRoot)
 
 		key = "rt1";
 		ivalue = info->rt1;
+		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//11
+
+		key = "ssrc";
+		ivalue = info->ssrc;
 		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//11
 
 		key = "tstmp0";
@@ -1872,14 +2048,17 @@ char *get_extern_info(char *data)
 		int qua_idx = rtp_ext->qua_idx;
 		int enable_fec = rtp_ext->enable_fec;
 		int refresh_idr = rtp_ext->refresh_idr;
-		int is_lost_packet = rtp_ext->nack.is_lost_packet;
-		int loss_rate = rtp_ext->nack.loss_rate;
-		//int time_status = rtp_ext->nack.time_status;
-		int time_offset = rtp_ext->nack.time_offset;
+		int is_lost_packet = rtp_ext->nack.nack0.is_lost_packet;
+		int loss_rate = rtp_ext->nack.nack0.loss_rate;
+		//int time_status = rtp_ext->nack.nack0.time_status;
+		int time_offset = rtp_ext->nack.nack0.time_offset;
 		int seqnum = rtp_hdr->seq_no;
 
 		unsigned int timestamp = rtp_hdr->timestamp;
-		int64_t packet_time_stamp = rtp_ext->nack.time_info.time_stamp;
+		uint64_t time_stamp0 = rtp_ext->nack.nack0.time_info.time_stamp0;
+	    uint64_t time_stamp1 = rtp_ext->nack.nack0.time_info.time_stamp1;
+	    int64_t packet_time_stamp = time_stamp0 | (time_stamp1 << 32);
+		//int64_t packet_time_stamp = rtp_ext->nack.nack0.time_info.time_stamp;
 		//printf("get_extern_info: refs= %d, ref_idx= %d \n", refs, ref_idx);
 		cJSON *pJsonRoot  = NULL;
 		char *key = "refs";
@@ -2013,7 +2192,7 @@ static int adapt_by_cpu(int ref_idx, int refs, int pict_type)
     return ret;
 }
 //
-#if 1
+#if 0
 #define PKT_LOSS_INTERVAL 100
 #define MAX_PKT_DELAY 100
 static int count_loss_rate(void *hnd)
@@ -2023,7 +2202,7 @@ static int count_loss_rate(void *hnd)
     RTP_FIXED_HEADER  *rtp_hdr = NULL;
     if(true)
     {
-        int64_t time_stamp = get_sys_time();
+        int64_t time_stamp = api_get_time_stamp_ll();
         if(!obj->net_time_stamp)
         {
             obj->net_time_stamp = time_stamp;
@@ -2104,7 +2283,7 @@ static int count_loss_rate(void *hnd)
                                 {
                                     //printf("warning: CountLossRate: j= %d, loss_num= %d \n", j, loss_num);
                                 }
-                                obj->net_time_stamp = get_sys_time();
+                                obj->net_time_stamp = api_get_time_stamp_ll();
                                 break;
                             }
                             if(last_seq_num >= 0)
@@ -2131,7 +2310,7 @@ static int count_loss_rate(void *hnd)
     return ret;
 }
 #endif
-int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *extend_info, long long *frame_timestamp)
+int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, void **net_info, long long *frame_timestamp)
 {
     int ret = 0;
     RtpObj *obj = (RtpObj *)hnd;
@@ -2142,10 +2321,6 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
     int delay_time = GetvalueInt(json, "delay_time");
     int qos_level = GetvalueInt(json, "qos_level");
     int adapt_cpu = GetvalueInt(json, "adapt_cpu");
-    int selfChanId = GetvalueInt(json, "selfChanId");
-    int loss_rate = GetvalueInt(json, "loss_rate");
-    int chanNum = 0;
-    int *chanIdList = GetArrayValueInt(json, "chanId", &chanNum);
     int counted_loss = 0;
     int counted_loss_rate = 0;
     RTP_FIXED_HEADER  *rtp_hdr = NULL;
@@ -2155,8 +2330,24 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
 	FU_HEADER *fu_hdr     = NULL;
 	uint32_t last_frame_time_stamp = obj->last_frame_time_stamp;
 	int packet_distance = obj->max_packet - obj->min_packet;
-	long long now_ms = get_sys_time();
-
+	long long now_ms = api_get_time_stamp_ll();
+    if(obj->delay_time > 0)
+    {
+        delay_time = obj->delay_time;
+        if(delay_time > 200)
+        {
+            if(obj->loglevel)
+            {
+                printf("video: get_frame: delay_time= %d \n", delay_time);
+            }
+            //delay_time = 100;//test
+            if(delay_time > MAX_DELAY_TIME)
+            {
+                delay_time = MAX_DELAY_TIME;
+            }
+        }
+        //delay_time = 200;
+    }
 	//printf("get_frame: delay_time= %d \n", delay_time);
     //if(obj->max_packet >= 0 && obj->min_packet >= 0)
     {
@@ -2193,17 +2384,17 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
             {
                 //int64_t last_ms = obj->last_frame_time;
                 //int delay2 = (int)(now_ms - last_ms);
-                printf("warning: get_frame: delay= %u \n", delay);
+                printf("warning: video: get_frame: delay= %u \n", delay);
                 //printf("warning: get_frame: delay2= %u \n", delay2);
-                printf("warning: get_frame: obj->Obj_id= %u \n", obj->Obj_id);
-                printf("warning: get_frame: timestamp0= %u \n", timestamp0);
-                printf("warning: get_frame: timestamp1= %u \n", timestamp1);
-                printf("warning: get_frame: I0= %u \n", I0);
-                printf("warning: get_frame: I1= %u \n", I1);
-                printf("warning: get_frame: obj->min_packet= %u \n", obj->min_packet);
-                printf("warning: get_frame: obj->max_packet= %u \n", obj->max_packet);
-                printf("warning: get_frame: obj->old_seqnum= %u \n", obj->old_seqnum);
-
+                //printf("warning: video: get_frame: obj->Obj_id= %u \n", obj->Obj_id);
+                printf("warning: video: get_frame: timestamp0= %u \n", timestamp0);
+                printf("warning: video: get_frame: timestamp1= %u \n", timestamp1);
+                printf("warning: video: get_frame: I0= %u \n", I0);
+                printf("warning: video: get_frame: I1= %u \n", I1);
+                printf("warning: video: get_frame: obj->min_packet= %u \n", obj->min_packet);
+                printf("warning: video: get_frame: obj->max_packet= %u \n", obj->max_packet);
+                printf("warning: video: get_frame: obj->old_seqnum= %u \n", obj->old_seqnum);
+#if 0
                 for(int t = obj->min_packet; t <= obj->max_packet; t++)
                 {
                     int I = t % obj->buf_size;
@@ -2213,6 +2404,7 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                     if(!size)
                         printf("warning: video: get_frame: t= %d, t.size=%d \n", t, size);
                 }
+#endif
                 //int I = obj->min_packet % obj->buf_size;
                 //uint8_t *buf = (uint8_t *)&obj->recv_buf[I][sizeof(int)];
                 //int *p = (int *)&obj->recv_buf[I][0];
@@ -2250,7 +2442,7 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                 int last_seq_num = -1;
                 int test_end_packet = 0;
                 int this_seqnum = -1;
-                //char *p_extend_info = NULL;
+                int is_header = 0;
                 uint16_t start_seq_num = obj->min_packet;
                 uint16_t stop_seq_num = obj->min_packet;
                 int start = obj->min_packet;
@@ -2268,14 +2460,15 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                     int *p = (int *)&obj->recv_buf[I][0];
                     int size = p[0];
 
-                    printf("warning: get_frame: obj->Obj_id= %u \n", obj->Obj_id);
-                    printf("warning: get_frame: packet_distance= %d \n", packet_distance);
-                    printf("warning: get_frame: delay= %d \n", delay);
-                    printf("warning: get_frame: min_packet size=%d \n", size);
-                    printf("warning: get_frame: obj->min_packet= %d \n", obj->min_packet);
-                    printf("warning: get_frame: obj->max_packet= %d \n", obj->max_packet);
+                    printf("warning: video: get_frame: obj->Obj_id= %u \n", obj->Obj_id);
+                    printf("warning: video: get_frame: packet_distance= %d \n", packet_distance);
+                    printf("warning: video: get_frame: delay= %d \n", delay);
+                    printf("warning: video: get_frame: min_packet size=%d \n", size);
+                    printf("warning: video: get_frame: obj->min_packet= %d \n", obj->min_packet);
+                    printf("warning: video: get_frame: obj->max_packet= %d \n", obj->max_packet);
                 }
                 //for(int i = obj->min_packet; i < obj->max_packet; i++)
+                //for(int i = start; i < end; i++)
                 for(int i = start; i <= end; i++)
                 {
                     //if(i == LEFT_SHIFT16)
@@ -2288,9 +2481,9 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                     //memcpy(&obj->recv_buf[I][sizeof(int)], data, insize);
                     if(!obj->recv_buf[I])
                     {
-                        printf("error: get_frame: obj->Obj_id= %x \n", obj->Obj_id);
-                        printf("error: get_frame: I=%d \n", I);
-                        printf("error: get_frame: obj->recv_buf[I]=%x \n", obj->recv_buf[I]);
+                        printf("error: video: get_frame: obj->Obj_id= %x \n", obj->Obj_id);
+                        printf("error: video: get_frame: I=%d \n", I);
+                        printf("error: video: get_frame: obj->recv_buf[I]=%x \n", obj->recv_buf[I]);
                     }
 
                     uint8_t *buf = (uint8_t *)&obj->recv_buf[I][sizeof(int)];
@@ -2299,7 +2492,7 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                     int size = p[0];
                     if(size > MAX_PACKET_SIZE)
                     {
-                        printf("error: get_frame: size=%d \n\n\n\n\n\n\n\n\n\n", size);
+                        printf("error: video: get_frame: size=%d \n\n\n\n\n\n\n\n\n\n", size);
                     }
                     if(size > 0)
                     {
@@ -2307,16 +2500,21 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                         int nal_unit_type = -1;
                         int extlen = 0;
                         this_seqnum = rtp_hdr->seq_no;
-                        RtpInfo info = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+                        RtpInfo info = {0};
+                        info.raw_offset = -1;
 
-                        int is_hcsvc_rtp = GetRtpInfo((uint8_t*)buf, size, &info);
-
+                        int is_hcsvc_rtp = GetRtpInfo((uint8_t*)buf, size, &info, H264_PLT);
+                        if(!is_hcsvc_rtp > 0)
+                        {
+                            printf("error: video: get_frame: is_hcsvc_rtp= %d \n", is_hcsvc_rtp);
+                            continue;
+                        }
                         if(this_seq_num != this_seqnum)
                         {
-                            printf("error: get_frame: this_seq_num= %d \n", this_seq_num);
-                            printf("error: get_frame: this_seqnum= %d \n", this_seqnum);
-                            printf("error: get_frame: obj->min_packet= %d \n", obj->min_packet);
-                            printf("error: get_frame: obj->max_packet= %d \n", obj->max_packet);
+                            printf("error: video: get_frame: this_seq_num= %d \n", this_seq_num);
+                            printf("error: video: get_frame: this_seqnum= %d \n", this_seqnum);
+                            printf("error: video: get_frame: obj->min_packet= %d \n", obj->min_packet);
+                            printf("error: video: get_frame: obj->max_packet= %d \n", obj->max_packet);
                         }
                         //last_frame_time_stamp
                         timestamp = rtp_hdr->timestamp;
@@ -2333,6 +2531,7 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                             nack_time = info.nack_time;
                             ref_idx = info.ref_idx;
                             refs = info.refs;
+                            is_header = info.is_header;
                             //pict_type = 0;
                         }
                         if(abs(timestamp - start_timestamp) > delay_time)
@@ -2366,61 +2565,6 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                             break;
                         }
                         else{
-                            if(selfChanId > 0)
-                            {
-                                NetInfo netInfo = {};
-                                int enable_nack = GetNetInfo((uint8_t*)buf, size, &netInfo);
-                                if(enable_nack)
-                                {
-                                    if(!netInfo.info_status)
-                                    {
-                                        //待反馈信息，非测试情况下，存在netInfo.chanId == selfChanId
-                                        //printf("get_frame: netInfo.st0= %d \n", netInfo.st0);
-                                        //printf("get_frame: netInfo.rt0= %d \n", netInfo.rt0);
-                                        //printf("get_frame: netInfo.chanId= %d \n", netInfo.chanId);
-                                        cJSON *thisjson = NULL;
-#if 0
-                                        if(!counted_loss)
-                                        {
-                                            counted_loss_rate = count_loss_rate(hnd);
-                                            printf("get_frame: counted_loss_rate= %d \n", counted_loss_rate);
-                                        }
-                                        if(counted_loss_rate > 0)
-                                        {
-                                            netInfo.loss_rate = counted_loss_rate + 1;
-                                        }
-#else
-                                        if(loss_rate > 0)
-                                        {
-                                            netInfo.loss_rate = loss_rate + 1;
-                                        }
-#endif
-                                        thisjson = get_net_info2(&netInfo, thisjson);
-                                        cJSON * jsonRet = renewJsonArray3(&jsonInfo, &jsonArray, "netInfo", thisjson);
-
-                                    }
-                                    else{
-                                        //从中调出本端信息，其他的丢弃，此处获得的是终极信息
-                                        if(chanNum > 0)
-                                        {
-                                            //
-                                            for(int jj = 0; jj < chanNum; jj++)
-                                            {
-                                                //
-                                                int chanId = chanIdList[jj];
-                                                if((chanId + 1) == netInfo.chanId)
-                                                {
-                                                    //printf("get_frame: netInfo.chanId= %d \n", netInfo.chanId);
-                                                    //int ret3 = get_net_info(&netInfo, extend_info);
-                                                    cJSON *thisjson = NULL;
-                                                    thisjson = get_net_info2(&netInfo, thisjson);
-                                                    cJSON * jsonRet = renewJsonArray3(&jsonInfo, &jsonArray, "netInfo", thisjson);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
                             stop_seq_num = this_seqnum;
                             memcpy(&outbuf[offset], buf, size);
                             offset += size;
@@ -2458,7 +2602,7 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
 			                    }
 
 			                }
-			                nal_unit_type = rtp_ext->type;
+			                nal_unit_type = rtp_ext->nal_type;
 			            }
 #else
                         if(info.is_first_slice)
@@ -2500,7 +2644,8 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
 			                pps_flag += 1;
 			                memcpy(obj->sps, buf, size);//can be used when sps loss and refresh_idr zero
 			                printf("get_frame: 0: size= %d \n", size);
-			                if (obj->logfp && false) {
+			                if (obj->logfp && false)
+			                {
                                 fprintf(obj->logfp, "get_frame: sps: size= %d \n", size);
                                 fflush(obj->logfp);
                             }
@@ -2511,7 +2656,9 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
 			                //判断是否是fec,并进行解析
 			                memcpy(obj->sps, buf, size);//can be used when sps loss and refresh_idr zero
 			                //printf("get_frame: 1: size= %d \n", size);
-			                if (obj->logfp && false) {
+			                //printf("get_frame: 1: nal_unit_type= %d \n", nal_unit_type);
+			                if (obj->logfp && false)
+			                {
                                 fprintf(obj->logfp, "get_frame: sps: size= %d \n", size);
                                 fflush(obj->logfp);
                             }
@@ -2520,23 +2667,19 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
 			            {
 			                pps_flag += 1;
 			                memcpy(obj->pps, buf, size);//can be used when pps loss and refresh_idr zero
-			                printf("get_frame: 2: size= %d \n", size);
-			                if (obj->logfp && false) {
+			                //printf("get_frame: 2: size= %d \n", size);
+			                //printf("get_frame: 2: nal_unit_type= %d \n", nal_unit_type);
+			                if (obj->logfp && false)
+			                {
                                 fprintf(obj->logfp, "get_frame: pps: size= %d \n", size);
                                 fflush(obj->logfp);
                             }
 			            }
 			            else{
-#if 0
-			                if(extend_info && !p_extend_info)
-                            {
-                                p_extend_info = get_extern_info(buf);
-                                memcpy(extend_info, p_extend_info, strlen(p_extend_info));
-                                free(p_extend_info);
-                            }
-#endif
+
 			            }
-                        if(rtp_hdr->marker)
+                        //if(rtp_hdr->marker)
+                        if(info.nal_marker)
                         {
                             marker += 1;
                         }
@@ -2567,8 +2710,11 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                     else if(delay >= delay_time)
                     {
                         sprintf(complete, "%d", ref_idc);
-                        strcat(complete, ",loss");
-                        if(delay > (delay_time << 1))
+                        float flrate = (float)(loss_num) / (float)(j + loss_num);
+                        int ilrate = (int)(flrate * 100);
+                        strcat(complete, ",loss:");
+                        sprintf(&complete[strlen(complete)],"%d", ilrate);
+                        if(delay > (delay_time << 1) && packet_distance > (obj->buf_size >> 3))
                         {
                             printf("warning: get_frame: sps_flag= %d, marker= %d, loss_num= %d \n", sps_flag, marker, loss_num);
                             printf("warning: get_frame: delay= %d, ret= %d, packet_distance= %d \n", delay, ret, packet_distance);
@@ -2597,7 +2743,7 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                         {
                             diff_time0 = (int)((last_timestamp + LEFT_SHIFT32 - start_time_stamp) / 90);
                         }
-                        now_ms = get_sys_time();
+                        now_ms = api_get_time_stamp_ll();
                         int diff_time1 = (int)(now_ms - obj->start_frame_time);
                         int delay2 = (int)(diff_time1 - diff_time0);
                         if(start_time_stamp && delay2 < delay_time)
@@ -2609,10 +2755,13 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                         else
                         {
                             sprintf(complete, "%d", ref_idc);
-                            strcat(complete, ",loss");
-                            if(delay > (delay_time * 3))
+                            float flrate = (float)(loss_num) / (float)(j + loss_num);
+                            int ilrate = (int)(flrate * 100);
+                            strcat(complete, ",loss:");
+                            sprintf(&complete[strlen(complete)],"%d", ilrate);
+                            if(delay > (delay_time * 3) && packet_distance > (obj->buf_size >> 3))
                             {
-                                printf("warning: get_frame: delay= %d, ret= %d, packet_distance= %d \n", delay, ret, packet_distance);
+                                printf("warning: video: get_frame: delay= %d, ret= %d, packet_distance= %d \n", delay, ret, packet_distance);
 
                             }
                             //if(timestamp0 == obj->last_frame_time_stamp)
@@ -2659,15 +2808,16 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                         }
                         obj->last_frame_time_stamp = last_timestamp;//old packet if timestamp < last_frame_timestamp_
                     }
-                    //obj->last_frame_time = get_sys_time();
+                    //obj->last_frame_time = api_get_time_stamp_ll();
                     if(!obj->start_time_stamp)
                     {
                         obj->start_time_stamp = last_timestamp;
                     }
                     if(!obj->start_frame_time)
 	                {
-	                    obj->start_frame_time = get_sys_time();
+	                    obj->start_frame_time = api_get_time_stamp_ll();
 	                }
+	                int test_old_seqnum = obj->old_seqnum;
                     obj->old_seqnum = stop_seq_num;//start_seq_num;
                     //clear buffer
                     int start = start_seq_num;
@@ -2755,9 +2905,13 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                             obj->max_packet = stop_seq_num + 1;
                         }
                     }
-                    if (obj->logfp && false) {
+                    if (obj->logfp && obj->loglevel == 4)
+                    {
                         //printf("get_frame: obj->min_packet= %d \n", obj->min_packet);
                         //printf("get_frame: obj->logfp= %x \n", obj->logfp);
+
+                        fprintf(obj->logfp, "get_frame:test_old_seqnum= %d \n", test_old_seqnum);
+                        fprintf(obj->logfp, "get_frame:stop_seq_num= %d \n", stop_seq_num);
                         fprintf(obj->logfp, "get_frame:obj->min_packet= %d \n", obj->min_packet);
                         fprintf(obj->logfp, "get_frame:obj->max_packet= %d \n", obj->max_packet);
                         fflush(obj->logfp);
@@ -2774,6 +2928,10 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
                             ret = 0;
                         }
                     }
+                    if(is_header)
+                    {
+                        strcat(complete, ",is_header");
+                    }
                 }
                 else{
                     //printf("get_frame: j= %d \n", j);
@@ -2786,103 +2944,261 @@ int get_frame(void *hnd, char *outbuf, short *rtpSize, char *complete, char *ext
         }
      }
     //printf("get_frame: end: ret= %d \n", ret);
-    if(chanIdList)
-    {
-        free(chanIdList);
-    }
-    if(jsonInfo)
-    {
-        char *jsonStr = cJSON_Print(jsonInfo);//比较耗时
-        deleteJson(jsonInfo);
-        strcpy(extend_info, jsonStr);
-        if(strlen(extend_info) >= MAX_OUTCHAR_SIZE)
-        {
-            printf("error: get_frame: strlen(extend_info)= %d \n", strlen(extend_info));
-        }
-        free(jsonStr);
-    }
     return ret;
 }
 
-#if 0
-int correct_seqnum(void *hnd, int seqnum)
+static int add_delay(DelayInfo *delay_info, int delay)
 {
-    RtpObj *obj = (RtpObj *)hnd;
-    if(1)
+    int ret = delay;
+    if(delay >= 0)
     {
-        if((seqnum > HALF_QUART_USHORT) && (!obj->cut_flag))
+        for(int i = 0; i < NETN; i++)
         {
-            //異常包判斷
-            //
-            //if(!obj->cut_flag)
+            if(delay_info[i].max_delay < delay)
             {
-                obj->cut_flag = 1;
-                if(obj->min_packet < QUART_USHORT)
-                {
-                    obj->min_packet += MAX_USHORT;
-                }
-                if(obj->max_packet < QUART_USHORT)
-                {
-                    obj->max_packet += MAX_USHORT;
-                }
-
+                delay_info[i].max_delay = delay;
             }
-        }
-        if((seqnum > QUART_USHORT && seqnum < HALF_USHORT) && (obj->cut_flag))
-        {
-            //異常包判斷
-            //
-            //if(obj->cut_flag)
+            delay_info[i].sum_delay += delay;
+            delay_info[i].cnt_delay += 1;
+            if(delay_info[i].cnt_delay >= delay_info[i].cnt_max)
             {
-                obj->cut_flag = 0;
-                if(obj->min_packet > MAX_USHORT)
-                {
-                    obj->min_packet -= MAX_USHORT;
-                }
-                if(obj->max_packet > MAX_USHORT)
-                {
-                    obj->max_packet -= MAX_USHORT;
-                }
+                delay_info[i].delay = delay_info[i].sum_delay / delay_info[i].cnt_max;
+                delay_info[i].last_max_delay = delay_info[i].max_delay;
+                delay_info[i].max_delay = delay;
+                delay_info[i].sum_delay = 0;
+                delay_info[i].cnt_delay = 0;
             }
-
+            //else{
+            //    delay_info[i].delay = delay_info[i].sum_delay / delay_info[i].cnt_delay;
+            //}
         }
-        if(obj->cut_flag)
+        if(delay_info[1].delay > 0)
         {
-            if(seqnum < QUART_USHORT)
+            ret = delay_info[1].max_delay;
+            if(delay_info[1].last_max_delay > 0)
             {
-                seqnum += MAX_USHORT;
+                ret = delay_info[1].last_max_delay;
             }
-        }
-        //經過截斷處理後，變得簡單了
-        if(seqnum < obj->min_packet)
-        {
-            obj->min_packet = seqnum;
-        }
-        else if(seqnum > obj->max_packet)
-        {
-            obj->max_packet = seqnum;
-        }
-        else{
-            //repeat packet
-            printf("correct_seqnum: repeat packet");
+            if(ret < delay_info[2].delay)//瞬间波谷，容许在下个大周期更新；
+            {
+                ret = delay_info[2].delay;
+            }
+            //if(ret > delay_info[2].last_max_delay)//瞬间峰值
+            //{
+            //    ret = delay_info[2].last_max_delay;
+            //}
+            //持续偏大，必须快速更新
+            //if(ret < delay_info[1].delay)
+            //{
+            //    ret = delay_info[1].delay;
+            //}
         }
     }
-
-    return seqnum;
+    return ret;
 }
+// 与rtt不同，loss_rate更具突发性
+static int add_loss_rate(LossRateInfo *loss_rate_info, int loss_rate)
+{
+    int ret = loss_rate;
+    int64_t now_time = get_sys_time();
+    if(loss_rate >= 0)
+    {
+        for(int i = 0; i < NETN; i++)
+        {
+            //printf("add_loss_rate: i=%d \n", i);
+            if(!loss_rate_info[i].now_time)
+            {
+                loss_rate_info[i].now_time = now_time;
+            }
+            int difftime = now_time - loss_rate_info[i].now_time;
+            if(loss_rate_info[i].max_loss_rate < loss_rate)
+            {
+                loss_rate_info[i].max_loss_rate = loss_rate;
+            }
+            loss_rate_info[i].sum_loss_rate += loss_rate;
+            loss_rate_info[i].cnt_loss_rate += 1;
+            //printf("add_loss_rate: loss_rate_info[i].cnt_max=%d \n", loss_rate_info[i].cnt_max);
+            //printf("add_loss_rate: difftime=%d \n", difftime);
+            //printf("add_loss_rate: loss_rate_info[i].time_len=%d \n", loss_rate_info[i].time_len);
+            if( loss_rate_info[i].cnt_loss_rate >= loss_rate_info[i].cnt_max ||
+                difftime > loss_rate_info[i].time_len)
+            {
+                if(!loss_rate_info[i].cnt_loss_rate)
+                {
+                    printf("add_loss_rate: loss_rate_info[i].cnt_loss_rate=%d, i=%d \n", loss_rate_info[i].cnt_loss_rate, i);
+                    printf("add_loss_rate: loss_rate_info[2].cnt_max=%d \n", loss_rate_info[2].cnt_max);
+                    printf("add_loss_rate: loss_rate_info[i].cnt_max=%d \n", loss_rate_info[i].cnt_max);
+                    printf("add_loss_rate: difftime=%d \n", difftime);
+                    printf("add_loss_rate: loss_rate_info[i].time_len=%d \n", loss_rate_info[i].time_len);
+                }
+                //
+                loss_rate_info[i].loss_rate = loss_rate_info[i].sum_loss_rate / loss_rate_info[i].cnt_loss_rate;//loss_rate_info[i].cnt_max;
+                loss_rate_info[i].last_max_loss_rate = loss_rate_info[i].max_loss_rate;
+                loss_rate_info[i].max_loss_rate = loss_rate;//将平均值作为其初始值
+                loss_rate_info[i].sum_loss_rate = 0;
+                loss_rate_info[i].cnt_loss_rate = 0;
+                loss_rate_info[i].now_time = 0;
+            }
+            //else{
+            //    loss_rate_info[i].loss_rate = loss_rate_info[i].sum_loss_rate / loss_rate_info[i].cnt_loss_rate;
+            //}
+        }
+        //if(loss_rate_info[1].loss_rate > 0)
+        {
+            //ret = loss_rate_info[1].max_loss_rate;
+            if( loss_rate_info[1].last_max_loss_rate > 0 &&
+                loss_rate < loss_rate_info[1].last_max_loss_rate)
+            {
+                ret = loss_rate_info[1].last_max_loss_rate;
+            }
+            if(ret < loss_rate_info[2].loss_rate)//瞬间波谷，容许在下个大周期更新；
+            {
+                ret = loss_rate_info[2].loss_rate;
+            }
+            if( ret > loss_rate_info[2].last_max_loss_rate &&
+                loss_rate_info[2].last_max_loss_rate > 0)//瞬间峰值
+            {
+                //ret = loss_rate_info[2].last_max_loss_rate;
+            }
+            //持续偏大，必须快速更新
+            //if(ret < loss_rate_info[1].loss_rate)
+            //{
+            //    ret = loss_rate_info[1].loss_rate;
+            //}
+        }
+    }
+    return ret;
+}
+//需要注意：非对时情况下的错误
+//rtt = ((rt0 - st0) + (rt1 - st1)) / 2 = ((rt1 - st0) - (st1 - rt0)) / 2
+//rtt不受对时影响，但(rt0 - st0)必须对时
+static int renew_delay_time(void *hnd, uint8_t *buf, int size, int delay_time)
+{
+    int ret = delay_time;
+    RtpObj *obj = (RtpObj *)hnd;
+    cJSON *json = obj->json;
+    int selfChanId = GetvalueInt(json, "selfChanId");
+    //注意：此处取的是rtt1的信息，rtt0继续转发，这就是"信道复用"
+    //int *chanIdList = GetArrayValueInt(json, "chanId", &chanNum);
+    if(selfChanId > 0)
+    {
+        NetInfo netInfo = {};
+        int enable_nack = GetNetInfo((uint8_t*)buf, size, &netInfo, 0);
+        if(enable_nack)
+        {
+            //printf("renew_delay_time: netInfo.chanId= %d, selfChanId=%d \n", netInfo.chanId, selfChanId);
+            //printf("renew_delay_time: netInfo.decodeId= %d, netInfo.info_status= %d \n", netInfo.decodeId, netInfo.info_status);
+            //printf("renew_delay_time: netInfo.rtt= %d \n", netInfo.rtt);
+#ifndef SELF_TEST_MODE
+            if(netInfo.decodeId == selfChanId)
 #endif
+            {
+                if(netInfo.info_status)
+                {
+                    int diff_time = (netInfo.rtt << 3);
+                    //printf("video: renew_delay_time: diff_time= %d \n", diff_time);
+                    ret = add_delay(obj->delay_info, diff_time) + 1;
+                }
+            }
+        }
+    }
+    return ret;
+}
+void renew_netinfo(void *hnd, char *buf, int size, char **net_info)
+{
+    RtpObj *obj = (RtpObj *)hnd;
+    cJSON *json = obj->json;
+    int selfChanId = GetvalueInt(json, "selfChanId");
+    if(selfChanId > 0)
+    {
+        int loss_rate = GetvalueInt(json, "loss_rate");
+        cJSON *jsonInfo = NULL;
+        cJSON *jsonArray = NULL;
+        int resort_type = GetvalueInt(json, "resort_type");
+        if(resort_type)
+        {
+            jsonInfo = (cJSON *)*net_info;
+        }
+        int chanNum = 0;
+        int *chanIdList = GetArrayValueInt(json, "chanId", &chanNum);
 
+        NetInfo netInfo = {};
+        int enable_nack = GetNetInfo((uint8_t*)buf, size, &netInfo, 1);
+        if(enable_nack)
+        {
+            if(!netInfo.info_status)
+            {
+                //该信息的终极拥有者是此处的selfChanId
+                //待反馈信息，非测试情况下，存在netInfo.chanId == selfChanId
+                //printf("get_frame: netInfo.st0= %d \n", netInfo.st0);
+                //printf("get_frame: netInfo.rt0= %d \n", netInfo.rt0);
+                //printf("get_frame: netInfo.chanId= %d \n", netInfo.chanId);
+                cJSON *thisjson = NULL;
+                if(loss_rate > 0)
+                {
+                    //printf("get_frame: loss_rate= %d \n", loss_rate);
+                    netInfo.loss_rate = loss_rate;// + 1;
+                }
+                thisjson = get_net_info2(&netInfo, thisjson);
+                cJSON * jsonRet = renewJsonArray3(&jsonInfo, &jsonArray, "netInfo", thisjson);
+            }
+            else{
+                //从中调出本端信息，其他的丢弃，此处获得的是终极信息???中级信息???
+                if(chanNum > 0)
+                {
+                    //
+                    for(int jj = 0; jj < chanNum; jj++)
+                    {
+                        //只是转发信息，该信息的拥有者是此处chanId的对端
+                        int chanId = chanIdList[jj];
+                        if((chanId + 1) == netInfo.chanId)
+                        {
+                            //printf("get_frame: netInfo.chanId= %d \n", netInfo.chanId);
+                            //int ret3 = get_net_info(&netInfo, extend_info);
+                            netInfo.decodeId = netInfo.chanId;//意味着将对端（终极接收端)的编码ID写入）
+                            cJSON *thisjson = NULL;
+                            thisjson = get_net_info2(&netInfo, thisjson);
+                            cJSON * jsonRet = renewJsonArray3(&jsonInfo, &jsonArray, "netInfo", thisjson);
+                        }
+                    }
+                }
+            }
+        }
+
+        if(chanIdList)
+        {
+            free(chanIdList);
+        }
+        if(jsonInfo)
+        {
+            if(resort_type)
+            {
+                *net_info = (void *)jsonInfo;
+            }
+            else{
+                char *jsonStr = cJSON_Print(jsonInfo);//比较耗时
+                deleteJson(jsonInfo);
+                strcpy(*net_info, jsonStr);
+                if(strlen(*net_info) >= MAX_OUTCHAR_SIZE)
+                {
+                    printf("error: get_frame: strlen(net_info)= %d \n", strlen(*net_info));
+                }
+                cJSON_free(jsonStr);
+            }
+        }
+    }
+}
 //(seqnum % obj->buf_size) != ((seqnum + MAX_USHORT) % obj->buf_size);
 //(MAX_USHORT % obj->buf_size) != 0;
 //(MAX_USHORT % 1024) == 1023;
-int resort_packet(void *hnd, char *data, char *outbuf, short *rtpSize, char *complete, char *extend_info, char *outparam[])
+int resort_packet(void *hnd, char *data, char *outbuf, short *rtpSize, char *complete, char **net_info, char *outparam[])
 {
     int ret = 0;
     //printf("resort_packet: 0 \n");
     RtpObj *obj = (RtpObj *)hnd;
     cJSON *json = obj->json;
     int insize = GetvalueInt(json, "insize");
-    int loglevel = GetvalueInt(json, "loglevel");
+    obj->loglevel = GetvalueInt(json, "loglevel");
     int delay_time = GetvalueInt(json, "delay_time");
     int min_distance = GetvalueInt(json, "min_distance");///10
     RTP_FIXED_HEADER  *rtp_hdr = NULL;
@@ -2907,8 +3223,8 @@ int resort_packet(void *hnd, char *data, char *outbuf, short *rtpSize, char *com
     //printf("resort_packet: obj->buf_size= %d \n", obj->buf_size);
     if(obj->recv_buf == NULL)
     {
-        printf("resort_packet: obj->Obj_id= %x \n", obj->Obj_id);
-        printf("resort_packet: obj->buf_size= %d \n", obj->buf_size);
+        printf("video: resort_packet: obj->Obj_id= %x \n", obj->Obj_id);
+        printf("video: resort_packet: obj->buf_size= %d \n", obj->buf_size);
         obj->recv_buf = calloc(1, sizeof(uint8_t *) * obj->buf_size);
         for(int i = 0; i < obj->buf_size; i++)
         {
@@ -2926,13 +3242,13 @@ int resort_packet(void *hnd, char *data, char *outbuf, short *rtpSize, char *com
 	//printf("resort_packet: seqnum= %d \n", seqnum);
 	//get extend info
 	//char *extend_info = get_extern_info(data);
-    if (obj->logfp && loglevel)
+    if (obj->logfp && obj->loglevel)
     {
-        if(loglevel == 1)
+        if(obj->loglevel == 1)
         {
             fprintf(obj->logfp, "%d \n", seqnum);
         }
-        else if(loglevel == 2)
+        else if(obj->loglevel == 2)
         {
             fprintf(obj->logfp, "%u \n", timestamp);
         }
@@ -3050,18 +3366,21 @@ int resort_packet(void *hnd, char *data, char *outbuf, short *rtpSize, char *com
                 obj->max_packet = seqnum;
             }
         }
-
+        if(obj->delay_time <= 0)
+        {
+            obj->delay_time = delay_time;
+        }
+        obj->delay_time = renew_delay_time(hnd, data, insize, obj->delay_time);
+        renew_netinfo(hnd, data, insize, net_info);
         //先取後存
         int I = seqnum % obj->buf_size;
         //printf("resort_packet: I= %d \n", I);
         //printf("resort_packet: I = %d \n", I);
         //printf("resort_packet: obj->recv_buf[I]= %x \n", obj->recv_buf[I]);
-
         memcpy(&obj->recv_buf[I][sizeof(int)], data, insize);
         int *p = (int *)&obj->recv_buf[I][0];
         p[0] = insize;
     }
-
     int packet_distance = obj->max_packet - obj->min_packet;
 	if(obj->min_packet > obj->max_packet)
     {
@@ -3075,42 +3394,13 @@ int resort_packet(void *hnd, char *data, char *outbuf, short *rtpSize, char *com
             //printf("get_frame: \n");
             //從緩存中獲取一幀數據
             long long frame_timestamp = 0;
-            ret = get_frame(hnd, outbuf, rtpSize, complete, extend_info, &frame_timestamp);
-            //printf("resort_packet: strlen(extend_info)= %d \n", strlen(extend_info));
+            ret = get_frame(hnd, outbuf, rtpSize, complete, net_info, &frame_timestamp);
+            //printf("resort_packet: strlen(*net_info)= %d \n", strlen(*net_info));
             //printf("resort_packet: ret= %d \n", ret);
             if(ret > 0)
             {
                 sprintf(outparam[3], "%lld", frame_timestamp);
             }
-#if 0
-            cJSON *json = mystr2json(extend_info);
-            int enable_fec = GetvalueInt(json, "enable_fec");
-            if(enable_fec)
-            {
-                obj->json = renewJsonArray2(obj->json, "inSize", rtpSize);
-                if(obj->param)
-                {
-                    free(obj->param);
-                }
-                obj->param = cJSON_Print(obj->json);
-                int total_size = 0;
-                for(int i = 0; i < ret; i++)
-                {
-                    total_size += rtpSize[i];
-                }
-                char *data2 = malloc(total_size * sizeof(char));
-                memcpy(data2, outbuf, total_size);
-                ret = api_fec_decode(obj->Obj_id, data, obj->param, outbuf, outparam);
-                free(data2);
-                //if(!complete)
-                //{
-                //    //fec decode
-                //}
-                //else{
-                //    //discard
-                //}
-            }
-#endif
         }
         //先處理切換點
         //1111****3333****
@@ -3127,6 +3417,7 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
     int ret = 0;
     //initobj(id);
     //printf("api_resort_packet: 0 \n");
+    //return ret;//test
     //if (id < MAX_OBJ_NUM)
     {
         long long *testp = (long long *)handle;
@@ -3137,11 +3428,23 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
         {
             obj = (RtpObj *)calloc(1, sizeof(RtpObj));
             codecObj->resortObj = obj;
+
+            obj->pRet = (StructPointer)calloc(1, sizeof(StructPointerTest));
+            for(int i = 0; i < MAX_RESORT_FRAME_NUM; i++)
+            {
+                obj->pRet->complete[i] = (char *)calloc(1, 32 * sizeof(char));
+            }
+
+            strcpy(obj->pRet->name, "api_resort_packet_all");
+
             ResetObj(obj);
             obj->Obj_id = id;
             //
-#if 0
-            if(!obj->logfp)
+#if 1
+            obj->json = mystr2json(param);
+            cJSON *json = obj->json;
+            obj->loglevel = GetvalueInt(json, "loglevel");
+            if(!obj->logfp && obj->loglevel)
             {
                 char filename[256] = "/home/gxh/works/rtp_resort_gxh_";
                 char ctmp[32] = "";
@@ -3154,7 +3457,10 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
 #endif
         }
 
-        obj->json = mystr2json(param);
+        if(!obj->json)
+        {
+            obj->json = mystr2json(param);
+        }
         obj->param = param;
         int selfChanId = GetvalueInt(obj->json, "selfChanId");
         int insize = GetvalueInt(obj->json, "insize");
@@ -3167,11 +3473,11 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
         //printf("api_resort_packet: 0 \n");
         short rtpSize[MAX_FEC_PKT_NUM];
         //int complete = 0;
-        char *extend_info = NULL;
+        char *net_info = NULL;
         //printf("api_resort_packet: selfChanId=%d \n", selfChanId);
         if(selfChanId > 0)
         {
-            extend_info = obj->outparam[1];
+            net_info = obj->outparam[1];
             memset(obj->outparam[1], 0, sizeof(char) * MAX_OUTCHAR_SIZE);
         }
         memset(obj->outparam[2], 0, sizeof(char) * 16);
@@ -3182,27 +3488,16 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
         outparam[3] = obj->outparam[3];
         char *complete = (char *)outparam[2];
         //printf("api_resort_packet: 1 \n");
-        ret = resort_packet(obj, data, outbuf, rtpSize, complete, extend_info, outparam);
+        ret = resort_packet(obj, data, outbuf, rtpSize, complete, &net_info, outparam);
         //printf("api_resort_packet: 2 \n");
-#if 0
-        //char *extend_info = get_extern_info(data);
-        if(NULL != extend_info)
-        {
-            memset(obj->outparam[1], 0, sizeof(char) * MAX_OUTCHAR_SIZE);
-            memcpy(obj->outparam[1], extend_info, strlen(extend_info));
-            free(extend_info);
-            //outparam[1] = extend_info;
-            outparam[1] = obj->outparam[1];
-        }
-#endif
-        //printf("api_resort_packet: strlen(extend_info)= %d \n", strlen(extend_info));
+        //printf("api_resort_packet: strlen(net_info)= %d \n", strlen(net_info));
         if(ret > 0)// && !strlen(outparam[0]) && !strlen(outparam[1]))
         {
             //char text[2048] = "";//2048/4=512//512*1400=700kB
             //printf("api_resort_packet: tail \n");
             if(selfChanId > 0)
             {
-                //printf("api_resort_packet: strlen(extend_info)=%d \n", strlen(extend_info));
+                //printf("api_resort_packet: strlen(net_info)=%d \n", strlen(net_info));
             }
             char *text = obj->outparam[0];
 	        int sum = 0;
@@ -3220,7 +3515,7 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
             char *jsonStr = cJSON_Print(json);
             strcpy(outparam[0], jsonStr);
             deleteJson(json);
-            free(jsonStr);
+            cJSON_free(jsonStr);
 
             ret = sum;
 #else
@@ -3251,6 +3546,516 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
         deleteJson(obj->json);
         obj->json = NULL;
         //printf("api_resort_packet: 4 \n");
+    }
+    return ret;
+}
+int resort_packet2(void *hnd, char *data, int insize, char *outbuf, short *rtpSize, char *complete, char **net_info, int64_t *frame_timestamp)
+{
+    int ret = 0;
+    //printf("resort_packet: 0 \n");
+    RtpObj *obj = (RtpObj *)hnd;
+    cJSON *json = obj->json;
+    obj->loglevel = GetvalueInt(json, "loglevel");
+    int delay_time = GetvalueInt(json, "delay_time");
+    int min_distance = GetvalueInt(json, "min_distance");///10
+    RTP_FIXED_HEADER  *rtp_hdr = NULL;
+	FU_HEADER *fu_hdr     = NULL;
+	EXTEND_HEADER *rtp_ext = NULL;
+	uint32_t last_frame_time_stamp = obj->last_frame_time_stamp;
+
+    //printf("resort_packet: delay_time= %d \n", delay_time);
+	cJSON *item = cJSON_GetObjectItem(json, "buf_size");
+    if(cJSON_IsNumber(item))
+    {
+        obj->buf_size = item->valueint;
+    }
+    item = cJSON_GetObjectItem(json, "min_distance");
+    if(cJSON_IsNumber(item))
+    {
+        min_distance = item->valueint;
+    }
+    //printf("resort_packet: min_distance= %d \n", min_distance);
+    //printf("resort_packet: obj->buf_size= %d \n", obj->buf_size);
+    //分配固定  長度的緩存空間，長度參數可調
+    //printf("resort_packet: obj->buf_size= %d \n", obj->buf_size);
+    if(obj->recv_buf == NULL)
+    {
+        printf("video: resort_packet: obj->Obj_id= %x \n", obj->Obj_id);
+        printf("video: resort_packet: obj->buf_size= %d \n", obj->buf_size);
+        obj->recv_buf = calloc(1, sizeof(uint8_t *) * obj->buf_size);
+        for(int i = 0; i < obj->buf_size; i++)
+        {
+            obj->recv_buf[i] = calloc(1, sizeof(uint8_t) * MAX_PACKET_SIZE);
+            //printf("resort_packet: i= %d \n", i);
+            //printf("resort_packet: obj->recv_buf[i]= %x \n", obj->recv_buf[i]);
+        }
+    }
+    //printf("resort_packet: 0 \n");
+    rtp_hdr = (RTP_FIXED_HEADER *)data;
+    unsigned  int timestamp = rtp_hdr->timestamp;
+    //printf("resort_packet: timestamp= %d \n", timestamp);
+    int seqnum = rtp_hdr->seq_no;
+	//seqnum = (int)(((rtp_hdr->seq_no & 0xFF) << 8) | ((rtp_hdr->seq_no >> 8)));
+	//printf("resort_packet: seqnum= %d \n", seqnum);
+	//get extend info
+	//char *extend_info = get_extern_info(data);
+    if (obj->logfp && obj->loglevel)
+    {
+        if(obj->loglevel == 1)
+        {
+            fprintf(obj->logfp, "%d \n", seqnum);
+        }
+        else if(obj->loglevel == 2)
+        {
+            fprintf(obj->logfp, "%u \n", timestamp);
+        }
+
+
+        fflush(obj->logfp);
+    }
+
+	//數據入列
+    int is_old_packet = 0;//(timestamp > obj->last_frame_time_stamp) || (!obj->last_frame_time_stamp);
+    is_old_packet =  (obj->old_seqnum >= 0) &&
+            (seqnum <= obj->old_seqnum) &&
+            ((obj->old_seqnum - seqnum) < HALF_USHORT);
+    is_old_packet |= (obj->old_seqnum >= 0) &&
+            (seqnum > obj->old_seqnum) &&
+            ((seqnum - obj->old_seqnum) > HALF_USHORT);
+    if(!insize)
+    {
+        printf("error: resort_packet: insize= %d \n", insize);
+        is_old_packet  = 1;
+    }
+    if(is_old_packet)
+    {
+        //printf("resort_packet: obj->old_seqnum= %d \n", obj->old_seqnum);
+        //printf("resort_packet: seqnum= %d \n", seqnum);
+    }
+    if(obj->old_seqnum >= 0 && false)
+    {
+        if(obj->old_seqnum > HALF_QUART_USHORT && seqnum < QUART_USHORT)
+        {
+        }
+        else if(obj->old_seqnum < QUART_USHORT && seqnum > HALF_QUART_USHORT)
+        {
+            is_old_packet  = 1;
+        }
+        else if(seqnum <= obj->old_seqnum)
+        {
+            is_old_packet  = 1;
+        }
+    }
+    if((obj->last_frame_time_stamp - timestamp) > LEFT_SHIFT16)
+    {
+    }
+    else if(obj->last_frame_time_stamp && (timestamp <= obj->last_frame_time_stamp))
+    {
+        is_old_packet  = 1;
+        //printf("resort_packet: obj->last_frame_time_stamp= %u \n", obj->last_frame_time_stamp);
+        //printf("resort_packet: timestamp= %u \n", timestamp);
+    }
+    if(timestamp == obj->last_frame_time_stamp && !is_old_packet)
+    {
+        printf("error: resort_packet: is_old_packet= %d \n", is_old_packet);
+    }
+
+    if(!is_old_packet)
+    {
+        //非旧包
+        if((obj->min_packet == MAX_USHORT) && (obj->max_packet < 0))
+        {
+            obj->min_packet = seqnum;
+            obj->max_packet = seqnum;
+        }
+        else if(obj->min_packet == obj->max_packet)
+        {
+            int I = obj->min_packet % obj->buf_size;
+            uint8_t *buf = (uint8_t *)&obj->recv_buf[I][sizeof(int)];
+            int *p = (int *)&obj->recv_buf[I][0];
+            int size = p[0];
+            if(!size)
+            {
+                obj->min_packet = seqnum;
+                obj->max_packet = seqnum;
+            }
+            else{
+                //if(seqnum < obj->max_packet && (obj->old_seqnum >= 0))
+                //{
+                //    printf("error: resort_packet: seqnum= %d \n", seqnum);
+                //    printf("error: resort_packet: obj->max_packet= %d \n", obj->max_packet);
+                //    printf("error: resort_packet: obj->old_seqnum= %d \n", obj->old_seqnum);
+                //}
+                //else
+                if(seqnum < obj->min_packet)
+                {
+                    obj->min_packet = seqnum;
+                }
+                else{
+                    obj->max_packet = seqnum;
+                }
+            }
+        }
+        else{
+            if(obj->min_packet > HALF_QUART_USHORT && seqnum < QUART_USHORT)
+            {
+            }
+            else if(seqnum < obj->min_packet)
+            {
+                obj->min_packet = seqnum;
+            }
+            //else if(obj->min_packet < HALF_USHORT && (seqnum > HALF_USHORT))
+            else if(obj->min_packet < QUART_USHORT && (seqnum > HALF_QUART_USHORT))
+            {
+                obj->min_packet = seqnum;
+            }
+
+            if(obj->max_packet < QUART_USHORT && seqnum > HALF_QUART_USHORT)
+            {
+            }
+            else if(seqnum > obj->max_packet)
+            {
+                obj->max_packet = seqnum;
+            }
+            //else if(obj->max_packet > HALF_USHORT && (seqnum < HALF_USHORT))
+            else if(obj->max_packet > HALF_QUART_USHORT && (seqnum < QUART_USHORT))
+            {
+                obj->max_packet = seqnum;
+            }
+        }
+        if(obj->delay_time <= 0)
+        {
+            obj->delay_time = delay_time;
+        }
+        obj->delay_time = renew_delay_time(hnd, data, insize, obj->delay_time);
+        renew_netinfo(hnd, data, insize, net_info);
+        //先取後存
+        int I = seqnum % obj->buf_size;
+        //printf("resort_packet: I= %d \n", I);
+        //printf("resort_packet: I = %d \n", I);
+        //printf("resort_packet: obj->recv_buf[I]= %x \n", obj->recv_buf[I]);
+        memcpy(&obj->recv_buf[I][sizeof(int)], data, insize);
+        int *p = (int *)&obj->recv_buf[I][0];
+        p[0] = insize;
+    }
+
+    int packet_distance = obj->max_packet - obj->min_packet;
+	if(obj->min_packet > obj->max_packet)
+    {
+        packet_distance = ((int)obj->max_packet + LEFT_SHIFT16) - obj->min_packet;
+    }
+	//printf("resort_packet: packet_distance= %d \n", packet_distance);
+	//if(obj->max_packet >= 0 && obj->min_packet >= 0)
+    {
+        if(packet_distance > min_distance)
+        {
+            //printf("get_frame: \n");
+            //從緩存中獲取一幀數據
+            //long long frame_timestamp = 0;
+            ret = get_frame(hnd, outbuf, rtpSize, complete, net_info, &frame_timestamp);
+            //printf("resort_packet: strlen(net_info)= %d \n", strlen(net_info));
+            //printf("resort_packet: ret= %d \n", ret);
+            //if(ret > 0)
+            //{
+            //    sprintf(outparam[3], "%lld", frame_timestamp);
+            //}
+        }
+        //先處理切換點
+        //1111****3333****
+        //seqnum = correct_seqnum(hnd, seqnum);
+
+    }
+    //printf("resort_packet: 4 \n");
+    //printf("resort_packet: end: ret= %d \n", ret);
+    return ret;
+}
+#if 0
+HCSVC_API
+int api_renew_netinfo(char *handle, char *data, int insize, cJSON **jsonInfo)
+{
+    long long *testp = (long long *)handle;
+    CodecObj *codecObj = (CodecObj *)testp[0];
+    RtpObj *obj = codecObj->resortObj;
+    if(obj)
+    {
+        //obj->delay_time = renew_delay_time(hnd, data, insize, obj->delay_time);
+        //renew_netinfo(hnd, data, insize, net_info);
+        cJSON *json = obj->json;
+        int selfChanId = GetvalueInt(json, "selfChanId");
+        if(selfChanId > 0)
+        {
+            int loss_rate = GetvalueInt(json, "loss_rate");
+            //cJSON *jsonInfo = NULL;
+            cJSON *jsonArray = NULL;
+            //int resort_type = GetvalueInt(json, "resort_type");
+
+            int chanNum = 0;
+            int *chanIdList = GetArrayValueInt(json, "chanId", &chanNum);
+
+            NetInfo netInfo = {};
+            int enable_nack = GetNetInfo((uint8_t*)buf, size, &netInfo, 1);
+            if(enable_nack)
+            {
+                if(!netInfo.info_status)
+                {
+                    //该信息的终极拥有者是此处的selfChanId
+                    //待反馈信息，非测试情况下，存在netInfo.chanId == selfChanId
+                    //printf("get_frame: netInfo.st0= %d \n", netInfo.st0);
+                    //printf("get_frame: netInfo.rt0= %d \n", netInfo.rt0);
+                    //printf("get_frame: netInfo.chanId= %d \n", netInfo.chanId);
+                    cJSON *thisjson = NULL;
+                    if(loss_rate > 0)
+                    {
+                        //printf("get_frame: loss_rate= %d \n", loss_rate);
+                        netInfo.loss_rate = loss_rate;// + 1;
+                    }
+                    thisjson = get_net_info2(&netInfo, thisjson);
+                    cJSON * jsonRet = renewJsonArray3(&jsonInfo, &jsonArray, "netInfo", thisjson);
+                }
+                else{
+                    //从中调出本端信息，其他的丢弃，此处获得的是终极信息???中级信息???
+                    if(chanNum > 0)
+                    {
+                        //
+                        for(int jj = 0; jj < chanNum; jj++)
+                        {
+                            //只是转发信息，该信息的拥有者是此处chanId的对端
+                            int chanId = chanIdList[jj];
+                            if((chanId + 1) == netInfo.chanId)
+                            {
+                                //printf("get_frame: netInfo.chanId= %d \n", netInfo.chanId);
+                                //int ret3 = get_net_info(&netInfo, extend_info);
+                                netInfo.decodeId = netInfo.chanId;//意味着将对端（终极接收端)的编码ID写入）
+                                cJSON *thisjson = NULL;
+                                thisjson = get_net_info2(&netInfo, thisjson);
+                                cJSON * jsonRet = renewJsonArray3(&jsonInfo, &jsonArray, "netInfo", thisjson);
+                            }
+                        }
+                    }
+                }
+            }
+            if(chanIdList)
+            {
+                free(chanIdList);
+            }
+        }
+    }
+}
+#endif
+HCSVC_API
+StructPointer api_resort_packet_all(char *handle, char *dataList[], int *dataSize, int num, char *param, char *outbuf, char *outparam[])
+{
+    int ret = 0;
+    long long *testp = (long long *)handle;
+    CodecObj *codecObj = (CodecObj *)testp[0];
+    RtpObj *obj = codecObj->resortObj;//(RtpObj *)&global_rtp_objs[id];
+    int id = codecObj->Obj_id;
+    if (!obj)
+    {
+        obj = (RtpObj *)calloc(1, sizeof(RtpObj));
+        codecObj->resortObj = obj;
+        obj->pRet = (StructPointer)calloc(1, sizeof(StructPointerTest));
+        for(int i = 0; i < MAX_RESORT_FRAME_NUM; i++)
+        {
+            obj->pRet->complete[i] = (char *)calloc(1, 32 * sizeof(char));
+        }
+
+        strcpy(obj->pRet->name, "api_resort_packet_all");
+        ResetObj(obj);
+        obj->Obj_id = id;
+        //
+        obj->json = mystr2json(param);
+        cJSON *json = obj->json;
+        obj->loglevel = GetvalueInt(json, "loglevel");
+        int selfChanId = GetvalueInt(obj->json, "selfChanId");
+        if(!obj->logfp && obj->loglevel)
+        {
+            char filename[256] = "/home/gxh/works/rtp_resort_gxh_";
+            char ctmp[32] = "";
+            int fileidx = selfChanId;//id;//random() % 10000;
+            sprintf(ctmp, "%d", fileidx);
+            strcat(filename, ctmp);
+            strcat(filename, ".txt");
+            obj->logfp = fopen(filename, "w");
+        }
+    }
+    if(!obj->json)
+    {
+        obj->json = mystr2json(param);
+    }
+    obj->param = param;
+    int selfChanId = GetvalueInt(obj->json, "selfChanId");
+    int loss_rate = 0;//GetvalueInt(obj->json, "loss_rate");
+    //int max_loss_rate = loss_rate;
+    int frame_num = 0;
+
+    int offset = 0;
+    int k = 0;
+    obj->pRet->frame_num = 0;
+    void *pNetInfo = NULL;
+    outparam[1] = obj->outparam[1];
+    memset(obj->outparam[1], 0, sizeof(char) * MAX_OUTCHAR_SIZE);
+    //printf("api_resort_packet_all: num= %d\n",num);
+    for(int i = 0; i < num; i++)
+    {
+        //printf("api_resort_packet: dataSize[i]= %d \n", dataSize[i]);
+        //printf("api_resort_packet: dataList[i]= %x \n", dataList[i]);
+        char *dataPtr = (char *)dataList[i];
+        int isrtp = api_isrtp(dataPtr, dataSize[i], 0, H264_PLT);
+        if(isrtp != 1)
+        {
+            printf("api_resort_packet: isrtp= %d \n", isrtp);
+            continue;
+        }
+        short rtpSize[MAX_FEC_PKT_NUM];
+        int64_t frame_timestamp = 0;
+        memset(obj->outparam[2], 0, sizeof(char) * 16);
+        memset(obj->outparam[3], 0, sizeof(char) * 16);
+        char *complete = (char *)obj->outparam[2];
+
+        int this_loss_rate = api_count_loss_rate2(handle, dataPtr, dataSize[i], 90);
+        if(this_loss_rate > 0)
+        {
+            loss_rate = this_loss_rate;
+            char *key = "loss_rate";
+		    int ivalue = loss_rate;
+		    obj->json = renewJsonInt(obj->json, key, ivalue);
+		    if(this_loss_rate > 1)
+		    {
+		        if(obj->loglevel == 3)
+                {
+                    fprintf(obj->logfp, "%d \n", this_loss_rate);
+                }
+		    }
+        }
+        if(frame_num < MAX_RESORT_FRAME_NUM)
+        {
+            memset(obj->pRet->complete[frame_num], 0, sizeof(char) * 16);
+        }
+        //pNetInfo = NULL;//test
+        int ret2 = resort_packet2(obj, dataPtr, dataSize[i], &outbuf[offset], rtpSize, complete, &pNetInfo, &frame_timestamp);
+
+        if(ret2 > 0)
+        {
+            if(frame_num < MAX_RESORT_FRAME_NUM)
+            {
+                int sum = 0;
+                for (int j = 0; j < ret2; j++)
+	            {
+	                int size = rtpSize[j];
+	                obj->pRet->rtp_size[k] = size;
+	                k++;
+                    sum += size;
+	            }
+	            obj->pRet->frame_size[frame_num] = sum;
+	            obj->pRet->pkt_num[frame_num] = ret2;
+	            obj->pRet->frame_timestamp[frame_num] = frame_timestamp;
+	            strcpy(obj->pRet->complete[frame_num], complete);
+	            offset += sum;
+            }
+            frame_num++;
+            if(frame_num >= (MAX_RESORT_FRAME_NUM - 1) && obj->loglevel)
+            {
+                printf("warning: api_resort_packet_all: frame_num= %d \n", frame_num);
+            }
+        }
+    }
+    cJSON *jsonInfo = (cJSON *)pNetInfo;
+    if(selfChanId > 0)
+    {
+        if(jsonInfo)
+        {
+#if 0
+            int arraySize = 0;
+            long long *objList = GetArrayObj(jsonInfo, "netInfo", &arraySize);
+            printf("api_resort_packet_all: arraySize= %d\n",arraySize);
+            if(objList)
+            {
+                for(int j = 0; j < arraySize; j++)
+                {
+                    cJSON *thisjson = (cJSON *)objList[j];
+                    if(thisjson)
+                    {
+                        int chanId = GetvalueInt(thisjson, "chanId");//已增1
+                        int info_status = GetvalueInt(thisjson, "info_status");
+                        printf("api_resort_packet_all: chanId= %d \n", chanId);
+                        printf("api_resort_packet_all: info_status= %d \n", info_status);
+                    }
+                }
+                free(objList);
+            }
+#endif
+            char *net_info = obj->outparam[1];
+
+            char *jsonStr = cJSON_Print(jsonInfo);//比较耗时
+            deleteJson(jsonInfo);
+            strcpy(net_info, jsonStr);
+            if(strlen(net_info) >= MAX_OUTCHAR_SIZE)
+            {
+                printf("error: get_frame: strlen(net_info)= %d \n", strlen(net_info));
+            }
+            cJSON_free(jsonStr);
+        }
+    }
+    if(frame_num >= (MAX_RESORT_FRAME_NUM - 1) && obj->loglevel)
+    {
+        printf("warning: api_resort_packet_all: frame_num= %d \n", frame_num);
+    }
+
+    deleteJson(obj->json);
+    obj->json = NULL;
+    obj->pRet->frame_num = frame_num;
+    obj->pRet->loss_rate = loss_rate;
+    //return ret;
+    return obj->pRet;
+}
+HCSVC_API
+int api_renew_delay_time(void *handle, int selfChanId, uint8_t *buf, int size, int delay_time)
+{
+    int ret = 0;
+    //if (id < MAX_OBJ_NUM)
+    {
+        long long *testp = (long long *)handle;
+        CodecObj *codecObj = (CodecObj *)testp[0];
+        RtpObj *obj = codecObj->resortObj;//(RtpObj *)&global_rtp_objs[id];
+        int id = codecObj->Obj_id;
+        if (!obj)
+        {
+            obj = (RtpObj *)calloc(1, sizeof(RtpObj));
+            codecObj->resortObj = obj;
+            ResetObj(obj);
+            obj->Obj_id = id;
+        }
+        NetInfo netInfo = {};
+        int enable_nack = GetNetInfo((uint8_t*)buf, size, &netInfo, 0);
+
+        if(enable_nack)
+        {
+            //printf("video: api_renew_delay_time: netInfo.info_status= %d \n", netInfo.info_status);
+            if(netInfo.info_status)
+            {
+                //printf("video: api_renew_delay_time: netInfo.decodeId= %d \n", netInfo.decodeId);
+                //printf("video: api_renew_delay_time: selfChanId= %d \n", selfChanId);
+            }
+            //printf("video: api_renew_delay_time: netInfo.info_status=%d, netInfo.decodeId=%d, selfChanId= %d \n", netInfo.info_status, netInfo.decodeId, selfChanId);
+#ifndef SELF_TEST_MODE
+            if(netInfo.decodeId == selfChanId)
+#endif
+            {
+                if(netInfo.info_status)
+                {
+                    int diff_time = (netInfo.rtt << 3);
+                    //printf("video: api_renew_delay_time: diff_time= %d \n", diff_time);
+                    if(diff_time > 1000)
+                    {
+                        printf("video: api_renew_delay_time: diff_time=%d, netInfo.decodeId=%d, selfChanId= %d \n", diff_time, netInfo.decodeId, selfChanId);
+                    }
+
+                    ret = add_delay(obj->delay_info, diff_time);
+                }
+
+            }
+        }
     }
     return ret;
 }
@@ -3335,6 +4140,7 @@ void api_test_write_str(int num)
             pJsonRoot = get_net_info2(&netInfo, pJsonRoot);
         }
     }
+#if 0
     else{
         char pinfo[1024 * 1024];
         memset(pinfo, 0, 1024 * 1024);
@@ -3350,6 +4156,550 @@ void api_test_write_str(int num)
             }
         }
     }
+#endif
+}
+HCSVC_API
+int api_reset_seqnum(char* dataPtr, int insize, int seqnum)
+{
+    int ret = 0;
+    RTP_FIXED_HEADER* rtp_hdr = (RTP_FIXED_HEADER*)&dataPtr[0];
+    rtp_hdr->seq_no = seqnum;
+    if (seqnum >= MAX_USHORT)
+    {
+	    seqnum = 0;
+	}
+	else{
+	    seqnum++;
+	}
+	return seqnum;
+}
+int get_rtpheader(char* dataPtr, int *rtpSize, int size, int raw_offset)
+{
+    int ret = 0;
+    int head_size = 0;
+    int offset = 0;
+    int offset1 = 0;
+    for(int i = 0; i < size; i++)
+    {
+        int insize = rtpSize[i];
+        if(i)
+        {
+            memcpy(&dataPtr[offset1], &dataPtr[offset], head_size);
+        }
+        else{
+            head_size = GetRtpHeaderSize((uint8_t *)&dataPtr[raw_offset], insize);
+            head_size += raw_offset;
+        }
+        offset += insize;
+        offset1 += head_size;
+        rtpSize[i] = head_size;
+    }
+    ret = offset1;
+    return ret;
+}
+HCSVC_API
+int api_get_rtpheader(char *data, char *param, char *outparam[])
+{
+    int ret = 0;
+    //printf("api_get_rtpheader: param=%s \n", param);
+    cJSON* json = mystr2json(param);
+    int size = 0;
+    int *rtpSize = GetArrayValueInt(json, "rtpSize", &size);
+    //
+    ret = get_rtpheader(data, rtpSize, size, 0);
+    //
+    cJSON *json2 = NULL;
+    json2 = renewJsonArray4(json2, "rtpSize", rtpSize, size);
+    char *jsonStr = cJSON_Print(json2);//比较耗时
+    deleteJson(json2);
+    strcpy(outparam[0], jsonStr);
+    //free(jsonStr);
+    cJSON_free(jsonStr);
+    //
+    if(rtpSize)
+    {
+        free(rtpSize);
+    }
+    deleteJson(json);
+    return ret;
+}
+HCSVC_API
+int api_get_rtpheader2(char* dataPtr, int *rtpSize, int size, int raw_offset)
+{
+    return get_rtpheader(dataPtr, rtpSize, size, raw_offset);
+}
+HCSVC_API
+void* api_add_array2json(void **jsonInfo, void **jsonArray, void *thisjson, char *key)
+{
+    cJSON * thisjson2 = cJSON_Duplicate((cJSON *)thisjson, 0);//复制cjson对象
+    cJSON *jsonRet = renewJsonArray3((cJSON **)jsonInfo, (cJSON **)jsonArray, key, thisjson2);
+    return (void *)jsonRet;
+}
+HCSVC_API
+void* api_add_netinfos2json(void **jsonInfo, void **jsonArray, NetInfo *netInfo)
+{
+    cJSON *thisjson = NULL;
+    thisjson = get_net_info2(netInfo, thisjson);
+    cJSON *jsonRet = renewJsonArray3((cJSON **)jsonInfo, (cJSON **)jsonArray, "netInfo", thisjson);
+    return (void *)jsonRet;
 }
 //==============================================================================
+//==============================================================================
 
+extern void PacketManagerInit(PacketManager *obj, unsigned int ssrc, RtpInfo *info, int freq);
+extern int CountLossRate2(PacketManager *manager, uint8_t* dataPtr, int insize, int freq);
+
+
+HCSVC_API
+int api_count_loss_rate2(void *handle, uint8_t* dataPtr, int insize, int freq)
+{
+    int ret = -1;//-2;
+    //if (id < MAX_OBJ_NUM)
+    {
+        PacketManager *obj = NULL;
+        long long *testp = (long long *)handle;
+        int is_video = freq == 90;
+        if(is_video)
+        {
+            CodecObj *codecObj = (CodecObj *)testp[0];
+            obj = (PacketManager *)codecObj->pktManObj;//(RtpObj *)&global_rtp_objs[id];
+        }
+        else{
+            AudioCodecObj *codecObj = (AudioCodecObj *)testp[0];
+            obj = (PacketManager *)codecObj->pktManObj;//(RtpObj *)&global_rtp_objs[id];
+        }
+
+        //printf("CountLossRate2: obj=%x \n", obj);
+        if (!obj)
+        {
+            obj = (PacketManager *)calloc(1, sizeof(PacketManager));
+            if(is_video)
+            {
+                CodecObj *codecObj = (CodecObj *)testp[0];
+                codecObj->pktManObj = obj;
+            }
+            else{
+                AudioCodecObj *codecObj = (AudioCodecObj *)testp[0];
+                codecObj->pktManObj = obj;
+            }
+            //ResetObj(obj);
+            //obj->Obj_id = id;
+            //
+            RtpInfo info = {0};
+            info.raw_offset = -1;
+            int plt = is_video ? H264_PLT : AAC_PLT;
+            int is_hcsvcrtp = GetRtpInfo(dataPtr, insize, &info, plt);
+            if(is_hcsvcrtp > 0)
+            {
+                unsigned int ssrc = info.ssrc;
+                PacketManagerInit(obj, ssrc, &info, freq);
+                printf("api_count_loss_rate2: is_hcsvcrtp=%d \n", is_hcsvcrtp);
+                //return -1;
+            }
+            else{
+                printf("api_count_loss_rate2: not rtp: is_hcsvcrtp=%d \n", is_hcsvcrtp);
+                return -100;
+            }
+        }
+        //printf("api_count_loss_rate2: CountLossRate2 \n");
+        ret = CountLossRate2(obj, dataPtr, insize, freq);
+        //printf("api_count_loss_rate2: ret=%d \n", ret);
+        if(ret >= 0)
+        {
+            if(ret > 0)
+            {
+                printf("api_count_loss_rate2: ret=%d, freq=%d \n", ret, freq);
+                if(freq == 90)
+                {
+                    printf("api_count_loss_rate2: obj->max_loss_series_num=%d, obj->max_fec_n=%d \n", obj->max_loss_series_num, obj->max_fec_n);
+                }
+            }
+            int ret2 = add_loss_rate(obj->loss_rate_info, ret);
+            //printf("api_count_loss_rate2: ret2=%d \n", ret2);
+            obj->max_loss_series_num = 0;
+            obj->max_fec_n = 0;
+            ret = ret2;
+            ret += 1;
+        }
+
+    }
+    return ret;
+}
+HCSVC_API
+int api_add_loss_rate(void *handle, int loss_rate)
+{
+    int ret = loss_rate;
+    long long *testp = (long long *)handle;
+    CodecObj *codecObj = (CodecObj *)testp[0];
+    RtpObj *obj = codecObj->rtpObj;
+    if(!obj)
+    {
+        return ret;
+    }
+    ret = add_loss_rate(obj->loss_rate_info, ret);
+    return ret;
+}
+HCSVC_API
+int api_get_loss_rate(void *handle, int idx0)
+{
+    int ret = -1;
+    long long *testp = (long long *)handle;
+    CodecObj *codecObj = (CodecObj *)testp[0];
+    RtpObj *obj = codecObj->rtpObj;
+    if(obj)
+    {
+        int idx = idx0 > 2 ? 2 : idx0;
+        int a = obj->loss_rate_info[idx].max_loss_rate;
+        int b = obj->loss_rate_info[idx].last_max_loss_rate;
+        ret = a > b ? a : b;
+        if(idx > 1)
+        {
+            int c = obj->loss_rate_info[1].max_loss_rate;
+            ret = c > ret ? c : ret;
+        }
+        if(idx0 > 2)
+        {
+            int d = obj->loss_rate_info[3].loss_rate;
+            //printf("api_get_loss_rate: d=%d \n", d);
+            ret = d > ret ? d : ret;
+        }
+    }
+
+    return ret;
+}
+HCSVC_API
+int InSertRawOffset(uint8_t* dataPtr, uint8_t* dst, int dataSize)
+{
+    int ret = dataSize;
+    RTP_FIXED_HEADER* rtp_hdr = (RTP_FIXED_HEADER*)&dataPtr[0];
+    if(rtp_hdr->version == 2 &&  //版本号，此版本固定为2								V
+       rtp_hdr->padding	== 0 &&  //														P
+       rtp_hdr->csrc_len == 0 && //												X
+       rtp_hdr->payload == H264_PLT   //负载类型号
+       )
+    {
+        int offset = sizeof(RTP_FIXED_HEADER);//1;
+        if(rtp_hdr->extension)
+        {
+            EXTEND_HEADER *rtp_ext = (EXTEND_HEADER *)&dataPtr[sizeof(RTP_FIXED_HEADER)];
+            int rtp_extend_length = rtp_ext->rtp_extend_length;
+            rtp_extend_length = ((rtp_extend_length & 0xFF) << 8) | ((rtp_extend_length >> 8));
+            //printf("IsRtpData: rtp_extend_length= %d \n", rtp_extend_length);
+            rtp_extend_length = (rtp_extend_length + 1) << 2;
+            //printf("IsRtpData: 2: rtp_extend_length= %d \n", rtp_extend_length);
+            offset = sizeof(RTP_FIXED_HEADER) + rtp_extend_length;
+            //info->rtp_header_size = offset;
+
+            rtp_ext->raw_offset = 1;
+            int raw_offset = RAW_OFFSET;//2;
+            //info->raw_offset = 2;
+            ret = dataSize + raw_offset;
+            memcpy(dst, &dataPtr[offset], raw_offset);
+            NALU_HEADER* nalu_hdr = (NALU_HEADER*)&dst[0];
+            if(nalu_hdr->TYPE == 24)
+            {
+                nalu_hdr->TYPE = 7;
+            }
+            memcpy(&dst[raw_offset], &dataPtr[0], dataSize);
+
+        }
+        else{
+            ///printf("error: InSertRawOffset: rtp_hdr->extension=%d \n", rtp_hdr->extension);
+        }
+    }
+    else{
+        ///printf("error: InSertRawOffset: rtp_hdr->version=%d \n", rtp_hdr->version);
+        ///printf("error: InSertRawOffset: rtp_hdr->padding=%d \n", rtp_hdr->padding);
+        ///printf("error: InSertRawOffset: rtp_hdr->csrc_len=%d \n", rtp_hdr->csrc_len);
+        ///printf("error: InSertRawOffset: rtp_hdr->payload=%d \n", rtp_hdr->payload);
+    }
+    return ret;
+}
+HCSVC_API
+int hcsvc2h264stream(unsigned char *src, int insize, int rtpheadersize, unsigned char *dst)
+{
+    int ret = 0;
+    RtpInfo info = {0};
+    info.raw_offset = -1;
+    int rtptype = GetRtpInfo((uint8_t*)&src[rtpheadersize], insize - rtpheadersize, &info, H264_PLT);
+    if(rtptype)
+    {
+        if(info.enable_fec)
+        {
+            if(info.is_fec)
+            {
+            }
+            else{
+                short *raw_size = (short *)&src[insize - 2];
+                ret = raw_size[0];//insize - info.rtp_header_size;
+                ///printf("hcsvc2h264stream: ret= %d \n", ret);
+                memmove(dst, &src[rtpheadersize + info.rtp_header_size], ret);
+                if(info.nal_marker == 2)
+                {
+                    RTP_FIXED_HEADER* rtp_hdr = (RTP_FIXED_HEADER*)&src[0];
+                    rtp_hdr->marker = 1;
+                }
+
+            }
+        }
+        else{
+            ret = insize - info.rtp_header_size - rtpheadersize;
+            memmove(dst, &src[rtpheadersize + info.rtp_header_size], ret);
+        }
+    }
+
+    return ret;
+}
+HCSVC_API
+int distill_spatial_layer(unsigned char *src, int insize, int rtpheadersize, unsigned char *dst, int layerId, int multlayer)
+{
+    int ret = 0;
+    RtpInfo info = {0};
+    info.raw_offset = -1;
+    int rtptype = GetRtpInfo((uint8_t*)&src[rtpheadersize], insize - rtpheadersize, &info, H264_PLT);
+    if(rtptype)
+    {
+        if(info.spatial_idx >= layerId)
+        {
+
+            if(multlayer)
+            {
+                if(src != dst)
+                {
+                    memmove(dst, src, insize);
+                }
+
+                EXTEND_HEADER *rtp_ext = (EXTEND_HEADER *)&dst[rtpheadersize + info.raw_offset + sizeof(RTP_FIXED_HEADER)];
+                rtp_ext->main_spatial_idx = layerId;
+                rtp_ext->mult_spatial = 1;
+                ret = insize;
+            }
+            else if(info.spatial_idx == layerId)
+            {
+
+                if(src != dst)
+                {
+                    memmove(dst, src, insize);
+                }
+                EXTEND_HEADER *rtp_ext = (EXTEND_HEADER *)&dst[rtpheadersize + info.raw_offset + sizeof(RTP_FIXED_HEADER)];
+                rtp_ext->main_spatial_idx = layerId;
+                rtp_ext->mult_spatial = 0;
+                ret = insize;
+            }
+        }
+    }
+    return ret;
+}
+HCSVC_API
+int GetRtpHeaderSize(uint8_t* dataPtr, int dataSize)
+{
+    int ret = 0;
+    RTP_FIXED_HEADER* rtp_hdr = (RTP_FIXED_HEADER*)&dataPtr[0];
+    if(rtp_hdr->version == 2  //版本号，此版本固定为2								V
+       )
+    {
+        ret = sizeof(RTP_FIXED_HEADER);//1;
+        if(rtp_hdr->extension)
+        {
+            EXTEND_HEADER *rtp_ext = (EXTEND_HEADER *)&dataPtr[sizeof(RTP_FIXED_HEADER)];
+            int rtp_extend_length = rtp_ext->rtp_extend_length;
+            rtp_extend_length = ((rtp_extend_length & 0xFF) << 8) | ((rtp_extend_length >> 8));
+            //printf("IsRtpData: rtp_extend_length= %d \n", rtp_extend_length);
+            rtp_extend_length = (rtp_extend_length + 1) << 2;
+            ret = sizeof(RTP_FIXED_HEADER) + rtp_extend_length;
+        }
+    }
+    return ret;
+}
+
+HCSVC_API
+int GetNetInfo(uint8_t* dataPtr, int insize, NetInfo *info, int times)
+{
+    int ret = 0;
+    RTP_FIXED_HEADER* rtp_hdr = (RTP_FIXED_HEADER*)&dataPtr[0];
+    EXTEND_HEADER *rtp_ext = NULL;
+    if(rtp_hdr->extension)
+    {
+        rtp_ext = (EXTEND_HEADER *)&dataPtr[sizeof(RTP_FIXED_HEADER)];
+        if(rtp_ext->nack_type == 2)
+        {
+            info->is_rtx = 1;
+            info->nack = rtp_ext->nack;
+            ret = 1;
+        }
+        else if(rtp_ext->nack_type == 1 && rtp_ext->nack.nack0.enable_nack)
+        {
+            int64_t now_time = (int64_t)get_time_stamp();
+            //不仅要获得网络信息，还需要获得全线信息，最终的效果是由全线的信息决定的
+            RTT_HEADER *rtt_list = (RTT_HEADER *)&rtp_ext->nack.nack0.time_info.rtt_list;
+            info->ssrc = rtp_hdr->ssrc;
+            uint64_t time_stamp0 = rtp_ext->nack.nack0.time_info.time_stamp0;
+	        uint64_t time_stamp1 = rtp_ext->nack.nack0.time_info.time_stamp1;
+	        info->time_stamp = time_stamp0 | (time_stamp1 << 32);
+            //info->time_stamp = rtp_ext->nack.nack0.time_info.time_stamp;
+            info->loss_rate = rtp_ext->nack.nack0.loss_rate;//loss_rate in [1,101]
+		    info->st0 = rtt_list->rtt0.st0;//共享编码端写入
+    		info->rt0 = rtt_list->rtt0.rt0;//观看解码端（rtp接收）写入
+    		info->chanId = rtp_ext->nack.nack0.chanId;//if chanId == selfChanId then getting net info sucess!
+    		info->info_status = rtp_ext->nack.nack0.info_status;
+            //printf("GetNetInfo: times= %d \n", times);
+            //printf("GetNetInfo: info->info_status= %d \n", info->info_status);
+	    	if(info->info_status)
+		    {
+		        //可能由多方重复转来
+		        //printf("GetNetInfo: 0: rtt_list->rtt1.decodeId= %d \n", rtt_list->rtt1.decodeId);
+		        //printf("GetNetInfo: times= %d \n", times);
+		        info->st1 = rtt_list->rtt0.st1;//观看编码端(rtp发送)写入
+		        //不允许重复访问
+		        if(!times)
+		        {
+		            //printf("GetNetInfo: rtt_list->rtt1.decodeId= %d \n", rtt_list->rtt1.decodeId);
+		            //route 3
+		            if(rtt_list->rtt1.decodeId)
+    	    	    {
+	        	        info->rtt = rtt_list->rtt1.rtt;
+	        	        info->decodeId = rtt_list->rtt1.decodeId;
+	    	            rtt_list->rtt1.rtt = 0;//复用
+	    	            rtt_list->rtt1.decodeId = 0;//复用
+	    	        }
+	    	        //route 2
+		            if(!rtt_list->rtt0.rt1)
+	    	        {
+	    	            info->rt1 = now_time & 0xFFFF;//共享解码端（rtp接收）写入
+	    	            rtt_list->rtt0.rt1 = now_time & 0xFFFF;
+	    	        }
+	    	        else{
+	    	            info->rt1 = rtt_list->rtt0.rt1;
+	    	        }
+		        }
+		        else{
+		            info->rt1 = rtt_list->rtt0.rt1;
+		        }
+
+	    	}
+	    	//最终交由共享编码端自己去统计并处理信息
+		    //info->chanId = rtp_ext->nack.nack0.chanId;//if chanId == selfChanId then getting net info sucess!
+    		//info->info_status = rtp_ext->nack.nack0.info_status;
+	    	if(!info->info_status)
+		    {
+		        //不存在重复转发
+    		    info->st0 = rtt_list->rtt0.st0;
+	    	    if(!times)
+		        {
+		            //route 1
+        		    if(!rtt_list->rtt0.rt0)//允许重复访问
+        		    {
+    	    	        rtt_list->rtt0.rt0 = now_time & 0xFFFF;
+    		            info->rt0 = now_time & 0xFFFF;
+    		        }
+    	    	    else{
+	        	        info->rt0 = rtt_list->rtt0.rt0;
+	        	    }
+	    	        if(rtt_list->rtt1.decodeId)//no used
+	    	        {
+	    	            info->rtt = rtt_list->rtt1.rtt;
+    	    	        info->decodeId = rtt_list->rtt1.decodeId;
+	        	        rtt_list->rtt1.rtt = 0;//复用
+	        	        rtt_list->rtt1.decodeId = 0;//复用
+	    	        }
+	    	    }
+	    	    else{
+	    	        info->rt0 = rtt_list->rtt0.rt0;
+	    	    }
+		        info->st1 = 0;
+    		    info->rt1 = 0;
+	    	    info->loss_rate = 0;
+		        //info->chanId = rtp_ext->nack.nack0.chanId;
+    		    //info->info_status = rtp_ext->nack.nack0.info_status;
+	    	}
+		    ret = 1;
+        }
+    }
+    return ret;
+}
+HCSVC_API
+int GetAudioNetInfo(uint8_t* dataPtr, int insize, NetInfo *info, int times)
+{
+    int ret = 0;
+    RTP_FIXED_HEADER* rtp_hdr = (RTP_FIXED_HEADER*)&dataPtr[0];
+    AUDIO_EXTEND_HEADER *rtp_ext = NULL;
+    if(rtp_hdr->extension)
+    {
+        rtp_ext = (AUDIO_EXTEND_HEADER *)&dataPtr[sizeof(RTP_FIXED_HEADER)];
+        if(rtp_ext->nack.nack0.enable_nack)
+        {
+            int64_t now_time = (int64_t)get_time_stamp();
+            //不仅要获得网络信息，还需要获得全线信息，最终的效果是由全线的信息决定的
+            RTT_HEADER *rtt_list = (RTT_HEADER *)&rtp_ext->nack.nack0.time_info.rtt_list;
+            info->ssrc = rtp_hdr->ssrc;
+            uint64_t time_stamp0 = rtp_ext->nack.nack0.time_info.time_stamp0;
+	        uint64_t time_stamp1 = rtp_ext->nack.nack0.time_info.time_stamp1;
+	        info->time_stamp = time_stamp0 | (time_stamp1 << 32);
+            //info->time_stamp = rtp_ext->nack.nack0.time_info.time_stamp;
+            info->loss_rate = rtp_ext->nack.nack0.loss_rate;//loss_rate in [1,101]
+		    info->st0 = rtt_list->rtt0.st0;//共享编码端写入
+    		info->rt0 = rtt_list->rtt0.rt0;//观看解码端（rtp接收）写入
+            info->chanId = rtp_ext->nack.nack0.chanId;//if chanId == selfChanId then getting net info sucess!
+    		info->info_status = rtp_ext->nack.nack0.info_status;
+	    	if(info->info_status)
+		    {
+		        info->st1 = rtt_list->rtt0.st1;//观看编码端(rtp发送)写入
+		        //不允许重复访问
+		        if(!times)
+		        {
+		            if(rtt_list->rtt1.decodeId)
+    	    	    {
+	        	        info->rtt = rtt_list->rtt1.rtt;
+	        	        info->decodeId = rtt_list->rtt1.decodeId;
+	    	            rtt_list->rtt1.rtt = 0;
+	    	            rtt_list->rtt1.decodeId = 0;
+	    	        }
+		            if(!rtt_list->rtt0.rt1)
+	    	        {
+	    	            info->rt1 = now_time & 0xFFFF;//共享解码端（rtp接收）写入
+	    	            rtt_list->rtt0.rt1 = now_time & 0xFFFF;
+	    	        }
+	    	        else{
+	    	            info->rt1 = rtt_list->rtt0.rt1;
+	    	        }
+		        }
+		        else{
+		            info->rt1 = rtt_list->rtt0.rt1;
+		        }
+	    	}
+	    	//最终交由共享编码端自己去统计并处理信息
+	    	if(!info->info_status)
+		    {
+    		    info->st0 = rtt_list->rtt0.st0;
+    		    if(!times)
+		        {
+        		    if(!rtt_list->rtt0.rt0)//允许重复访问
+        		    {
+    	    	        rtt_list->rtt0.rt0 = now_time & 0xFFFF;
+    		            info->rt0 = now_time & 0xFFFF;
+    		        }
+    	    	    else{
+	        	        info->rt0 = rtt_list->rtt0.rt0;
+	        	    }
+	    	        if(rtt_list->rtt1.decodeId)
+	    	        {
+	    	            info->rtt = rtt_list->rtt1.rtt;
+    	    	        info->decodeId = rtt_list->rtt1.decodeId;
+	        	        rtt_list->rtt1.rtt = 0;
+	        	        rtt_list->rtt1.decodeId = 0;
+	    	        }
+	    	    }
+	    	    else{
+	    	        info->rt0 = rtt_list->rtt0.rt0;
+	    	    }
+		        info->st1 = 0;
+    		    info->rt1 = 0;
+	    	    info->loss_rate = 0;
+		        //info->chanId = rtp_ext->nack.nack0.chanId;
+    		    //info->info_status = rtp_ext->nack.nack0.info_status;
+	    	}
+		    ret = 1;
+        }
+    }
+    return ret;
+}

@@ -25,6 +25,7 @@
 
 //#define __STDC_CONSTANT_MACROS
 
+extern int glob_sld_status;
 
 #define MAX_MIX_NUM 16
 
@@ -57,60 +58,48 @@ typedef struct
 
 extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
-extern char* GetvalueStr(cJSON *json, char *key);
+extern char* GetvalueStr(cJSON *json, char *key, char *result);
 extern int64_t get_sys_time();
 
 void  fill_audio(void *handle, Uint8 *stream, int len){
-
-    //printf("fill_audio: handle= %x \n", handle);
+#if 0
+    //注意：某些情况下会导致崩溃
     long long *testp = (long long *)handle;
     AudioPlayerObj *obj = (AudioPlayerObj *)testp[0];
-    //printf("fill_audio: obj->Obj_id= %x \n", obj->Obj_id);
-    //printf("fill_audio: stream= %x \n", stream);
-    //printf("fill_audio: len= %d \n", len);
-
+    printf("fill_audio: testp[0]=%lld \n", testp[0]);
+    printf("fill_audio: obj=%lld \n", obj);
+    printf("fill_audio: obj=%x \n", obj);
+#else
+    AudioPlayerObj *obj = (AudioPlayerObj *)handle;
+#endif
     //SDL 2.0
     SDL_memset(stream, 0, len);
     if (obj->audio_len == 0)
         return;
+    //printf("fill_audio: 2: len= %d \n", len);
 
-    if(obj->fp_pcm)
-    {
-        fwrite(obj->audio_pos[0], 1, len, obj->fp_pcm);
-    }
-#if 0
-        int sum0 = 0;
-        int sum1 = 0;
-        short *p = (short *)obj->audio_pos;
-        for(int i = 0; i < obj->out_nb_samples; i++)
-        {
-            short value = p[i];
-            if( (i & 1) == 0 )
-            {
-                sum0 += value;
-            }
-            else{
-                sum1 += value;
-            }
-        }
-        printf("fill_audio: sum0= %d \n", sum0);
-        printf("fill_audio: sum1= %d \n", sum1);
-#endif
     len = (len > obj->audio_len ? obj->audio_len : len);    /*  Mix  as  much  data  as  possible  */
     //SDL_MixAudio(Uint8*       dst,
     //              const Uint8* src,
     //              Uint32       len,
     //              int          volume)
     int mix_num = obj->mix_num;//GetvalueInt(obj->json, "mix_num");
+    //printf("fill_audio: mix_num= %d \n", mix_num);
+    //mix_num = 1;//test
     int maxvolume = SDL_MIX_MAXVOLUME / mix_num;
     for(int i = 0; i < mix_num; i++)
     {
+        //if(i)//test
         SDL_MixAudio(stream, obj->audio_pos[i], len, maxvolume);
     }
     //printf("fill_audio: mix_num= %d \n", mix_num);
     //printf("fill_audio: obj->audio_pos[0]= %x \n", obj->audio_pos[0]);
     //printf("fill_audio: obj->audio_len= %d \n", obj->audio_len);
-    obj->audio_pos[0] += len;
+    for(int i = 0; i < mix_num; i++)
+    {
+        obj->audio_pos[i] += len;//此步骤很重要！！！
+    }
+    //obj->audio_pos[1] += len;
     obj->audio_len -= len;
     //printf("fill_audio: len= %d \n", len);
 }
@@ -170,7 +159,7 @@ void api_player_close(char *handle)
             SDL_Quit();//注意：如果视频退出，则不要重复退出
             printf("api_player_close: SDL_Quit ok \n");
         }
-
+        glob_sld_status = 0;
         if(obj->audio_pos)
         {
             free(obj->audio_pos);
@@ -216,9 +205,11 @@ int api_player_init(char *handle, char *param)
     obj->param = param;
     obj->print = GetvalueInt(obj->json, "print");
     obj->sdl_status = GetvalueInt(obj->json, "sdl_status");
-    char *filename = GetvalueStr(obj->json, "pcmfile");
+    char filename[256] = "";
+    GetvalueStr(obj->json, "pcmfile", filename);
     if (strcmp(filename, ""))
     {
+        printf("api_player_init: pcmfile= %s \n", filename);
         obj->fp_pcm = fopen(filename, "wb");
     }
     obj->mix_num = GetvalueInt(obj->json, "mix_num");
@@ -230,25 +221,25 @@ int api_player_init(char *handle, char *param)
 
     obj->out_sample_rate = GetvalueInt(obj->json, "out_sample_rate");
 
-
-    char *cformat = GetvalueStr(obj->json, "format");
+    char cformat[64] = "";
+    GetvalueStr(obj->json, "format", cformat);
 	if (!strcmp(cformat, "AUDIO_S16SYS"))
 	{
         obj->wanted_spec.format = AUDIO_S16SYS;// 采样格式：S表带符号，16是采样深度(位深)，SYS表采用系统字节序，这个宏在SDL中定义
         long testformat = AUDIO_S16SYS;
-        printf("api_player_init: testformat= 0x%x \n", testformat);
+        printf("api_player_init: AUDIO_S16SYS=0x%x \n", testformat);
 	}
 	else{
 	    obj->wanted_spec.format = AUDIO_F32;
 	}
 	obj->out_sample_fmt = GetvalueInt(obj->json, "out_sample_fmt");
-	cformat = GetvalueStr(obj->json, "out_sample_fmt");
+	GetvalueStr(obj->json, "out_sample_fmt", cformat);
 	if (!strcmp(cformat, "AV_SAMPLE_FMT_S16"))
 	{
         obj->out_sample_fmt = AV_SAMPLE_FMT_S16;
 	}
 
-	cformat = GetvalueStr(obj->json, "out_channel_layout");
+	GetvalueStr(obj->json, "out_channel_layout", cformat);
 	if (!strcmp(cformat, "AV_CH_LAYOUT_STEREO"))
 	{
         obj->out_channel_layout = AV_CH_LAYOUT_STEREO;
@@ -268,7 +259,7 @@ int api_player_init(char *handle, char *param)
     obj->wanted_spec.samples = obj->out_nb_samples;
     obj->wanted_spec.callback = fill_audio;// 回调函数，若为NULL，则应使用SDL_QueueAudio()机制
     obj->wanted_spec.userdata = obj;//pCodecCtx;
-    printf("obj->wanted_spec.channels=%d obj->wanted_spec.samples=%d obj->wanted_spec.freq=%d obj->wanted_spec.format=%d \n",
+    printf("obj->wanted_spec.channels=%d obj->wanted_spec.samples=%d obj->wanted_spec.freq=%d obj->wanted_spec.format=%x \n",
         obj->wanted_spec.channels,
         obj->wanted_spec.samples,
         obj->wanted_spec.freq,
@@ -293,18 +284,26 @@ int api_player_init(char *handle, char *param)
     av_frame_get_buffer(obj->audio_frame, 0);
 #endif
 
+#ifdef _WIN32
+    //char *cmd = "set SDL_AUDIODRIVER=directsound";
+    //system(cmd);
+    SetEnvironmentVariableA("SDL_AUDIODRIVER", "directsound");
+#endif
+
+#if 0
     if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_AUDIO | SDL_INIT_TIMER))
     //if (SDL_Init(SDL_INIT_AUDIO | SDL_INIT_TIMER))
     {
         printf("api_player_init: Could not initialize SDL - %s\n", SDL_GetError());
         return -1;
     }
+#endif
     SDL_AudioSpec obtained;// = NULL;
     if (SDL_OpenAudio(&obj->wanted_spec, &obtained) < 0){
         printf("api_player_init: can't open audio.\n");
         return -1;
     }
-    printf("obtained.channels=%d obtained.samples=%d obtained.freq=%d obtained.format=%d \n",
+    printf("obtained.channels=%d obtained.samples=%d obtained.freq=%d obtained.format=%x \n",
         obtained.channels,
         obtained.samples,
         obtained.freq,
@@ -319,7 +318,8 @@ int api_player_init(char *handle, char *param)
 #endif
     //Play
     //SDL_PauseAudio(0);
-
+    obj->frame_idx = 0;
+    printf("api_player_init: obj=%x \n", obj);
 	return ret;
 }
 
@@ -349,6 +349,7 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
 
         if(!obj->frame_idx)
         {
+            printf("audio_play_frame: start play \n");
             SDL_PauseAudio(0);
         }
         //obj->audiofifo = av_audio_fifo_alloc(obj->out_sample_fmt, obj->out_channels, obj->mix_num);
@@ -366,7 +367,7 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
             return -1;
         }
         fifo_size = av_audio_fifo_size(obj->audiofifo);
-        //printf("audio_play_frame: fifo_size=%d \n", fifo_size);
+        //printf("audio_play_frame: fifo_size=%d, out_framesize=%d \n", fifo_size, out_framesize);
         while ((fifo_size = av_audio_fifo_size(obj->audiofifo)) >= out_framesize)
         {
             //printf("audio_play_frame: fifo_size=%d, out_framesize=%d \n", fifo_size, out_framesize);
@@ -374,7 +375,7 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
             if(1)
             {
                 //av_frame_unref(&obj->audio_frame);
-                if(true)
+                if(false)
                 {
                     //av_frame_free(&obj->audio_frame);
                     obj->audio_frame = av_frame_alloc();
@@ -407,10 +408,12 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
                 obj->wanted_spec.samples = obj->out_nb_samples;
                 SDL_OpenAudio(&obj->wanted_spec, NULL);
             }
+            //printf("audio_play_frame: 1: obj->audio_len=%d \n", obj->audio_len);
             while (obj->audio_len > 0)//Wait until finish
             {
                 SDL_Delay(1);
             }
+            //printf("audio_play_frame: 2: obj->audio_len=%d \n", obj->audio_len);
             //obj->audio_len = obj->out_buffer_size;
             obj->audio_pos[0] = *obj->audio_frame->data;
 #if 1
@@ -425,7 +428,6 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
 #endif
             obj->audio_len = obj->out_buffer_size;
             //obj->audio_pos = obj->audio_frame->data[0];
-            //printf("audio_play_frame: obj->audio_len=%d \n", obj->audio_len);
         }
         //av_free(obj->audio_frame);//test
         obj->frame_idx++;
@@ -439,7 +441,7 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
 HCSVC_API
 int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
 {
-    int ret;
+    int ret = 0;
     if(handle)
     {
         //printf("audio_play_frame_mix: insize=%d \n", insize);
@@ -448,8 +450,13 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
         obj->json = mystr2json(param);
         obj->param = (void *)obj->json;
 
+        if(obj->fp_pcm)
+        {
+            fwrite(indata[0], 1, insize, obj->fp_pcm);
+        }
         if(!obj->frame_idx)
         {
+            printf("audio_play_frame_mix: start play \n");
             SDL_PauseAudio(0);
         }
         int mix_num = GetvalueInt(obj->json, "mix_num");
@@ -460,19 +467,24 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
         }
         if(mix_num != obj->mix_num)
         {
-            obj->mix_num = mix_num;
-            if(obj->tmpbuf)
+            if(mix_num > obj->mix_num)
             {
-                av_free(obj->tmpbuf);
-                obj->tmpbuf = NULL;
+                MYPRINT("audio_play_frame_mix: mix_num= %d \n", mix_num);
+                MYPRINT("audio_play_frame_mix: obj->mix_num= %d \n", obj->mix_num);
+                if(obj->tmpbuf)
+                {
+                    av_free(obj->tmpbuf);
+                    obj->tmpbuf = NULL;
+                }
+                if (obj->audiofifo)
+                {
+                    av_audio_fifo_free(obj->audiofifo);
+                    obj->audiofifo = NULL;
+                }
+                obj->audiofifo = av_audio_fifo_alloc(obj->out_sample_fmt, obj->out_channels, mix_num);
+                obj->tmpbuf = av_malloc((obj->out_buffer_size << 1) * mix_num);
             }
-            if (obj->audiofifo)
-            {
-                av_audio_fifo_free(obj->audiofifo);
-                obj->audiofifo = NULL;
-            }
-            obj->audiofifo = av_audio_fifo_alloc(obj->out_sample_fmt, obj->out_channels, obj->mix_num);
-            obj->tmpbuf = av_malloc((obj->out_buffer_size << 1) * obj->mix_num);
+            //obj->mix_num = mix_num;
         }
 
         int out_framesize = obj->out_nb_samples;//obj->out_buffer_size;//
@@ -482,7 +494,7 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
         int fifo_size = 0;
         int offset = 0;
         ret = av_audio_fifo_realloc(obj->audiofifo, av_audio_fifo_size(obj->audiofifo) + convert_size * mix_num);
-        //printf("audio_play_frame: ret=%d \n", ret);
+        //printf("audio_play_frame_mix: ret=%d \n", ret);
         if (ret < 0){
             printf("audio_play_frame_mix: av_audio_fifo_realloc error\n");
             return -1;
@@ -507,7 +519,7 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
         //out_framesize = convert_size * mix_num;
         int frame_size = convert_size * mix_num;
         fifo_size = av_audio_fifo_size(obj->audiofifo);
-        //printf("audio_play_frame: fifo_size=%d \n", fifo_size);
+        //printf("audio_play_frame_mix: fifo_size=%d, out_framesize=%d \n", fifo_size, out_framesize);
         while (av_audio_fifo_size(obj->audiofifo) >= out_framesize)
         {
             //int frame_size = FFMIN(av_audio_fifo_size(obj->audiofifo), out_framesize);
@@ -524,10 +536,15 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
                 obj->audio_frame->sample_rate = obj->out_sample_rate;
                 av_frame_get_buffer(obj->audio_frame, 0);
             }
-            //printf("audio_play_frame: obj->audio_frame->data[0]=%x \n", obj->audio_frame->data[0]);
-            //printf("audio_play_frame: obj->audio_frame->linesize[0]=%d \n", obj->audio_frame->linesize[0]);
+            //printf("audio_play_frame_mix: obj->audio_frame->data[0]=%x \n", obj->audio_frame->data[0]);
+            //printf("audio_play_frame_mix: obj->audio_frame->linesize[0]=%d \n", obj->audio_frame->linesize[0]);
+            //printf("audio_play_frame_mix: obj->audio_frame->data[1]=%x \n", obj->audio_frame->data[1]);
+            //printf("audio_play_frame_mix: obj->audio_frame->linesize[1]=%d \n", obj->audio_frame->linesize[1]);
             int read_size = av_audio_fifo_read(obj->audiofifo, (void **)obj->audio_frame->data, frame_size);
-            //printf("audio_play_frame: read_size=%d \n", read_size);
+            //printf("audio_play_frame_mix: read_size=%d \n", read_size);
+
+            //fifo_size = av_audio_fifo_size(obj->audiofifo);
+            //printf("audio_play_frame_mix: 2: fifo_size=%d, out_framesize=%d \n", fifo_size, out_framesize);
             if (read_size < frame_size)
             {
                 printf("audio_play_frame_mix: av_audio_fifo_read error\n");
@@ -544,11 +561,16 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
                 obj->wanted_spec.samples = obj->out_nb_samples;
                 SDL_OpenAudio(&obj->wanted_spec, NULL);
             }
-
-            while (obj->audio_len > 0)//Wait until finish
+            //printf("audio_play_frame_mix: 1: obj->audio_len=%d \n", obj->audio_len);
+            while (obj->audio_len > 0 && glob_sld_status != 2)//Wait until finish
             {
                 SDL_Delay(1);
+                //printf("audio_play_frame_mix: 2: obj->audio_len=%d \n", obj->audio_len);
+                //printf("audio_play_frame_mix: 2: glob_sld_status=%d \n", glob_sld_status);
+
             }
+            //printf("audio_play_frame_mix: 3: obj->audio_len=%d \n", obj->audio_len);
+            obj->mix_num = mix_num;
             //printf("audio_play_frame: ok \n");
 
             //obj->audio_len = obj->out_buffer_size;
@@ -577,6 +599,11 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
             //obj->audio_pos[0] = indata[0];
             //obj->audio_pos = obj->audio_frame->data[0];
             obj->audio_len = obj->out_buffer_size;
+            //obj->mix_num = mix_num;
+            //printf("audio_play_frame_mix: obj->out_buffer_size=%d \n", obj->out_buffer_size);
+            //printf("audio_play_frame_mix: out_framesize=%d \n", out_framesize);
+
+            //printf("audio_play_frame_mix: obj=%x \n", obj);
         }
 
         //av_free(obj->audio_frame);//test
@@ -613,7 +640,7 @@ static int main_test(int argc, char* argv[])
     FILE *pFile = NULL;
     char url[] = "rtmp://live.hkstv.hk.lxdns.com/live/hks";
 
-    av_register_all();
+    ///av_register_all();
     avformat_network_init();
     pFormatCtx = avformat_alloc_context();
 

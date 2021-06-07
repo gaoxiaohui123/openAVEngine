@@ -5,7 +5,6 @@ import sys
 import os
 import shutil
 import time
-import cv2
 import threading
 
 #import matplotlib.pyplot as plt # plt 用于显示图片
@@ -61,6 +60,7 @@ class CallAudioCodec(object):
         if type > 0:
             filename = "aac_" + "decode_" + str(id) + ".pcm"
         self.filename = "/home/gxh/works/" + filename
+        self.filename = "./" + filename
         self.filename = ""
 
         self.out_sample_rate = 48000
@@ -73,7 +73,7 @@ class CallAudioCodec(object):
         if type > 0:
             self.init()
         ###
-        self.mtu_size = 300
+        self.mtu_size = 800#300
         self.start_time = 0
         self.last_timestamp = 0
         self.min_distance = 1
@@ -130,7 +130,9 @@ class CallAudioCodec(object):
             ###
             self.outparam[0] = b""
             ret = self.load.lib.api_audio_codec_one_frame(self.handle, data, param_str, self.outbuf, self.outparam)
-
+            #print("CallAudioCodec: ret= ", ret)
+            #if self.codec_type > 0:
+            #    print("codecframe: ret=", ret)
         return (ret, self.outbuf, self.outparam)
 
     def codecclose(self):
@@ -161,13 +163,13 @@ class CallAudioCodec(object):
                 print("(timestamp, self.last_timestamp)= ", (timestamp, self.last_timestamp))
             self.last_timestamp = timestamp
         return timestamp
-    def reset_seqnum(self, data):
-        #ret = -1
-        #self.lock.acquire()
-        self.fec_seqnum = self.load.lib.api_audio_reset_seqnum(self.handle, data, len(data), self.fec_seqnum)
-        ret = self.fec_seqnum
-        #self.lock.release()
-        return ret
+    #def reset_seqnum(self, data):
+    #    #ret = -1
+    #    #self.lock.acquire()
+    #    self.fec_seqnum = self.load.lib.api_audio_reset_seqnum(self.handle, data, len(data), self.fec_seqnum)
+    #    ret = self.fec_seqnum
+    #    #self.lock.release()
+    #    return ret
     def rtppacket(self, data, insize):
         ret = 0
         if insize > 0:

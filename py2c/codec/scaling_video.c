@@ -32,7 +32,7 @@
 
 extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
-extern char* GetvalueStr(cJSON *json, char *key);
+extern char* GetvalueStr(cJSON *json, char *key, char *result);
 extern cJSON* deleteJson(cJSON *json);
 
 static void fill_yuv_image(uint8_t *data[4], int linesize[4],
@@ -53,7 +53,7 @@ static void fill_yuv_image(uint8_t *data[4], int linesize[4],
         }
     }
 }
-int FFScale(ScaleObj *scale)
+int FFScaleFrame0(ScaleObj *scale)
 {
     int ret = 0;
     //uint8_t *src_data = scale->src_data;
@@ -165,7 +165,8 @@ int api_scale_init(char *handle, char *param)
     obj->src_linesize[3] = 0;
     obj->src_w = GetvalueInt(obj->json, "src_w");
     obj->src_h = GetvalueInt(obj->json, "src_h");
-    char *dst_size = GetvalueStr(obj->json, "dst_size");
+    char dst_size[64] = "";
+    GetvalueStr(obj->json, "dst_size", dst_size);
 	if (strcmp(dst_size, ""))
 	{
        obj->dst_size = dst_size;
@@ -175,7 +176,8 @@ int api_scale_init(char *handle, char *param)
     obj->dst_pix_fmt = GetvalueInt(obj->json, "dst_pix_fmt");
     obj->scale_mode = GetvalueInt(obj->json, "scale_mode");
 #else
-    char *src_pix_fmt = GetvalueStr(json, "src_pix_fmt");
+    char src_pix_fmt[64] = "";
+    GetvalueStr(json, "src_pix_fmt", src_pix_fmt);
 	if (strcmp(src_pix_fmt, ""))
 	{
         if (!strcmp(src_pix_fmt, "AV_PIX_FMT_YUV420P"))
@@ -195,7 +197,8 @@ int api_scale_init(char *handle, char *param)
             obj->src_pix_fmt = AV_PIX_FMT_RGB24;
         }
 	}
-	char *dst_pix_fmt = GetvalueStr(json, "dst_pix_fmt");
+	char dst_pix_fmt[64] = "";
+	GetvalueStr(json, "dst_pix_fmt", dst_pix_fmt);
 	if (strcmp(dst_pix_fmt, ""))
 	{
         if (!strcmp(dst_pix_fmt, "AV_PIX_FMT_YUV420P"))
@@ -207,7 +210,8 @@ int api_scale_init(char *handle, char *param)
             obj->dst_pix_fmt = AV_PIX_FMT_RGB24;
         }
 	}
-	char *scale_mode = GetvalueStr(json, "scale_mode");
+	char scale_mode[64] = "";
+	GetvalueStr(json, "scale_mode", scale_mode);
 	if (strcmp(scale_mode, ""))
 	{
         if (!strcmp(scale_mode, "SWS_FAST_BILINEAR"))
@@ -277,12 +281,14 @@ int api_ff_scale(int id, char *data, char *param, char *outbuf, char *outparam[]
     scale.src_linesize[3] = 0;
     scale.src_w = GetvalueInt(json, "src_w");
     scale.src_h = GetvalueInt(json, "src_h");
-    char *dst_size = GetvalueStr(json, "dst_size");
+    char dst_size[64] = "";
+    GetvalueStr(json, "dst_size", dst_size);
 	if (strcmp(dst_size, ""))
 	{
        scale.dst_size = dst_size;
 	}
-    char *src_pix_fmt = GetvalueStr(json, "src_pix_fmt");
+    char src_pix_fmt[64] = "";
+    GetvalueStr(json, "src_pix_fmt", src_pix_fmt);
 	if (strcmp(src_pix_fmt, ""))
 	{
         if (!strcmp(src_pix_fmt, "AV_PIX_FMT_YUV420P"))
@@ -302,7 +308,8 @@ int api_ff_scale(int id, char *data, char *param, char *outbuf, char *outparam[]
             scale.src_pix_fmt = AV_PIX_FMT_RGB24;
         }
 	}
-	char *dst_pix_fmt = GetvalueStr(json, "dst_pix_fmt");
+	char dst_pix_fmt[64] = "";
+	GetvalueStr(json, "dst_pix_fmt", dst_pix_fmt);
 	if (strcmp(dst_pix_fmt, ""))
 	{
         if (!strcmp(dst_pix_fmt, "AV_PIX_FMT_YUV420P"))
@@ -314,7 +321,8 @@ int api_ff_scale(int id, char *data, char *param, char *outbuf, char *outparam[]
             scale.dst_pix_fmt = AV_PIX_FMT_RGB24;
         }
 	}
-	char *scale_mode = GetvalueStr(json, "scale_mode");
+	char scale_mode[64] = "";
+	GetvalueStr(json, "scale_mode", scale_mode);
 	if (strcmp(scale_mode, ""))
 	{
         if (!strcmp(scale_mode, "SWS_FAST_BILINEAR"))
@@ -365,10 +373,11 @@ int api_ff_scale(int id, char *data, char *param, char *outbuf, char *outparam[]
 
     //int src_w = GetvalueInt(json, "src_w");
     scale.sws_ctx = NULL;
-    ret = FFScale(&scale);
+    ret = FFScaleFrame0(&scale);
     deleteJson(json);
     return ret;
 }
+#if 0
 int main(int argc, char **argv)
 {
     uint8_t *src_data[4], *dst_data[4];
@@ -458,3 +467,4 @@ end:
     sws_freeContext(sws_ctx);
     return ret < 0;
 }
+#endif

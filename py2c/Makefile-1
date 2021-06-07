@@ -1,0 +1,313 @@
+#for win32 libwebrtc.a
+
+PWD := $(shell pwd)
+SRC_ROOT = $(PWD)/../../../svc_webrtc/bizconf_rtc_endpoint/webrtc-checkout/src
+
+
+# 1、准备工作，编译方式、目标文件名、依赖库路径的定义。
+# 目标文件名
+BIN = libwebrtc_base.so
+#BIN = ../ffmpeg-linux/mylib-win/libwebrtc_base.a
+TARGET = ../ffmpeg-linux/mylib-win/libwebrtc_base.a
+CC = gcc  
+CPP = g++
+AR  = ar
+
+#这里只加入库头文件路径及库路径  
+INCS = -I/D/msys64/mingw32/include \
+-I/D/msys64/mingw32/i686-w64-mingw32/include \
+-I$(SRC_ROOT) \
+-I$(SRC_ROOT)/third_party \
+-I$(SRC_ROOT)/third_party/googletest/src/googlemock/include \
+-I$(SRC_ROOT)/third_party/googletest/src/googletest/include \
+-I$(SRC_ROOT)/third_party/abseil-cpp \
+-I$(SRC_ROOT)/third_party/libyuv/include  
+
+LIBS = -L/D/msys64/mingw32/lib \
+-L/D/msys64/mingw32/i686-w64-mingw32/lib \
+-L/usr/lib  
+SUBDIRS =  
+#生成依赖信息时的搜索目录，比如到下列目录中搜索一个依赖文件(比如.h文件)，例如 -I"./***/" -I"./base/"  
+DEFINC =  
+#给INCS加上依赖搜索路径，分开写可能会产生不一致情况，而且繁琐  
+INCS += $(DEFINC)  
+
+#maintest.c tree/rbtree.c  多了子目录，那就直接添加 目录/*.c即可   所有的源文件--  .c文件列表  
+CSRCS = $(wildcard $(SRC_ROOT)/modules/third_party/fft/fft.c \
+$(SRC_ROOT)/common_audio/third_party/fft4g/fft4g.c \
+$(SRC_ROOT)/common_audio/third_party/spl_sqrt_floor/spl_sqrt_floor.c \
+$(SRC_ROOT)/common_audio/signal_processing/auto_corr_to_refl_coef.c \
+$(SRC_ROOT)/common_audio/signal_processing/auto_correlation.c \
+$(SRC_ROOT)/common_audio/signal_processing/complex_bit_reverse.c \
+$(SRC_ROOT)/common_audio/signal_processing/complex_fft.c \
+$(SRC_ROOT)/common_audio/signal_processing/copy_set_operations.c \
+$(SRC_ROOT)/common_audio/signal_processing/cross_correlation.c \
+$(SRC_ROOT)/common_audio/signal_processing/division_operations.c \
+$(SRC_ROOT)/common_audio/signal_processing/downsample_fast.c \
+$(SRC_ROOT)/common_audio/signal_processing/energy.c \
+$(SRC_ROOT)/common_audio/signal_processing/filter_ar_fast_q12.c \
+$(SRC_ROOT)/common_audio/signal_processing/filter_ar.c \
+$(SRC_ROOT)/common_audio/signal_processing/filter_ma_fast_q12.c \
+$(SRC_ROOT)/common_audio/signal_processing/get_hanning_window.c \
+$(SRC_ROOT)/common_audio/signal_processing/get_scaling_square.c \
+$(SRC_ROOT)/common_audio/signal_processing/ilbc_specific_functions.c \
+$(SRC_ROOT)/common_audio/signal_processing/levinson_durbin.c \
+$(SRC_ROOT)/common_audio/signal_processing/lpc_to_refl_coef.c \
+$(SRC_ROOT)/common_audio/signal_processing/min_max_operations.c \
+$(SRC_ROOT)/common_audio/signal_processing/randomization_functions.c \
+$(SRC_ROOT)/common_audio/signal_processing/real_fft.c \
+$(SRC_ROOT)/common_audio/signal_processing/refl_coef_to_lpc.c \
+$(SRC_ROOT)/common_audio/signal_processing/resample_48khz.c \
+$(SRC_ROOT)/common_audio/signal_processing/resample_by_2_internal.c \
+$(SRC_ROOT)/common_audio/signal_processing/resample_by_2.c \
+$(SRC_ROOT)/common_audio/signal_processing/resample_fractional.c \
+$(SRC_ROOT)/common_audio/signal_processing/resample.c \
+$(SRC_ROOT)/common_audio/ring_buffer.c \
+$(SRC_ROOT)/common_audio/signal_processing/spl_init.c \
+$(SRC_ROOT)/common_audio/signal_processing/spl_inl.c \
+$(SRC_ROOT)/common_audio/signal_processing/spl_sqrt.c \
+$(SRC_ROOT)/common_audio/signal_processing/splitting_filter.c \
+$(SRC_ROOT)/common_audio/signal_processing/sqrt_of_one_minus_x_squared.c \
+$(SRC_ROOT)/common_audio/vad/vad_core.c \
+$(SRC_ROOT)/common_audio/vad/vad_filterbank.c \
+$(SRC_ROOT)/common_audio/vad/vad_gmm.c \
+$(SRC_ROOT)/common_audio/vad/vad_sp.c \
+$(SRC_ROOT)/common_audio/signal_processing/vector_scaling_operations.c \
+$(SRC_ROOT)/common_audio/vad/webrtc_vad.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/filter_functions.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/isac_vad.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/pitch_estimator.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/pitch_filter.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/arith_routines_hist.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/arith_routines_logist.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/arith_routines.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/bandwidth_estimator.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/crc.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/decode_bwe.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/decode.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/encode_lpc_swb.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/encode.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/entropy_coding.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/filterbanks.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/intialize.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/isac.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/lattice.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/lpc_analysis.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/lpc_gain_swb_tables.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/lpc_shape_swb12_tables.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/lpc_shape_swb16_tables.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/lpc_tables.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/pitch_gain_tables.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/pitch_lag_tables.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/spectrum_ar_model_tables.c \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/transform.c)
+
+CPPSRCS = $(wildcard $(SRC_ROOT)/rtc_base/platform_file.cc \
+$(SRC_ROOT)/rtc_base/memory/aligned_malloc.cc \
+$(SRC_ROOT)/rtc_base/checks.cc \
+$(SRC_ROOT)/rtc_base/race_checker.cc \
+$(SRC_ROOT)/rtc_base/platform_thread_types.cc \
+$(SRC_ROOT)/rtc_base/event_tracer.cc \
+$(SRC_ROOT)/rtc_base/critical_section.cc \
+$(SRC_ROOT)/rtc_base/logging.cc \
+$(SRC_ROOT)/rtc_base/time_utils.cc \
+$(SRC_ROOT)/rtc_base/platform_thread.cc \
+$(SRC_ROOT)/rtc_base/event.cc \
+$(SRC_ROOT)/rtc_base/thread_checker_impl.cc \
+$(SRC_ROOT)/rtc_base/strings/string_builder.cc \
+$(SRC_ROOT)/rtc_base/string_encode.cc \
+$(SRC_ROOT)/rtc_base/string_to_number.cc \
+$(SRC_ROOT)/rtc_base/string_utils.cc \
+$(SRC_ROOT)/system_wrappers/source/metrics.cc \
+$(SRC_ROOT)/system_wrappers/source/cpu_features.cc \
+$(SRC_ROOT)/system_wrappers/source/cpu_info.cc \
+$(SRC_ROOT)/system_wrappers/source/field_trial.cc \
+$(SRC_ROOT)/third_party/rnnoise/src/kiss_fft.cc \
+$(SRC_ROOT)/third_party/rnnoise/src/rnn_vad_weights.cc \
+$(SRC_ROOT)/third_party/abseil-cpp/absl/types/bad_optional_access.cc \
+$(SRC_ROOT)/third_party/abseil-cpp/absl/base/internal/raw_logging.cc \
+$(SRC_ROOT)/third_party/libyuv/source/compare_common.cc \
+$(SRC_ROOT)/third_party/libyuv/source/compare_gcc.cc \
+$(SRC_ROOT)/third_party/libyuv/source/compare.cc \
+$(SRC_ROOT)/third_party/libyuv/source/convert_argb.cc \
+$(SRC_ROOT)/third_party/libyuv/source/convert_from_argb.cc \
+$(SRC_ROOT)/third_party/libyuv/source/convert_from.cc \
+$(SRC_ROOT)/third_party/libyuv/source/convert_jpeg.cc \
+$(SRC_ROOT)/third_party/libyuv/source/convert_to_argb.cc \
+$(SRC_ROOT)/third_party/libyuv/source/convert_to_i420.cc \
+$(SRC_ROOT)/third_party/libyuv/source/convert.cc \
+$(SRC_ROOT)/third_party/libyuv/source/cpu_id.cc \
+$(SRC_ROOT)/third_party/libyuv/source/mjpeg_decoder.cc \
+$(SRC_ROOT)/third_party/libyuv/source/mjpeg_validate.cc \
+$(SRC_ROOT)/third_party/libyuv/source/planar_functions.cc \
+$(SRC_ROOT)/third_party/libyuv/source/rotate_any.cc \
+$(SRC_ROOT)/third_party/libyuv/source/rotate_argb.cc \
+$(SRC_ROOT)/third_party/libyuv/source/rotate_common.cc \
+$(SRC_ROOT)/third_party/libyuv/source/rotate_gcc.cc \
+$(SRC_ROOT)/third_party/libyuv/source/rotate.cc \
+$(SRC_ROOT)/third_party/libyuv/source/row_any.cc \
+$(SRC_ROOT)/third_party/libyuv/source/row_common.cc \
+$(SRC_ROOT)/third_party/libyuv/source/row_gcc.cc \
+$(SRC_ROOT)/third_party/libyuv/source/scale_any.cc \
+$(SRC_ROOT)/third_party/libyuv/source/scale_argb.cc \
+$(SRC_ROOT)/third_party/libyuv/source/scale_common.cc \
+$(SRC_ROOT)/third_party/libyuv/source/scale_gcc.cc \
+$(SRC_ROOT)/third_party/libyuv/source/scale.cc \
+$(SRC_ROOT)/third_party/libyuv/source/video_common.cc \
+$(SRC_ROOT)/api/video/i420_buffer.cc \
+$(SRC_ROOT)/api/video/color_space.cc \
+$(SRC_ROOT)/api/video/hdr_metadata.cc \
+$(SRC_ROOT)/api/video/video_content_type.cc \
+$(SRC_ROOT)/api/video/video_frame_buffer.cc \
+$(SRC_ROOT)/api/video/video_frame.cc \
+$(SRC_ROOT)/api/video/video_source_interface.cc \
+$(SRC_ROOT)/api/video/video_timing.cc \
+$(SRC_ROOT)/common_video/i420_buffer_pool.cc \
+$(SRC_ROOT)/api/audio/audio_frame.cc \
+$(SRC_ROOT)/api/audio/echo_canceller3_config.cc \
+$(SRC_ROOT)/api/audio_codecs/audio_encoder.cc \
+$(SRC_ROOT)/api/audio_codecs/audio_decoder.cc \
+$(SRC_ROOT)/audio/utility/audio_frame_operations.cc \
+$(SRC_ROOT)/common_audio/audio_converter.cc \
+$(SRC_ROOT)/common_audio/audio_util.cc \
+$(SRC_ROOT)/common_audio/channel_buffer.cc \
+$(SRC_ROOT)/common_audio/resampler/push_resampler.cc \
+$(SRC_ROOT)/common_audio/resampler/push_sinc_resampler.cc \
+$(SRC_ROOT)/common_audio/real_fourier_ooura.cc \
+$(SRC_ROOT)/common_audio/real_fourier.cc \
+$(SRC_ROOT)/common_audio/resampler/resampler.cc \
+$(SRC_ROOT)/common_audio/resampler/sinc_resampler.cc \
+$(SRC_ROOT)/common_audio/smoothing_filter.cc \
+$(SRC_ROOT)/common_audio/sparse_fir_filter.cc \
+$(SRC_ROOT)/common_audio/vad/vad.cc \
+$(SRC_ROOT)/common_audio/wav_file.cc \
+$(SRC_ROOT)/common_audio/wav_header.cc \
+$(SRC_ROOT)/common_audio/window_generator.cc \
+$(SRC_ROOT)/common_audio/signal_processing/dot_product_with_scale.cc \
+$(SRC_ROOT)/common_audio/fir_filter_sse.cc \
+$(SRC_ROOT)/common_audio/resampler/sinc_resampler_sse.cc \
+$(SRC_ROOT)/common_audio/fir_filter_c.cc \
+$(SRC_ROOT)/common_audio/fir_filter_factory.cc \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/audio_decoder_isac.cc \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/main/source/audio_encoder_isac.cc \
+$(SRC_ROOT)/modules/audio_coding/codecs/isac/locked_bandwidth_info.cc) 
+
+
+
+CSRCS_2 = $(SRC_ROOT)/modules/third_party/fft/fft.c
+CPPSRCS_2 = $(SRC_ROOT)/rtc_base/platform_file.cc
+
+#所有的.o文件列表 
+COBJS := $(CSRCS:.c=.o)
+CPPOBJS := $(CPPSRCS:.cc=.o)
+
+#  
+#生成依赖信息 -MM是只生成自己的头文件信息，-M 包含了标准库头文件信息。  
+#-MT 或 -MQ都可以改变生成的依赖  xxx.o:src/xxx.h 为 src/xxx.o:src/xxx.h 当然。前面的 src/xxx.o需自己指定  
+#格式为 -MM 输入.c或.cpp  查找依赖路径  -MT或-MQ  生成规则，比如src/xxx.o  
+#MAKEDEPEND = gcc -MM -MT
+
+#-g 生成调试信息  
+#-pedantic参数与-ansi一起使用 会自动拒绝编译非ANSI程序  
+#-fomit-frame-pointer 去除函数框架  
+#-Wmissing-prototypes -Wstrict-prototypes 检查函数原型 
+CFLAGS += $(INCS) 
+#-Wall -O3 -std=c++0x 
+#-O2 -Wall -fomit-frame-pointer -g -ansi
+CFLAGS  += -O2 -Wall -g -fPIC \
+-D WEBRTC_WIN \
+-D WEBRTC_NS_FLOAT \
+-D WEBRTC_APM_DEBUG_DUMP=0 \
+-D MSYS2_GXH \
+-mavx \
+-fpermissive \
+-mmmx \
+-msse \
+-msse2 \
+-mssse3 \
+-msse4.1 \
+-msse4.2 \
+-msse4
+
+CPPFLAGS += $(INCS)  
+CPPFLAGS += -O2 -Wall -g -fPIC \
+-D WEBRTC_WIN \
+-D WEBRTC_NS_FLOAT \
+-D WEBRTC_APM_DEBUG_DUMP=0 \
+-D MSYS2_GXH \
+-mavx \
+-fpermissive \
+-mmmx \
+-msse \
+-msse2 \
+-mssse3 \
+-msse4.1 \
+-msse4.2 \
+-msse4
+
+LDFLAGS += -shared -fPIC -lm -lrt -lz -lstdc++ -lwinmm
+ 
+#针对每个.c文件的.d依赖文件列表  
+#CDEF = $(CSRCS:.c=.d)  
+#CPPDEF = $(CPPSRCS:.cc=.d) 
+
+
+all: $(TARGET) 
+    
+#生成.o的对自己目录中.h .c的依赖信息.d文件到.c所在的路径中  
+#$(DEF)文件是.d文件名列表(含目录)，比如tree.d 匹配成功那么%就是tree，然后在尝试%.c，如果成功。则执行规则  
+# $(<:.c=.o)是获取此.c文件的名字(含路径)，然后变为.o比如 src/xxx.o。 以形成如下  
+# src/xxx.o : src/xxx.c ***.h  ***.h  最前面！！注意。    
+# 此做法是每个.d都和生成他的.c在一个目录里，所以需要这样做。  
+# $(<:.c=.o)之类的 。此时的<相当于变量$< 。切记  
+# : : :  含义同下  
+#$(CDEF) : %.d : %.c  
+#	$(MAKEDEPEND) $(<:.c=.o) $< $(DEFINC) > $@  
+#$(CPPDEF) : %.d : %.cc  
+#	$(MAKEDEPEND) $(<:.cc=.o) $< $(DEFINC) > $@ 
+	
+#先删除依赖信息  
+#重新生成依赖信息  
+#这里出现了一个 $(MAKE) 没有定义的变量。这个变量是由 Make 自己定义的，它的值即为自己的位置，方便 Make 递归调用自己。  
+#depend:  
+#	rm $(CDEF)  
+#	rm $(CPPDEF)  
+#	$(MAKE) $(CDEF)  
+#	$(MAKE) $(CPPDEF)  
+
+#$(OBJS):%.o :%.c  先用$(OBJS)中的一项，比如foo.o: %.o : %.c  含义为:试着用%.o匹配foo.o。如果成功%就等于foo。如果不成功，  
+# Make就会警告，然后。给foo.o添加依赖文件foo.c(用foo替换了%.c里的%)  
+# 也可以不要下面的这个生成规则，因为下面的 include $(DEF)  就隐含了。此处为了明了，易懂。故留着  
+$(COBJS) : %.o: %.c  
+	$(CC) -c $< -o $@ $(CFLAGS)  
+$(CPPOBJS) : %.o: %.cc  
+	$(CPP) -c $< -o $@ $(CPPFLAGS)  
+
+
+# $@--目标文件，$^--所有的依赖文件，$<--第一个依赖文件。每次$< $@ 代表的值就是列表中的  
+#  
+$(TARGET) : $(COBJS) $(CPPOBJS)  
+	#$(CC) -o $(BIN) $(COBJS) $(CPPOBJS) $(LDFLAGS) $(LIBS)  
+	ar rcs $(TARGET) $^
+	rm $(COBJS)
+	rm $(CPPOBJS)
+#	rm $(CDEF)  
+#	rm $(CPPDEF)  
+# 链接为最终目标  
+  
+  
+#引入了.o文件对.c和.h的依赖情况。以后.h被修改也会重新生成，可看看.d文件内容即知道为何  
+#引入了依赖就相当于引入了一系列的规则，因为依赖内容例如： 目录/xxx.o:目录/xxx.c 目录/xxx.h 也相当于隐含的引入了生成规则  
+#故上面不能在出现如： $(OBJS) : $(DEF)之类。切记  
+#include $(CDEF)  
+#include $(CPPDEF)  
+.PHONY:clean cleanall  
+  
+#清除所有目标文件以及生成的最终目标文件  
+clean:              
+	rm $(TARGET) $(COBJS) $(CPPOBJS)  
+#rm *.d  
+cleanall:  
+	#rm $(CDEF) $(CPPDEF)  
+	rm  $(COBJS) $(CPPOBJS)
+	#$(TARGET)

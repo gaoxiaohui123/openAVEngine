@@ -15,11 +15,13 @@ import random
 import string
 import inspect
 import ctypes
+import platform
 
 from mysdl import * #pip install PySDL2
 import loadlib
+import broadcast
 
-from sdl2 import *
+#from sdl2 import *
 if sys.version_info >= (3, 0):
     import tkinter as tk
     from tkinter import *
@@ -38,7 +40,7 @@ import random, ctypes
 # import Tkinter.messagebox
 import pickle
 # from tux import Image_sys   #调用文件tux
-#from PIL import ImageTk, Image
+from PIL import ImageTk, Image
 
 
 from PIL import Image
@@ -49,6 +51,8 @@ from session import AVSession as session
 
 
 
+sys.path.append(".")
+
 #refer to:
 # https://blog.csdn.net/ahilll/article/details/81531587
 # https://vlight.me/2017/12/04/Layout-Management/
@@ -56,6 +60,15 @@ from session import AVSession as session
 SCREEN_WIDTH = 1920
 SCREEN_HEIGHT = 1080
 
+def loadimg(filename):
+    imagefile = tk.PhotoImage(file=filename)
+    #img = Image.open(filename)
+    #img = img.resize((20, 20))
+    #imagefile = ImageTk.PhotoImage(img)
+    return imagefile
+def loadimgsub(filename, x, y):
+    imagefile = tk.PhotoImage(file=filename).subsample(x, y)
+    return imagefile
 
 def json2str(jsonobj):
     if sys.version_info >= (3, 0):
@@ -102,7 +115,7 @@ class JsonFile(object):
             print("JsonFile: readfile: no exists: self.filename= ", self.filename)
             return None
         data = None
-        with open(self.filename, 'r') as f:
+        with open(self.filename, 'r',errors ='ignore') as f:
             filedata = f.read()
             if sys.version_info >= (3, 0):
                 filedata = filedata.encode(encoding='utf-8').decode(encoding='utf-8', errors='strict')
@@ -133,7 +146,7 @@ class PyLogin(object):
         window.geometry('690x500')
         # 画布放置图片
         canvas = tk.Canvas(window, height=400, width=800)
-        imagefile = tk.PhotoImage(file='./icon/hc.png')
+        imagefile = loadimg('icon/hc.png')
         image = canvas.create_image(0, 0, anchor='nw', image=imagefile)
         canvas.pack(side='top')
         # `在这里插入代码片`
@@ -595,7 +608,10 @@ class ExternalSDL(threading.Thread):
                             self.preview.input_format = "raw"
                             (screen_width, screen_height, cap_width, cap_height) = (SCREEN_WIDTH, SCREEN_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT)
                         else:
-                            pass
+                            print("creat_preview: scapture= ", scapture)
+                            self.preview.input_name = "dshow"
+                            self.preview.device_name = scapture
+                            self.preview.input_format = "mjpeg"
             control = self.json.dict.get("control")
             general = self.json.dict.get("general")
             print("creat_preview: ", (screen_width, screen_height, cap_width, cap_height))
@@ -655,7 +671,7 @@ class ClientFrame(object):
         self.canvas = None
         self.session = None
         self.status = True
-        self.imagefile = tk.PhotoImage(file='icon/hc_2.png')
+        self.imagefile = loadimg('icon/hc_2.png')
         self.framelist = []
         #self.lock = threading.Lock()
     def __del__(self):
@@ -672,7 +688,11 @@ class ClientFrame(object):
     def enter_meeting(self):
         self.exit_meeting()
         time.sleep(1)
-        self.openFrame(1, 0)
+        self.openFrame(2, 0)
+    def watch_meeting(self):
+        self.exit_meeting()
+        time.sleep(1)
+        self.openFrame(3, 0)
     def cap_preview(self, deviceId):
         self.exit_preview()
         time.sleep(1)
@@ -705,6 +725,7 @@ class ClientFrame(object):
     def exit_meeting(self):
         if self.meeting_frame != None:
             self.meeting_frame.withdraw()
+            self.parent.SayBy(0)
         if True:
             count = 0
             status = 0
@@ -780,7 +801,7 @@ class ClientFrame(object):
                             status = self.preview.get_status()
                         else:
                             status = 0
-                    elif type in [1]:
+                    elif type in [1, 2, 3]:
                         if self.session != None:
                             status = self.session.get_status()
                         else:
@@ -812,10 +833,11 @@ class ClientFrame(object):
                 self.meeting_frame = tk.Toplevel()
                 #self.meeting_frame = SubWindow(self.parent.root)
                 self.meeting_frame.title("欢迎进入会畅SVC调试系统")
+                #self.meeting_frame.resizable(0, 0)  # 禁止调整窗口大小
                 str_resolution = str(self.parent.width) + "x" + str(self.parent.height)
                 self.meeting_frame.geometry(str_resolution)  # "1280x720"
                 self.canvas = tk.Canvas(self.meeting_frame, height=self.parent.height, width=self.parent.width)
-                # self.image_2 = \
+                # self.image_2 =
                 self.canvas.create_image(0, 0, anchor='nw', image=self.imagefile)
                 self.canvas.pack(side='top')
                 self.meeting_frame.protocol("WM_DELETE_WINDOW", self.on_meeting_closing)
@@ -851,11 +873,12 @@ class ClientFrame(object):
                 self.preview.set_winid(self.winid)
                 self.preview.set_status(1)
                 self.preview.resume()
-            elif type in [1]:
+            elif type in [1, 2, 3]:
                 if self.session == None:
                     print("openFrame: create session")
                     params = self.parent.config_frame.json.dict
-                    self.session = session(self.winid, params)
+                    isCreater = type == 1
+                    self.session = session(self.winid, params, self.parent.nettime, self.parent.width, self.parent.height, isCreater)
                     #self.session = session(0, params)
                     self.session.start()
                 ###self.session.set_winid(self.winid)
@@ -1167,7 +1190,7 @@ class ConfigGeneralFrame(object):
                     name = str(id)
                     imgname = 'mm' + str(id)
                     imgpath = 'icon/' + imgname + '.png'
-                    splitimage = tk.PhotoImage(file=imgpath)
+                    splitimage = loadimg(imgpath)
                     self.imglist.append(splitimage)
                     #self.subFrame = ttk.LabelFrame(self.splitFrame0, text=name, width=w2, height=h2)
                     #self.subFrame.place(x=orgx, y=orgy)
@@ -1479,6 +1502,90 @@ class ConfigGeneralFrame(object):
         self.selectFloat.place(x=orgx1, y=orgy)
         self.float.set(floatValue)
         orgy += step
+
+        #
+        orgx1 = 0
+        self.selfmode = tk.IntVar()
+        selfmodeValue = 0
+        if suppramsDict != None:
+            selfmode = suppramsDict.get("selfmode")
+            if selfmode != None:
+                selfmodeValue = selfmode
+
+        self.selectSelfmode = tk.Checkbutton(otherSubFrame, text='自测模式', variable=self.selfmode, onvalue=7,
+                                          offvalue=0)  # 传值原理类似于radiobutton部件
+        self.selectSelfmode.place(x=orgx1, y=orgy)
+        self.selfmode.set(selfmodeValue)
+
+        orgx1 += 100
+        self.qualityfirst = tk.IntVar()
+        qualityfirstValue = 0
+        if suppramsDict != None:
+            qualityfirst = suppramsDict.get("qualityfirst")
+            if qualityfirst != None:
+                qualityfirstValue = qualityfirst
+
+        self.selectQualityfirst = tk.Checkbutton(otherSubFrame, text='质量优先（/流畅度优先）', variable=self.qualityfirst, onvalue=8,
+                                          offvalue=0)  # 传值原理类似于radiobutton部件
+        self.selectQualityfirst.place(x=orgx1, y=orgy)
+        self.qualityfirst.set(qualityfirstValue)
+
+        orgx1 += 150
+        self.song = tk.IntVar()
+        songValue = 0
+        if suppramsDict != None:
+            song = suppramsDict.get("song")
+            if song != None:
+                songValue = song
+
+        self.selectSong = tk.Checkbutton(otherSubFrame, text='K歌', variable=self.song,
+                                                 onvalue=9,
+                                                 offvalue=0)  # 传值原理类似于radiobutton部件
+        self.selectSong.place(x=orgx1, y=orgy)
+        self.song.set(songValue)
+
+        orgx1 += 70
+        self.stream = tk.IntVar()
+        streamValue = 0
+        self.default_dir3 = r"文件路径"
+        if suppramsDict != None:
+            stream = suppramsDict.get("stream")
+            if stream != None:
+                streamValue = stream.get("value")
+                self.default_dir3 = stream.get("name")
+
+        def streamEvent():
+            print("streamEvent")
+            v = self.stream.get()
+            print("streamEvent: v= ", v)
+            if v == 0:
+                if suppramsDict != None:
+                    if suppramsDict.get("stream") != None:
+                        del suppramsDict["stream"]
+                        #suppramsDict.pop()
+                return
+            print("streamEvent: default_dir3= ", self.default_dir3)
+            last_path = os.path.expanduser(self.default_dir3)
+            print("streamEvent: last_path= ", last_path)
+            last_dir = os.path.dirname(last_path)
+            print("streamEvent: last_dir= ", last_dir)
+            filetype = [("MP4", ".mp4"), ("FLV", ".flv"), ("MKV", ".mkv"), ("WEBM", ".webm")]
+            file_path = df.asksaveasfile(title=u'保存文件', filetypes = filetype,
+                                               initialdir=(os.path.expanduser(last_dir))) #, defaultextension = last_dir
+            #if file_path not in ["", ()] and os.path.exists(file_path):
+            if file_path is not None:
+                print("streamEvent: file_path.name= ", file_path.name)
+                if suppramsDict != None:
+                    suppramsDict["stream"] = {"value": self.stream.get(), "name": file_path.name}
+                    self.default_dir3 = suppramsDict["stream"].get("name")
+                #image = Image.open(file_path)
+                #plt.imshow(image)
+                #plt.show()
+
+        self.streamCompatible = tk.Checkbutton(otherSubFrame, text='录制', variable=self.stream, onvalue=2,
+                                                offvalue=0, command=streamEvent)  # 传值原理类似于radiobutton部件
+        self.streamCompatible.place(x=orgx1, y=orgy)
+        self.stream.set(streamValue)
         #
         def saveConfigPage():
             # self.parent.save_config()
@@ -1589,6 +1696,9 @@ class ConfigGeneralFrame(object):
         self.suppramsDict.update({"serverAddr": self.var_sever_add.get()})
         self.suppramsDict.update({"compatible": self.compatible.get()})
         self.suppramsDict.update({"osd": self.osd.get()})
+        self.suppramsDict.update({"selfmode": self.selfmode.get()})
+        self.suppramsDict.update({"qualityfirst": self.qualityfirst.get()})
+        self.suppramsDict.update({"encryp": self.encryp.get()})
         name = self.spatialLayerChosen.get()
         value = self.spatialLayerChosen.current()
         self.suppramsDict.update({"spatiallayer": {"name": name, "value": value}})
@@ -1850,7 +1960,7 @@ class ConfigControlFrame(object):
                     name = str(id)
                     imgname = 'mmm' + str(id)
                     imgpath = 'icon/' + imgname + '.png'
-                    splitimage = tk.PhotoImage(file=imgpath).subsample(2, 2)
+                    splitimage = loadimgsub(imgpath, 2, 2)##.subsample(2, 2)
                     self.imglist.append(splitimage)
                     #self.subFrame = ttk.LabelFrame(self.splitFrame0, text=name, width=w2, height=h2)
                     #self.subFrame.place(x=orgx, y=orgy)
@@ -2079,11 +2189,15 @@ class ConfigDeviceFrame(object):
         ttk.Label(frame30, text="麦克风", font=Font1, width=lsize).place(x=orgx, y=offsety)
         offsetx += fsize * lsize
         # 创建一个下拉列表
-        values = []
+        values = ["default"]
         print("CreateDevice: self.parent.audioInfolist= ", self.parent.audioInfolist)
         if len(self.parent.audioInfolist) > 0:
             for thisvalue in self.parent.audioInfolist:
                 values.append(str(thisvalue))
+        else:
+            values = ["default"]
+        if value >= len(values):
+            value = 0
         print("CreateDevice: values= ", values)
         self.audioDevice = tk.StringVar()
         self.audioDeviceChosen = ttk.Combobox(frame30, font=Font1, width=combSize, textvariable=self.audioDevice,
@@ -2369,6 +2483,8 @@ class ConfigDeviceFrame(object):
                             values.append(str(thisvalue[0]) + ":" + str(thisvalue2[0]))
                     else:
                         values.append(str(thisvalue[0]) + ":" + str(thisvalue[1][0][0]))
+                else:
+                    values.append(str(thisvalue))
         values.append("RTMP")
         values.append("RTSP")
         values.append("YUV")
@@ -2529,6 +2645,8 @@ class ConfigFrame(object):
         (self.screen_width, self.screen_height) = (self.parent.screen_width, self.parent.screen_height)
         print("ConfigFrame: self.videoInfolist= ", self.videoInfolist)
         print("ConfigFrame: self.audioInfolist= ", self.audioInfolist)
+        self.frame3 = None
+        self.selectSessionVar = 0
         self.iv0_0 = 0
         self.iv0 = tk.IntVar()
         self.json = parent.json #JsonFile("config.json")
@@ -2720,6 +2838,71 @@ class ConfigFrame(object):
         # self.config_btn_home = tk.Button(self.config_frame, text="home", image=self.config_image,
         #                          command=self.show)  # , width=50, height=30)
         # self.config_btn_home.place(x=0, y=0)
+
+    def session_selection(self):
+        v = self.sessionVar.get()
+        self.selectSessionVar = v
+        print("session_selection: v=", v)
+    def renew_session_info(self):
+        for child in self.frame3.winfo_children():
+            child.destroy()
+        (x0, y0, stepx, stepy) = (10, 10, 100, 30)
+        (fsize0, fsize) = (14, 10)
+        #ttk.Style().configure(".", font=("仿宋", fsize0))
+        Font1 = ("Arial", fsize)
+        #print("renew_session_info: len(self.parent.sessionInfoList)= ", len(self.parent.sessionInfoList))
+        self.sessionVar = tk.IntVar()
+        i = 1
+        keyList = list(self.parent.sessionInfoQueue.keys())
+        #for thisInfo in self.parent.sessionInfoList:
+        for key in keyList:
+            [modeId, note] = self.parent.sessionInfoQueue[key]
+            numId = i
+            #(avtype, sessionId, modeId, note, status) = thisInfo
+            self.var_num_id = tk.StringVar()
+            offsetx = x0
+            entry_num_id = tk.Entry(self.frame3, textvariable=self.var_num_id, state='disabled', width=13)
+            entry_num_id.place(x=offsetx, y=y0)
+            self.var_num_id.set(numId)
+
+            sessionId = key
+            self.var_session_id = tk.StringVar()
+            offsetx += stepx
+            entry_session_id = tk.Entry(self.frame3, textvariable=self.var_session_id, state='disabled', width = 13)
+            entry_session_id.place(x=offsetx, y=y0)
+            self.var_session_id.set(sessionId)
+
+            offsetx += stepx
+            self.var_mode_id = tk.StringVar()
+            entry_mode_id = tk.Entry(self.frame3, textvariable=self.var_mode_id, state='disabled', width = 13)
+            entry_mode_id.place(x=offsetx, y=y0)
+            self.var_mode_id.set(modeId)
+
+            offsetx += stepx
+            self.var_note_id = tk.StringVar()
+            entry_note_id = tk.Entry(self.frame3, textvariable=self.var_note_id, state='disabled', width = 13)
+            entry_note_id.place(x=offsetx, y=y0)
+            self.var_note_id.set(note)
+
+            offsetx += stepx
+            sessionValue = 0
+            #self.sessionVar = tk.IntVar()
+            self.selectSession = tk.Checkbutton(self.frame3, text='会议选择', font=Font1, variable=self.sessionVar, onvalue=i, offvalue=0,
+                                            command=self.session_selection)
+            self.selectSession.place(x=offsetx, y=y0)
+            self.sessionVar.set(sessionValue)
+            y0 += stepy
+            i += 1
+            #def enter_meeting():
+            #    print("enter_meeting")
+            #    pass
+            #offsetx += stepx
+            #image1 = tk.PhotoImage(file='icon/call.png').subsample(4, 5)
+            #self.bt_logup = tk.Button(self.frame3, text='加入', image=image1, command=enter_meeting, width=50,
+            #                          height=20)
+            #self.bt_logup.place(x=offsetx, y=y0)
+
+        self.frame3.update()
     def open_config_frame(self):
         #self.hide()
         if False:
@@ -2841,17 +3024,21 @@ class ConfigFrame(object):
 
             str_resolution = str(width0) + "x" + str(height0) + "+300+200"
             self.config_frame.geometry(str_resolution)  # "1280x720"
-            self.config_imagefile = tk.PhotoImage(file='icon/hc_2.png')  # .zoom(2)
+            self.config_imagefile = loadimg('icon/hc_2.png')  # .zoom(2)
 
             ttk.Style().configure(".", font=("仿宋", 12))
             tab = ttk.Notebook(self.config_frame)
 
+            self.frame3 = tk.Frame(tab, bg="gray")
+            tab3 = tab.add(self.frame3, text="会议中心")
             self.frame0 = tk.Frame(tab, bg="blue")
             tab0 = tab.add(self.frame0, text="设备管理")
             self.frame1 = tk.Frame(tab, bg="yellow")
             tab1 = tab.add(self.frame1, text="通用")
             self.frame2 = tk.Frame(tab, bg="green")
             tab2 = tab.add(self.frame2, text="媒体中心")
+
+            self.renew_session_info()
             #frame3 = tk.Frame(tab, bg="red")
             #tab3 = tab.add(frame3, text="高级调参")
             #frame4 = tk.Frame(tab, bg="white")
@@ -2864,6 +3051,8 @@ class ConfigFrame(object):
             self.config_canvas.pack(side='top')
 
             self.renew_config_frame()
+
+            tab.select(self.frame3)
 
             self.config_frame.update()
             self.config_frame.protocol("WM_DELETE_WINDOW", self.on_config_closing)
@@ -2913,7 +3102,9 @@ class Conference(object):
         print("Conference: (width, height)= ", (width, height))
         self.root = None
         self.popFrame = None
-        self.json = JsonFile("config.json")
+        self.json = JsonFile(loadlib.CONFIG_FILENAME)
+        if (platform.system() == 'Windows'):
+            self.json = JsonFile("config-win.json")
         data = self.json.readfile("")
         self.client = None #ClientFrame(self.root)
         self.config_frame = None
@@ -2921,11 +3112,104 @@ class Conference(object):
         (self.width, self.height) = (width, height) #(loadlib.WIDTH, loadlib.HEIGHT)
         self.videoInfolist = []
         self.audioInfolist = []
+        #self.sessionInfoList = []
+        self.sessionInfoQueue = {}
         (self.screen_width, self.screen_height) = (0, 0)
+        self.lock = threading.Lock()
+        ###
+        self.nettime = 0
+        self.video_broadcast = None
+        self.audio_broadcast = None
+        self.reset_broadcast()
     def __del__(self):
         print("Conference del")
+    def reset_broadcast(self):
+        ret = True
+        if self.video_broadcast != None:
+            self.video_broadcast.stop()
+        if self.audio_broadcast != None:
+            self.audio_broadcast.stop()
+        general = self.json.dict.get("general")
+        sup = general["supprams"]
+        serverAddr = sup["serverAddr"]
+        host = serverAddr.split(":")[0]
+        port = int(serverAddr.split(":")[1])
+        self.video_broadcast = broadcast.BroadCastThread(self, 0, host, port)
+        if self.video_broadcast.status:
+            self.nettime = self.video_broadcast.nettime
+            self.video_broadcast.start()
+        else:
+            self.video_broadcast = None
+            return False
+        self.audio_broadcast = broadcast.BroadCastThread(self, 1, host, port + 1)
+        if self.audio_broadcast.status:
+            self.nettime = self.video_broadcast.nettime
+            self.audio_broadcast.start()
+        else:
+            self.audio_broadcast = None
+            if self.video_broadcast != None:
+                self.video_broadcast.stop()
+                self.video_broadcast = None
+            return False
+        return ret
+    def SayBy(self, value):
+        if self.video_broadcast != None:
+            self.video_broadcast.SayBy(value)
+        if self.audio_broadcast != None:
+            self.audio_broadcast.SayBy(value)
+    def GetSessionInfo(self, idx):
+        ret = None
+        self.lock.acquire()
+        keyList = list(self.sessionInfoQueue.keys())
+        if (idx - 1) < len(keyList):
+            key = keyList[idx - 1]
+            [modeId, note] = self.sessionInfoQueue[key]
+            ret = (key, modeId, note)
+        self.lock.release()
+        return ret
+    def RenewSessionInfo(self, avtype, sessionId, modeId, note, status):
+        print("Conference: RenewSessionInfo: ", (avtype, sessionId, modeId, note, status))
+        self.lock.acquire()
+        if status == 0:
+            keyList = list(self.sessionInfoQueue.keys())
+            for key in keyList:
+                [modeId2, note2] = self.sessionInfoQueue[key]
+                sessionId2 = key
+                if sessionId2 == sessionId:
+                    del self.sessionInfoQueue[key]
+            #n = len(self.sessionInfoList)
+            #j = 0
+            #for i in range(n):
+            #    i -= j
+            #    print((i, len(self.sessionInfoList)))
+            #    if i >= len(self.sessionInfoList):
+            #        break
+            #    (avtype2, sessionId2, modeId2, note2, status2) = self.sessionInfoList[i]
+            #    if sessionId2 == sessionId:
+            #        del self.sessionInfoList[i]
+            #        j += 1
+            if self.config_frame != None:
+                if self.config_frame.frame3 != None:
+                    self.config_frame.renew_session_info()
+            keyList = list(self.sessionInfoQueue.keys())
+            print("Conference: RenewSessionInfo: keyList= ", keyList)
+        else:
+            #if (avtype, sessionId, modeId, note, status) not in self.sessionInfoList:
+            #    self.sessionInfoList.append((avtype, sessionId, modeId, note, status))
+            if sessionId not in self.sessionInfoQueue.keys():
+                self.sessionInfoQueue.update({sessionId:[modeId, note]})
+            if self.config_frame != None:
+                if self.config_frame.frame3 != None:
+                    self.config_frame.renew_session_info()
+
+        self.lock.release()
     def on_root_close(self):
         #self.hide()
+        self.SayBy(88)
+        if self.video_broadcast != None:
+            self.video_broadcast.stop()
+        if self.audio_broadcast != None:
+            self.audio_broadcast.stop()
         if self.config_frame != None:
             #self.config_frame.destroy()
             self.config_frame. on_config_closing()
@@ -2937,9 +3221,9 @@ class Conference(object):
         if self.popFrame != None:
             self.popFrame.destroy()
         self.root.destroy()
-        _unreachable = gc.collect()
-        print("unreachable object num:%d" % (_unreachable))
-        print("garbage object num:%d" % (len(gc.garbage)))
+        #_unreachable = gc.collect()
+        #print("unreachable object num:%d" % (_unreachable))
+        #print("garbage object num:%d" % (len(gc.garbage)))
 
     def hide(self):
         self.root.withdraw()
@@ -2992,7 +3276,7 @@ class Conference(object):
         #self.canvas = canvas
         #self.winid = canvas.winfo_id()
         #print("log_frame: self.winid= ", self.winid)
-        imagefile = tk.PhotoImage(file='./icon/hc.png')
+        imagefile = loadimg('icon/hc.png')
         image = canvas.create_image(0, 0, anchor='nw', image=imagefile)
         canvas.pack(side='top')
 
@@ -3049,31 +3333,37 @@ class Conference(object):
         # image = Image.open('icon/video_chat.png')
         # image = image.resize((40, 60), Image.ANTIALIAS)
         # image0 = tk.PhotoImage(image)
-        (orgx, stepx) = (200, 70)
-        image0 = tk.PhotoImage(file='icon/video_chat.png').subsample(3, 4)  # zoom(2, 2)
+        (orgx, stepx) = (120, 70)
+        image0 = loadimgsub('icon/video_chat.png', 3, 4)##.subsample(3, 4)  # zoom(2, 2)
         self.bt_login = tk.Button(self.root, text='创建', image=image0, command=self.create_meeting, width=50, height=30)
         self.bt_login.place(x=orgx, y=400)
         orgx += stepx
 
-        image1 = tk.PhotoImage(file='icon/call.png').subsample(3, 4)
+        image1 = loadimgsub('icon/call.png', 3, 4)##.subsample(3, 4)
         self.bt_logup = tk.Button(self.root, text='加入', image=image1, command=self.enter_meeting, width=50, height=30)
         self.bt_logup.place(x=orgx, y=400)
         orgx += stepx
 
-        image2 = tk.PhotoImage(file='icon/webcam.png').subsample(3, 4)
+        image2 = loadimgsub('icon/webcam.png', 3, 4)##.subsample(3, 4)
         self.bt_logquit = tk.Button(self.root, text='观看', image=image2, command=self.watch_meeting, width=50, height=30)
         self.bt_logquit.place(x=orgx, y=400)
         orgx += stepx
 
-        image3 = tk.PhotoImage(file='icon/exit.png').subsample(3, 4)
+        image3 = loadimgsub('icon/exit.png', 3, 4)##.subsample(3, 4)
         self.bt_exit = tk.Button(self.root, text='退出', image=image3, command=self.exit_meeting, width=50, height=30)
         self.bt_exit.place(x=orgx, y=400)
         orgx += stepx
 
-        image4 = tk.PhotoImage(file='icon/m16.png').subsample(3, 3)
+        image4 = loadimgsub('icon/m16.png', 3, 3)##.subsample(3, 3)
         self.bt_mode = tk.Button(self.root, text='模式', image=image4, command=self.reset_mode, width=50, height=30)
         self.bt_mode.place(x=orgx, y=400)
         orgx += stepx
+
+        image5 = loadimgsub('icon/isync.png', 3, 4)##.subsample(3, 4)
+        self.bt_polling = tk.Button(self.root, text='轮询', image=image5, command=self.polling, width=50, height=30)
+        self.bt_polling.place(x=orgx, y=400)
+        orgx += stepx
+
 
         #image4 = tk.PhotoImage(file='icon/config.png').subsample(3, 4)
         #self.bt_config = tk.Button(self.root, text='设置', image=image4, command=self.setting, width=50, height=30)
@@ -3086,8 +3376,8 @@ class Conference(object):
         self.config_frame = ConfigFrame(self, self.client)  # .root)
         # self.iv0_0 = 0
         # self.iv0 = tk.IntVar()
-        image5 = tk.PhotoImage(file='icon/config.png').subsample(3, 4)
-        self.bt_config = tk.Radiobutton(self.root, text='设置', value=1, variable=self.config_frame.iv0, image=image5,
+        image6 = loadimgsub('icon/config.png', 3, 4)##.subsample(3, 4)
+        self.bt_config = tk.Radiobutton(self.root, text='设置', value=1, variable=self.config_frame.iv0, image=image6,
                                         command=self.setting, indicatoron=0, width=50, height=30)
         # self.bt_config = tk.Radiobutton(self.root, text='设置', value=1, image=image4, command=self.setting, indicatoron=0, width=50, height=30)
         # self.iv0.set(self.iv0_0)
@@ -3129,6 +3419,10 @@ class Conference(object):
         else:
             self.json.dict.update({"conference":{"sessionId": int(meeting_id), "ownerName":usr_name, "width":self.width, "height":self.height}})
         print("create_meeting: self.json.dict= ", self.json.dict)
+        if self.video_broadcast != None:
+            self.video_broadcast.SetSessionId(int(meeting_id))
+        if self.audio_broadcast != None:
+            self.audio_broadcast.SetSessionId(int(meeting_id))
         self.root.update()
 
         #if self.client != None:
@@ -3142,37 +3436,124 @@ class Conference(object):
                 self.config_frame.client = self.client
         self.client.create_meeting()
 
-
     def enter_meeting(self):
-        meeting_id = self.var_meeting_id.get()
-        usr_name = self.var_usr_name.get()
-        usr_pwd = self.var_usr_pwd.get()
-        if meeting_id == '':
-            meeting_id = random.randint(1,90000)
-        if usr_name == '':
-            #usr_name = random.choice('abcdefghijklmnopqrstuvwxyz')
-            usr_name = ''.join(random.sample('zyxwvutsrqponmlkjihgfedcba', 9))
-        print("enter_meeting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
-        (self.meeting_id, self.usr_name, self.usr_pwd) = (meeting_id, usr_name, usr_pwd)
-        self.json.dict.update({"conference":{"sessionId": int(meeting_id), "ownerName":usr_name, "width":self.width, "height":self.height}})
-        self.root.update()
-
-        if self.client == None:
-            self.client = ClientFrame(self)
-            if self.config_frame != None:
-                self.config_frame.client = self.client
+        print("enter_meeting: self.json.dict= ", self.json.dict)
+        if self.config_frame.selectSessionVar == 0:
+            print("error: enter_meeting: self.config_frame.selectSessionVar= ", self.config_frame.selectSessionVar)
+            tk.messagebox.showinfo('提示', '请在[会议中心]选择要加入的会议')
+            return
+        else:
+            (sessionId, modeId, note) = self.GetSessionInfo(self.config_frame.selectSessionVar)
+            print("enter_meeting: (sessionId, modeId, note)= ", (sessionId, modeId, note))
+            #更新sessionId
+            self.json.dict["conference"]["sessionId"] = sessionId
+            #获取最大设备数
+            (rects, chanIds) = CreateModeTab(modeId, self.width, self.height)
+            devnum = len(self.json.dict["multdevice"].keys())
+            maxdevnum = len(rects) - 1
+            devnum = maxdevnum if devnum > maxdevnum else devnum #maxdevnum
+            #更新设备信息，获取chanId
+            isok = False
+            deviceList = [-1 for i in range(devnum)]
+            actorList = [-1 for i in range(devnum)]
+            for i in range(devnum):
+                deviceChanId = deviceList[i]
+                (deviceChanId0, deviceChanId1) = (-1, -1)
+                actor = 2 + i
+                if self.video_broadcast != None and deviceChanId < 0:
+                    deviceChanId0 = self.video_broadcast.GetChanId(sessionId, modeId, actor)
+                if self.audio_broadcast != None and deviceChanId < 0:
+                    deviceChanId1 = self.audio_broadcast.GetChanId(sessionId, modeId, actor)
+                print("enter_meeting: (deviceChanId0, deviceChanId1)= ", (deviceChanId0, deviceChanId1))
+                deviceList[i] = deviceChanId0
+                actorList[i] = actor
+                if deviceChanId0 >= 0:
+                    isok = True
+            if isok == False:
+                tk.messagebox.showerror('错误', '设备通道错误：' + deviceChanId0 + "," + deviceChanId1 + ",请以观看身份入会")
+            else:
+                # 更新layout信息
+                posList = []
+                #(rects, chanIds) = CreateModeTab(modeId, self.width, self.height)
+                #chanIdList = [i for i in range(len(rects))]
+                j = 0
+                for i in range(len(rects)):
+                    rect = rects[i]
+                    captureId = -1
+                    actor = -1
+                    #chanId = i
+                    #if deviceChanId == i:
+                    if i in deviceList:
+                        captureId = j
+                        idx = deviceList.index(i)
+                        actor = actorList[idx]
+                        j += 1
+                    posList.append({"chanId": i, "actor":actor ,"deviceId": captureId, "pos": rect})
+                self.json.dict["general"]["mode"].update({"modeId": modeId, "modePos": posList})
+            print("enter_meeting: self.json.dict= ", self.json.dict)
+            self.config_frame.dict = self.json.dict
+            #return #test
+            meeting_id = sessionId  # self.var_meeting_id.get()
+            usr_name = self.var_usr_name.get()
+            usr_pwd = self.var_usr_pwd.get()
+            if meeting_id == '':
+                print("error: enter_meeting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
+                return
+            if usr_name == '':
+                # usr_name = random.choice('abcdefghijklmnopqrstuvwxyz')
+                usr_name = ''.join(random.sample('zyxwvutsrqponmlkjihgfedcba', 9))
+            print("enter_meeting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
+            (self.meeting_id, self.usr_name, self.usr_pwd) = (meeting_id, usr_name, usr_pwd)
+            #return #test
+            if self.client == None:
+                self.client = ClientFrame(self)
+                if self.config_frame != None:
+                    self.config_frame.client = self.client
+            self.client.enter_meeting()
         return
 
     def watch_meeting(self):
-        meeting_id = self.var_meeting_id.get()
-        usr_name = self.var_usr_name.get()
-        usr_pwd = self.var_usr_pwd.get()
-        print("watch_meeting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
-        (self.meeting_id, self.usr_name, self.usr_pwd) = (meeting_id, usr_name, usr_pwd)
-        if self.client == None:
-            self.client = ClientFrame(self)
-            if self.config_frame != None:
-                self.config_frame.client = self.client
+        print("watch_meeting: self.json.dict= ", self.json.dict)
+        if self.config_frame.selectSessionVar == 0:
+            print("error: watch_meeting: self.config_frame.selectSessionVar= ", self.config_frame.selectSessionVar)
+            tk.messagebox.showinfo('提示', '请在[会议中心]选择要加入的会议')
+            return
+        else:
+            (sessionId, modeId, note) = self.GetSessionInfo(self.config_frame.selectSessionVar)
+            print("watch_meeting: (sessionId, modeId, note)= ", (sessionId, modeId, note))
+            # 更新sessionId
+            self.json.dict["conference"]["sessionId"] = sessionId
+            # 获取最大设备数
+            (rects, chanIds) = CreateModeTab(modeId, self.width, self.height)
+            if True:
+                # 更新layout信息
+                posList = []
+                # (rects, chanIds) = CreateModeTab(modeId, self.width, self.height)
+                for i in range(len(rects)):
+                    rect = rects[i]
+                    captureId = -1
+                    posList.append({"chanId": i, "deviceId": captureId, "pos": rect})
+                self.json.dict["general"]["mode"].update({"modeId": modeId, "modePos": posList})
+            print("watch_meeting: self.json.dict= ", self.json.dict)
+            self.config_frame.dict = self.json.dict
+            # return #test
+            meeting_id = sessionId  # self.var_meeting_id.get()
+            usr_name = self.var_usr_name.get()
+            usr_pwd = self.var_usr_pwd.get()
+            if meeting_id == '':
+                print("error: watch_meeting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
+                return
+            if usr_name == '':
+                # usr_name = random.choice('abcdefghijklmnopqrstuvwxyz')
+                usr_name = ''.join(random.sample('zyxwvutsrqponmlkjihgfedcba', 9))
+            print("watch_meeting: (meeting_id, usr_name, usr_pwd)= ", (meeting_id, usr_name, usr_pwd))
+            (self.meeting_id, self.usr_name, self.usr_pwd) = (meeting_id, usr_name, usr_pwd)
+
+            if self.client == None:
+                self.client = ClientFrame(self)
+                if self.config_frame != None:
+                    self.config_frame.client = self.client
+            self.client.watch_meeting()
         return
 
     def exit_meeting(self):
@@ -3187,6 +3568,35 @@ class Conference(object):
         print("Conference: exit_meeting end")
 
         return
+    def polling(self):
+        generalDict = self.json.dict.get("general")
+        if generalDict != None:
+            modeDict = generalDict.get("mode")
+            if modeDict != None:
+                modeId = 0
+                if modeDict.get("modeId") != None:
+                    modeId = modeDict["modeId"]
+
+                modePos = modeDict.get("modePos")
+                if modePos != None:
+                    #(rects, chanIds) = CreateModeTab(modeId, self.width, self.height)
+                    rects = []
+                    n = len(modePos)
+                    for i in range(n):
+                        thisPos = modePos[i]
+                        rects.append(modePos[i]["pos"])
+                    rects2 = []
+                    for i in range(n):
+                        j = i - 1
+                        if i == 0:
+                            j = n - 1
+                        rects2.append(rects[j])
+                        modePos[i]["pos"] = rects2[i]
+                    rects = rects2
+                    if self.client.session != None:
+                        self.client.session.reset_pos(rects)
+                        pass
+                    self.json.dict["general"]["mode"]["modePos"] = modePos
     def reset_mode(self):
         meeting_id = self.var_meeting_id.get()
         usr_name = self.var_usr_name.get()
@@ -3249,7 +3659,7 @@ class Conference(object):
                 name = str(thisModeId)
                 imgname = 'm' + str(thisModeId)
                 imgpath = 'icon/' + imgname + '.png'
-                modeimage = tk.PhotoImage(file=imgpath).subsample(3, 3)
+                modeimage = loadimgsub(imgpath, 3, 3)##.subsample(3, 3)
                 self.imglist.append(modeimage)
                 modeBtn = tk.Radiobutton(self.popFrame, text=name, value=(thisModeId + 1), variable=self.modeVar,
                                          image=modeimage,
@@ -3460,11 +3870,11 @@ if __name__ == '__main__':
     #mytest()
     #memTest()
     #gc.enable()  # 设置垃圾回收器调试标志
-    if sys.version_info >= (3, 0):
-        gc.set_debug(gc.DEBUG_COLLECTABLE | gc.DEBUG_UNCOLLECTABLE)
-    else:
-        gc.set_debug(gc.DEBUG_COLLECTABLE | gc.DEBUG_UNCOLLECTABLE | gc.DEBUG_INSTANCES | gc.DEBUG_OBJECTS | gc.DEBUG_LEAK) #DEBUG_SAVEALL
-    gc.set_debug(gc.DEBUG_UNCOLLECTABLE)
+    #if sys.version_info >= (3, 0):
+    #    gc.set_debug(gc.DEBUG_COLLECTABLE | gc.DEBUG_UNCOLLECTABLE)
+    #else:
+    #    gc.set_debug(gc.DEBUG_COLLECTABLE | gc.DEBUG_UNCOLLECTABLE | gc.DEBUG_INSTANCES | gc.DEBUG_OBJECTS | gc.DEBUG_LEAK) #DEBUG_SAVEALL
+    #gc.set_debug(gc.DEBUG_UNCOLLECTABLE)
 
     (width, height) = (1920, 1080)
     #(width, height) = (1280, 720)

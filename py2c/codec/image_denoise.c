@@ -3,12 +3,11 @@
 
 extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
-extern char* GetvalueStr(cJSON *json, char *key);
 extern cJSON* renewJson(cJSON *json, char *key, int ivalue, char *cvalue, cJSON *subJson);
 extern cJSON* renewJsonInt(cJSON *json, char *key, int ivalue);
 extern cJSON* renewJsonStr(cJSON *json, char *key, char *cvalue);
 extern cJSON* deleteJson(cJSON *json);
-extern cJSON* renewJsonArray2(cJSON *json, char *key, short *value);
+//extern cJSON* renewJsonArray2(cJSON *json, char *key, short *value);
 //extern inline int GetRtpInfo(uint8_t* dataPtr, int insize, RtpInfo *info);
 extern int64_t get_sys_time();
 

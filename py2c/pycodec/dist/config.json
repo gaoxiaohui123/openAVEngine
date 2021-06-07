@@ -1,0 +1,207 @@
+{
+    "conference": {
+        "sessionId": 63010,
+        "ownerName": "rykhgdltp",
+        "width": 1280,
+        "height": 720
+    },
+    "control": {
+        "mode": 6,
+        "rect": [
+            {
+                "chanId": 0,
+                "pos": [
+                    0,
+                    0,
+                    1280,
+                    720
+                ],
+                "deviceId": -1
+            },
+            {
+                "chanId": 1,
+                "pos": [
+                    960.0,
+                    0.0,
+                    320.0,
+                    180.0
+                ],
+                "deviceId": 0
+            },
+            {
+                "chanId": 2,
+                "pos": [
+                    960.0,
+                    180.0,
+                    320.0,
+                    180.0
+                ],
+                "deviceId": -1
+            },
+            {
+                "chanId": 3,
+                "pos": [
+                    960.0,
+                    360.0,
+                    320.0,
+                    180.0
+                ],
+                "deviceId": -1
+            },
+            {
+                "chanId": 4,
+                "pos": [
+                    960.0,
+                    540.0,
+                    320.0,
+                    180.0
+                ],
+                "deviceId": -1
+            }
+        ]
+    },
+    "general": {
+        "mcu": {},
+        "mode": {},
+        "supprams": {
+            "compatible": 0,
+            "osd": 5,
+            "serverAddr": "127.0.0.1:10088",
+            "spatiallayer": {
+                "name": "1",
+                "value": 0
+            },
+            "temporallayer": {
+                "name": "16",
+                "value": 4
+            },
+            "uploadlayers": [
+                0
+            ]
+        }
+    },
+    "multdevice": {
+        "0": {
+            "audios": {
+                "aec": 0,
+                "agc": 0,
+                "audiofmt": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "bitrate": {
+                    "value": 1,
+                    "name": "24000"
+                },
+                "channels": {
+                    "value": 1,
+                    "name": "2"
+                },
+                "codec": {
+                    "value": 0,
+                    "name": "AAC"
+                },
+                "denoise": 0,
+                "detect": 0,
+                "framesize": {
+                    "value": 2,
+                    "name": "2048"
+                },
+                "recorder": {
+                    "value": 1,
+                    "name": "hw:1,0"
+                },
+                "samplerate": {
+                    "value": 4,
+                    "name": "48000"
+                },
+                "vad": 0
+            },
+            "videos": {
+                "bitrate": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "capture": {
+                    "value": 0,
+                    "name": "video0:mjpeg"
+                },
+                "codec": {
+                    "value": 0,
+                    "name": "HCSVC"
+                },
+                "denoise": 0,
+                "fec": 0,
+                "framerate": {
+                    "value": 2,
+                    "name": "25fps"
+                },
+                "resolution": {
+                    "value": 0,
+                    "name": "1920x1080"
+                }
+            }
+        },
+        "1": {
+            "audios": {
+                "aec": 0,
+                "agc": 0,
+                "audiofmt": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "bitrate": {
+                    "value": 1,
+                    "name": "24000"
+                },
+                "channels": {
+                    "value": 1,
+                    "name": "2"
+                },
+                "codec": {
+                    "value": 0,
+                    "name": "AAC"
+                },
+                "denoise": 1,
+                "detect": 0,
+                "framesize": {
+                    "value": 2,
+                    "name": "2048"
+                },
+                "recorder": {
+                    "value": 1,
+                    "name": "hw:1,0"
+                },
+                "samplerate": {
+                    "value": 4,
+                    "name": "48000"
+                },
+                "vad": 0
+            },
+            "videos": {
+                "bitrate": {
+                    "value": 3,
+                    "name": "800kbps"
+                },
+                "capture": {
+                    "value": 2,
+                    "name": "fb0"
+                },
+                "codec": {
+                    "value": 0,
+                    "name": "HCSVC"
+                },
+                "denoise": 0,
+                "fec": 0,
+                "framerate": {
+                    "value": 2,
+                    "name": "25fps"
+                },
+                "resolution": {
+                    "value": 0,
+                    "name": "1920x1080"
+                }
+            }
+        }
+    }
+}

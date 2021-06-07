@@ -9,7 +9,7 @@ import json
 import loadlib
 import threading
 import time
-from postprocess import PostProcess
+#from postprocess import PostProcess
 
 def json2str(jsonobj):
     if sys.version_info >= (3, 0):
@@ -76,14 +76,23 @@ class VideoCapture(threading.Thread):
             data = outbuf2.raw
             data2 = data[0:ret]
             result = None
-            if sys.version_info >= (3, 0):
-                print("data2= ", data2)
-                # 在json字符串中不能出现单引号
-                result = json.loads(data2.decode())
-            else:
-                result = json.loads(data2)
+            try:
+                if sys.version_info >= (3, 0):
+                    print("data2= ", data2)
+                    # 在json字符串中不能出现单引号
+                    result = json.loads(data2.decode())
+                else:
+                    result = json.loads(data2)
+            except:
+                print("video: get_device_info: failed !")
+                return infolist
             if result != None:
                 print("get_device_info: result=", result)
+                windev = result.get("windev")
+                if windev != None:
+                    videodev = windev.get("videodev")
+                    if videodev != None:
+                        return videodev
                 # for key, value in result.items():
                 for key in result.keys():
                     # print("key=", key)
@@ -120,7 +129,7 @@ class VideoCapture(threading.Thread):
                                     if "raw" in item2[0]:
                                         j = item[1].index(item2)
                                         del (item[1][j]) #优先选择mjpeg
-        print("infolist=", infolist)
+        print("get_device_info:infolist=", infolist)
         return infolist
 
     def get_device(self, id):
@@ -195,7 +204,7 @@ class VideoCapture(threading.Thread):
         self.param.update({"device_name": self.device_name})
         # self.param.update({"input_name": "x11grab"})
         # self.param.update({"device_name": ":0.0"}) #
-        if self.input_name not in ["v4l2", "video4linux2"]:
+        if self.input_name not in ["v4l2", "video4linux2", "dshow"]:
             self.input_format = "raw"
             self.denoise = 0
         self.param.update({"input_format": self.input_format})

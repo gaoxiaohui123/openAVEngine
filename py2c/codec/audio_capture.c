@@ -1054,8 +1054,8 @@ typedef struct
     int in_factor;
     uint64_t out_channel_layout;// = AV_CH_LAYOUT_STEREO;
     int frame_size;
-    char* input_name;//= "alsa";
-    char* device_name;// = "default";
+    char input_name[64];//= "alsa";
+    char device_name[64];// = "default";
     pthread_mutex_t mutex;
     int max_buf_num;
     char head_size;
@@ -1063,6 +1063,7 @@ typedef struct
     char *tmp_buf0;
     char *tmp_buf1;
     char *tmp_buf2;
+    char *outbuf;
     int offset;
     int64_t sum_sample;
     int in_offset;
@@ -1081,9 +1082,10 @@ typedef struct
 
 extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
-extern char* GetvalueStr(cJSON *json, char *key);
+extern char* GetvalueStr(cJSON *json, char *key, char *result);
 extern int64_t get_sys_time();
 
+#if 0
 void audio_mix(short *src0, short *src1, short *dst,int framesize)
 {
     short k = pow(2, 15);
@@ -1109,6 +1111,7 @@ void audio_mix(short *src0, short *src1, short *dst,int framesize)
         *dst++ = valueC;
     }
 }
+#endif
 //speaker/audio: if datatype == 0: audio
 void audio_mix2(short *src0, short *src1, short *dst,int framesize, int datatype)
 {
@@ -1142,7 +1145,9 @@ void listdev(char *devname)
     char*  name;
     char*  desc;
     char*  ioid;
-
+#ifdef _WIN32
+	printf("listdev: win32 null");
+#else
     /* Enumerate sound devices */
     err = snd_device_name_hint(-1, devname, (void***)&hints);
     if (err != 0) {
@@ -1174,6 +1179,7 @@ void listdev(char *devname)
     printf("listdev: hints=%x \n", hints);
     //Free hint buffer too
     snd_device_name_free_hint((void**)hints);
+#endif
 
 }
 HCSVC_API
@@ -1252,6 +1258,10 @@ void api_audio_capture_close(char *handle)
         {
             av_free(obj->tmp_buf2);
         }
+        if(obj->outbuf)
+        {
+            av_free(obj->outbuf);
+        }
         if(obj->process_hnd)
         {
             int ret2 = I2AudioProcessClose(obj->process_hnd);
@@ -1296,7 +1306,8 @@ int api_audio_capture_init(char *handle, char *param)
     obj->print = GetvalueInt(obj->json, "print");//
     obj->process = GetvalueInt(obj->json, "process");//
     obj->datatype = GetvalueInt(obj->json, "datatype");
-    char *filename = GetvalueStr(obj->json, "filename");
+    char filename[256] = "";
+    GetvalueStr(obj->json, "filename", filename);
 
     //listdev("pcm");
 
@@ -1305,34 +1316,35 @@ int api_audio_capture_init(char *handle, char *param)
         obj->fp = fopen(filename, "rb");
     }
 
-    filename = GetvalueStr(obj->json, "pcmfile");
+    GetvalueStr(obj->json, "pcmfile", filename);
     if (strcmp(filename, ""))
     {
         obj->fp_pcm = fopen(filename, "wb");
     }
     printf("api_audio_capture_init: filename=%s \n", filename);
-    filename = GetvalueStr(obj->json, "capfile");
+    GetvalueStr(obj->json, "capfile", filename);
     if (strcmp(filename, ""))
     {
         obj->fp_cap = fopen(filename, "wb");
     }
 
-    obj->input_name = GetvalueStr(obj->json, "input_name");
+    GetvalueStr(obj->json, "input_name", obj->input_name);
     printf("api_audio_capture_init: obj->input_name=%s \n", obj->input_name);
-    obj->device_name = GetvalueStr(obj->json, "device_name");
+    GetvalueStr(obj->json, "device_name", obj->device_name);
     printf("api_audio_capture_init: obj->device_name=%s \n", obj->device_name);
 
     obj->frame_size = GetvalueInt(obj->json, "frame_size");
     printf("api_audio_capture_init: obj->frame_size=%d \n", obj->frame_size);
     obj->out_sample_rate = GetvalueInt(obj->json, "out_sample_rate");
 	obj->out_sample_fmt = GetvalueInt(obj->json, "out_sample_fmt");
-	char *cformat = GetvalueStr(obj->json, "out_sample_fmt");
+	char cformat[64] = "";
+	GetvalueStr(obj->json, "out_sample_fmt", cformat);
 	if (!strcmp(cformat, "AV_SAMPLE_FMT_S16"))
 	{
        obj->out_sample_fmt = AV_SAMPLE_FMT_S16;
 	}
 
-	cformat = GetvalueStr(obj->json, "out_channel_layout");
+	GetvalueStr(obj->json, "out_channel_layout", cformat);
 	if (!strcmp(cformat, "AV_CH_LAYOUT_STEREO"))
 	{
        obj->out_channel_layout = AV_CH_LAYOUT_STEREO;
@@ -1358,28 +1370,64 @@ int api_audio_capture_init(char *handle, char *param)
         {
             //obj->cap_buf[i] = (char *)av_malloc(frame_size + (obj->frame_size >> 1));
             obj->cap_buf[i] = (char *)av_malloc(obj->frame_size << 1);
-            printf("api_capture_init: obj->cap_buf[i]=%x, i=%d \n", obj->cap_buf[i], i);
+            printf("api_audio_capture_init: obj->cap_buf[i]=%x, i=%d \n", obj->cap_buf[i], i);
         }
         //obj->tmp_buf0 = (char *)av_malloc(obj->frame_size + (obj->frame_size >> 1));
         //obj->tmp_buf1 = (char *)av_malloc(obj->frame_size + (obj->frame_size >> 1));//max is over obj->frame_size
+        int frame_size2 = (obj->frame_size << 1) * sizeof(char);
+        obj->tmp_buf0 = (char *)av_malloc(frame_size2);
+        obj->tmp_buf1 = (char *)av_malloc(frame_size2);
+        obj->tmp_buf2 = (char *)av_malloc(frame_size2);
 
-        obj->tmp_buf0 = (char *)av_malloc(obj->frame_size << 1);
-        obj->tmp_buf1 = (char *)av_malloc(obj->frame_size << 1);
-        obj->tmp_buf2 = (char *)av_malloc(obj->frame_size << 1);
+        obj->outbuf = (char *)av_malloc(frame_size2);
         pthread_mutex_init(&obj->mutex,NULL);
     }
     //
-    av_register_all();
-	avformat_network_init();
-    avdevice_register_all();
+    //av_register_all();
+	//avformat_network_init();
+    //avdevice_register_all();
     //Linux
+#ifdef _WIN32
+    strcpy(obj->input_name, "dshow");
+#else
+    //obj->input_name = "alsa";//test
+#endif
     obj->ifmt = av_find_input_format(obj->input_name);
 
+    if (obj->ifmt == NULL)    {
+        printf("api_audio_capture_init: can not find_input_format: obj->input_name=%s \n", obj->input_name);
+        return -1;
+    }
+    printf("api_audio_capture_init: obj->input_name=%s \n", obj->input_name);
     obj->options = NULL;
 
+    int errcode;
+#ifdef _WIN32
+    av_dict_set_int(&obj->options, "sample_rate", (long)44100, 0);     //我的设备不支持8000,先采44100在重采样成8000
+    av_dict_set_int(&obj->options, "sample_size", (long)16, 0);
+    av_dict_set_int(&obj->options, "channels", (long)2, 0);
+    av_dict_set_int(&obj->options, "audio_buffer_size", (long)5, 0);  //buffer大小是以采样率44100计算的,设置了采样率也无效
+
+    char devname[256] = "audio=";
+    strcat(devname,obj->device_name );
+    printf("api_audio_capture_init: devname=%s \n", devname);
+
+    if((errcode = avformat_open_input(&obj->pFormatCtx, devname, obj->ifmt, &obj->options)) < 0){
+        printf("api_audio_capture_init: can not open_input_file: windows: devname=%s, errcode=%d \n", devname, errcode);
+        return -1;
+
+    }
+#else
     //av_dict_set(&obj->options, "audio_device_number", "0", 0);
 
     ///av_dict_set(&obj->options,"sample_rate","48000",0);
+#ifdef linux
+    av_dict_set_int(&obj->options, "sample_rate", (long)44100, 0);     //我的设备不支持8000,先采44100在重采样成8000
+    //av_dict_set_int(&obj->options, "sample_rate", (long)48000, 0);
+    av_dict_set_int(&obj->options, "sample_size", (long)16, 0);
+    av_dict_set_int(&obj->options, "channels", (long)2, 0);
+    av_dict_set_int(&obj->options, "audio_buffer_size", (long)5, 0);  //buffer大小是以采样率44100计算的,设置了采样率也无效
+#else
     int in_sample_rate = GetvalueInt(obj->json, "in_sample_rate");
     if(in_sample_rate)
     {
@@ -1393,16 +1441,18 @@ int api_audio_capture_init(char *handle, char *param)
     {
         char text[16] = "";
         sprintf(text, "%d", in_channels);
-        av_dict_set(&obj->options,"in_channels",text,0);
+        av_dict_set(&obj->options,"channels",text,0);
     }
-    cformat = GetvalueStr(obj->json, "in_sample_fmt");
+    GetvalueStr(obj->json, "in_sample_fmt", cformat);
     if(strcmp(cformat,""))
     {
         ///av_dict_set(&obj->options,"sample_fmt", cformat,0);
     }
-
+#endif
+    //
     if(avformat_open_input(&obj->pFormatCtx, obj->device_name, obj->ifmt, &obj->options) != 0)
     {
+        printf("api_audio_capture_init: first times fail, obj->device_name=%s \n", obj->device_name);
         int ret2 = restart_pulseaudio();
         if(!ret2)
         {
@@ -1415,7 +1465,7 @@ int api_audio_capture_init(char *handle, char *param)
             return -1;
         }
     }
-
+#endif
     if(avformat_find_stream_info(obj->pFormatCtx,NULL) < 0)
     {
         printf("api_audio_capture_init: Couldn't find stream information.\n");
@@ -1426,6 +1476,17 @@ int api_audio_capture_init(char *handle, char *param)
     {
         if(obj->pFormatCtx->streams[i]->codec->codec_type == AVMEDIA_TYPE_AUDIO)
         {
+            //obj->pCodec = avcodec_find_decoder(obj->pCodecCtx->codec_id);
+            //if(obj->pCodec==NULL)
+            //{
+            //    printf("Codec not found.\n");
+            //    return -1;
+            //}
+            //obj->pCodecCtx = avcodec_alloc_context3(obj->pCodec);
+            //if ((ret = avcodec_parameters_to_context(obj->pCodecCtx, obj->pFormatCtx->streams[i]->codecpar)) < 0)
+            //{
+            //    return -1;
+            //}
             obj->audioindex = i;
             break;
         }
@@ -1437,6 +1498,7 @@ int api_audio_capture_init(char *handle, char *param)
         return -1;
     }
     obj->pCodecCtx = obj->pFormatCtx->streams[obj->audioindex]->codec;
+    obj->pCodecCtx->channel_layout = obj->out_channel_layout;
     obj->pCodec = avcodec_find_decoder(obj->pCodecCtx->codec_id);
     if(obj->pCodec==NULL)
     {
@@ -1446,11 +1508,11 @@ int api_audio_capture_init(char *handle, char *param)
     //AVCodecID
     int id = obj->pCodecCtx->codec_id;
     char *codec_name = avcodec_get_name(id);
-    printf("audio_capture: codec_name= %s \n", codec_name);
+    printf("audio_capture: codec_name= %s, obj->audioindex=%d \n", codec_name, obj->audioindex);
 
     if(avcodec_open2(obj->pCodecCtx, obj->pCodec,NULL)<0)
     {
-        printf("Could not open codec.\n");
+        printf("audio_capture:Could not open codec.\n");
         return -1;
     }
 
@@ -1461,7 +1523,7 @@ int api_audio_capture_init(char *handle, char *param)
     obj->pAudioFrame = av_frame_alloc();
     if(NULL == obj->pAudioFrame)
     {
-        printf("could not alloc pAudioFrame\n");
+        printf("audio_capture: could not alloc pAudioFrame\n");
         return -1;
     }
 
@@ -1484,7 +1546,13 @@ int api_audio_capture_init(char *handle, char *param)
         obj->pCodecCtx->channels,
         in_channel_layout,
         obj->pCodecCtx->sample_rate);
-
+    if(!(obj->pCodecCtx->sample_rate * obj->pCodecCtx->frame_size))
+    {
+        printf("audio_capture: fail.\n");
+        obj->pCodecCtx->sample_rate = 44100;
+        obj->pCodecCtx->frame_size = 4;
+        //return -1;
+    }
 
     obj->audio_convert_ctx = NULL;
     obj->audio_convert_ctx = swr_alloc();
@@ -1507,7 +1575,7 @@ int api_audio_capture_init(char *handle, char *param)
 
     /* initialize the resampling context */
     if ((ret = swr_init(obj->audio_convert_ctx)) < 0) {
-        fprintf(stderr, "Failed to initialize the resampling context\n");
+        fprintf(stderr, "api_audio_capture_init: Failed to initialize the resampling context\n");
         return -1;
     }
 #else
@@ -1521,8 +1589,8 @@ int api_audio_capture_init(char *handle, char *param)
     }
 
     if ((ret = swr_init(audio_convert_ctx)) < 0) {
-        fprintf(stderr, "Failed to initialize the resampling context\n");
-        exit(1);
+        fprintf(stderr, "api_audio_capture_init: Failed to initialize the resampling context\n");
+        return -1;
     }
 
 #endif
@@ -1552,7 +1620,7 @@ int api_audio_capture_read_frame(char *handle)
     //如果声卡采样率为44.1khz
     if(obj->pCodecCtx->sample_rate != 48000)
     {
-        printf("warning: api_audio_capture_read_frame: obj->pCodecCtx->sample_rate= %d \n", obj->pCodecCtx->sample_rate);
+        ///printf("warning: api_audio_capture_read_frame: obj->pCodecCtx->sample_rate= %d \n", obj->pCodecCtx->sample_rate);
         //x = (44100 * 1024) / 4800 = (441 * 1024) / 480 = ((3 * 147 * 64 * 16) / (3 * 16 * 10)) = (147 * 64 / 10)
         //x = 940.8
         float fx = (float)(obj->pCodecCtx->sample_rate * obj->out_nb_samples) / obj->out_sample_rate;
@@ -1562,60 +1630,63 @@ int api_audio_capture_read_frame(char *handle)
         //printf("warning: api_audio_capture_read_frame: y=%d \n", y);
         cap_nb_samples = x;
         frame_size = y;
+        //printf("warning: api_audio_capture_read_frame: frame_size=%d \n", frame_size);
     }
     if(!obj->in_offset)
     {
         while(sum < frame_size)
         {
-            //AVPacket *packet = (AVPacket *)av_malloc(sizeof(AVPacket));
-            AVPacket packet;
-            av_init_packet(&packet);
-            packet.data = 0;
+            AVPacket pkt;
+            av_init_packet(&pkt);
+            pkt.data = 0;
             int64_t time0 = get_sys_time();
             while(1)
             {
-			    ret = av_read_frame(obj->pFormatCtx, &packet);
+			    ret = av_read_frame(obj->pFormatCtx, &pkt);
+			    //printf("api_audio_capture_read_frame: ret= %d \n", ret);
 			    if(ret < 0)
 	            {
 	                return -1;
 	            }
-			    if(packet.stream_index == obj->audioindex)
+			    if(pkt.stream_index == obj->audioindex)
 			    {
 			        break;
 			    }
 				else{
-				    printf("warning: api_audio_capture_read_frame: packet.stream_index= %d \n", packet.stream_index);
+				    printf("warning: api_audio_capture_read_frame: pkt.stream_index= %d \n", pkt.stream_index);
 				}
+				av_packet_unref(&pkt);
 		    }
             if(ret >= 0)
             {
                 if(obj->fp_cap)
                 {
-                    fwrite(packet.data, 1, packet.size, obj->fp_cap);
+                    fwrite(pkt.data, 1, pkt.size, obj->fp_cap);
                 }
-                //printf("api_audio_capture_read_frame: packet.size= %d \n", packet.size);
-                if(packet.size > obj->frame_size)
+                //printf("api_audio_capture_read_frame: pkt.size= %d \n", pkt.size);
+                if(pkt.size > obj->frame_size)
                 {
-                    //printf("warning: api_audio_capture_read_frame: packet.size= %d \n", packet.size);
+                    //printf("warning: api_audio_capture_read_frame: pkt.size= %d \n", pkt.size);
                     //printf("warning: api_audio_capture_read_frame: obj->pCodecCtx->channels= %d \n", obj->pCodecCtx->channels);
                     //printf("warning: api_audio_capture_read_frame: obj->pCodecCtx->sample_rate= %d \n", obj->pCodecCtx->sample_rate);
                     //printf("warning: api_audio_capture_read_frame: obj->pCodecCtx->sample_fmt= %d \n", obj->pCodecCtx->sample_fmt);
-                    memcpy(&obj->tmp_buf0[0], packet.data, packet.size);
+                    memcpy(&obj->tmp_buf0[0], pkt.data, pkt.size);
                     sum = obj->frame_size;
                     obj->in_offset = obj->frame_size;
 
                 }
                 else{
-                    memcpy(&obj->tmp_buf0[sum], packet.data, packet.size);
-                    sum += packet.size;
+                    memcpy(&obj->tmp_buf0[sum], pkt.data, pkt.size);
+                    sum += pkt.size;
                 }
             }
-            //printf("api_audio_capture_read_frame: packet.flags= %d \n", packet.flags);
-            //printf("api_audio_capture_read_frame: packet.stream_index= %d \n", packet.stream_index);
-            if(packet.data)
+            //printf("api_audio_capture_read_frame: pkt.flags= %d \n", pkt.flags);
+            //printf("api_audio_capture_read_frame: pkt.stream_index= %d \n", pkt.stream_index);
+            if(pkt.data)
             {
-                av_free_packet(&packet);
+                //av_free_packet(&pkt);
             }
+            av_packet_unref(&pkt);
         }
     }
     else{
@@ -1626,7 +1697,7 @@ int api_audio_capture_read_frame(char *handle)
         //printf("warning: api_audio_capture_read_frame: obj->frame_size= %d \n", obj->frame_size);
     }
 
-    if(sum != obj->frame_size)
+    if(sum != obj->frame_size && false)
     {
         printf("warning: api_audio_capture_read_frame: obj->pCodecCtx->sample_rate= %d \n", obj->pCodecCtx->sample_rate);
         printf("warning: api_audio_capture_read_frame: obj->pCodecCtx->sample_fmt= %d \n", obj->pCodecCtx->sample_fmt);
@@ -1686,8 +1757,6 @@ int api_audio_capture_read_frame2(char *handle, char *outbuf)
     long long *testp = (long long *)handle;
     AudioCaptureObj *obj = (AudioCaptureObj *)testp[0];
     //printf("api_audio_capture_read_frame2: handle= %x \n", handle);
-
-    //AVPacket *packet = (AVPacket *)av_malloc(sizeof(AVPacket));
     //printf("api_audio_capture_read_frame2: 0: obj->pAudioFrame->data[0]= %x \n", obj->pAudioFrame->data[0]);
     AVPacket pkt;
     av_init_packet(&pkt);
@@ -1739,7 +1808,7 @@ int api_audio_capture_read_frame2(char *handle, char *outbuf)
             step = step < 1 ? 1 : step;
             if(step != 1)
             {
-                printf("warning: api_audio_capture_read_frame2: step=%d \n", step);
+                ///printf("warning: api_audio_capture_read_frame2: step=%d \n", step);
             }
             obj->out_idx += step;
 
@@ -1833,7 +1902,7 @@ int api_audio_capture_read_frame2(char *handle, char *outbuf)
         if(obj->offset >= (obj->frame_size << 1))
         {
             ret = (obj->frame_size << 1);
-            printf("api_audio_capture_read_frame2: ret= %d \n", ret);
+            ///printf("api_audio_capture_read_frame2: ret= %d \n", ret);
         }
         //printf("api_audio_capture_read_frame2: ret= %d \n", ret);
         ///memcpy(outbuf, obj->pAudioFrame->data[0], samples_size);
@@ -1846,7 +1915,11 @@ int api_audio_capture_read_frame2(char *handle, char *outbuf)
 				fseek( obj->fp, 0, SEEK_SET );
 				rsize = fread(obj->tmp_buf2, 1, ret, obj->fp);
 			}
-			audio_mix2((short *)obj->buffer, (short *)obj->tmp_buf2, (short *)outbuf, nb_samples, obj->datatype);
+			//audio_mix2((short *)obj->buffer, (short *)obj->tmp_buf2, (short *)outbuf, nb_samples, obj->datatype);
+			int data_bytes = obj->pCodecCtx->frame_size;// / obj->pCodecCtx->channels;
+			int channel_samples = ret / data_bytes;
+			//printf("api_audio_capture_read_frame2: channel_samples= %d \n", channel_samples);
+			audio_mix2((short *)obj->buffer, (short *)obj->tmp_buf2, (short *)outbuf, channel_samples, obj->datatype);
         }
         if(obj->fp_pcm)
         {
@@ -1859,19 +1932,19 @@ int api_audio_capture_read_frame2(char *handle, char *outbuf)
             {
                 ret2 += I2AudioProcess(obj->process_hnd, outbuf, obj->frame_size);
                 ret2 += I2AudioProcess(obj->process_hnd, &outbuf[obj->frame_size], obj->frame_size);
-                printf("api_audio_capture_read_frame2: ret= %d \n", ret);
+                ///printf("api_audio_capture_read_frame2: ret= %d \n", ret);
             }
             else{
                 ret2 = I2AudioProcess(obj->process_hnd, outbuf, ret);
             }
-
+            ret2 = ret;
         }
 
         int tail = obj->offset - ret;
         if(tail > 0)
         {
             memmove(obj->buffer, &obj->buffer[ret], tail);
-            printf("api_audio_capture_read_frame2: tail= %d \n", tail);
+            ///printf("api_audio_capture_read_frame2: tail= %d \n", tail);
         }
         obj->offset = tail;
         if(obj->process_hnd)
@@ -1888,11 +1961,25 @@ int api_audio_capture_read_frame2(char *handle, char *outbuf)
     //printf("api_audio_capture_read_frame2: ret= %d \n", ret);
     //av_free_packet(&pkt);
     //av_free(&pkt);
+    av_packet_unref(&pkt);
+    return ret;
+}
+HCSVC_API
+int api_audio_capture_read_frame3(char *handle, char **outbuf)
+{
+    int ret = 0;
+    if(!*outbuf)
+    {
+        long long *testp = (long long *)handle;
+        AudioCaptureObj *obj = (CaptureObj *)testp[0];
+        *outbuf = obj->outbuf;
+    }
+    ret = api_audio_capture_read_frame2(handle, *outbuf);
     return ret;
 }
 //windows: "dshow" ; char *device_name = "audio=麦克风 （Realtek High Definition Au";
 HCSVC_API
-int audio_capture()
+int audio_capture_test()
 {
 
     AVFormatContext *pFormatCtx;
@@ -1900,12 +1987,12 @@ int audio_capture()
     AVCodecContext  *pCodecCtx;
     AVCodec         *pCodec;
 
-    av_register_all();
-    avformat_network_init();
+    //av_register_all();
+    //avformat_network_init();
     pFormatCtx = avformat_alloc_context();
 
     //Register Device
-    avdevice_register_all();
+    //avdevice_register_all();
 
 
     //Linux

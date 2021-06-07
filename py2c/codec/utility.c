@@ -1,21 +1,27 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <iconv.h>
 
 #ifdef linux
 #include <unistd.h>
+#include <sys/ioctl.h>
 #include <linux/fb.h>
+#include <linux/videodev2.h>
 #include <sys/time.h>
 #include<signal.h>
 #endif
 
 #include "inc.h"
 
+pthread_mutex_t * glob_lock = NULL;
+static int gssrc = 0;
 extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
-extern char* GetvalueStr(cJSON *json, char *key);
 extern cJSON* renewJson(cJSON *json, char *key, int ivalue, char *cvalue, cJSON *subJson);
 extern cJSON* deleteJson(cJSON *json);
+extern int64_t get_sys_time();
+extern int64_t get_sys_time2();
 
 typedef struct {
     char            riffType[4];    //4byte,资源交换文件标志:RIFF   
@@ -35,14 +41,15 @@ typedef struct {
 
 typedef struct CPU_PACKED         //定义一个cpu occupy的结构体
 {
-char name[20];             //定义一个char类型的数组名name有20个元素
-unsigned int user;        //定义一个无符号的int类型的user
-unsigned int nice;        //定义一个无符号的int类型的nice
-unsigned int system;    //定义一个无符号的int类型的system
-unsigned int idle;         //定义一个无符号的int类型的idle
-unsigned int iowait;
-unsigned int irq;
-unsigned int softirq;
+    char name[20];             //定义一个char类型的数组名name有20个元素
+    unsigned int user;        //定义一个无符号的int类型的user
+    unsigned int nice;        //定义一个无符号的int类型的nice
+    unsigned int system;    //定义一个无符号的int类型的system
+    unsigned int idle;         //定义一个无符号的int类型的idle
+    unsigned int iowait;
+    unsigned int irq;
+    unsigned int softirq;
+    int64_t time;
 }CPU_OCCUPY;
 typedef struct MEM_PACKED         //定义一个mem occupy的结构体
 {
@@ -109,6 +116,39 @@ double getCpuRate()
     cpu = cal_cpuoccupy ((CPU_OCCUPY *)&cpu_stat1, (CPU_OCCUPY *)&cpu_stat2);
 
     return cpu;
+}
+HCSVC_API
+int api_getCpuRate(void **pcpu_stat, int cpurate, int threshold)
+{
+    int ret = -1;
+    int64_t now_time = get_sys_time();
+    if(pcpu_stat && (*pcpu_stat == NULL))
+    {
+        *pcpu_stat = (void *)calloc(1, sizeof(CPU_OCCUPY));
+        if(*pcpu_stat)
+        {
+            get_cpuoccupy((CPU_OCCUPY *)(*pcpu_stat));
+            ((CPU_OCCUPY *)(*pcpu_stat))->time = now_time;
+        }
+        return ret;
+    }
+    else{
+        int64_t last_time = ((CPU_OCCUPY *)(*pcpu_stat))->time;
+        int difftime = (int)(now_time - last_time);
+        if(difftime > threshold)
+        {
+            CPU_OCCUPY cpu_stat2;
+            cpu_stat2.time = now_time;
+            get_cpuoccupy((CPU_OCCUPY *)&cpu_stat2);
+            ret = (int)cal_cpuoccupy((CPU_OCCUPY *)(*pcpu_stat), (CPU_OCCUPY *)&cpu_stat2);
+            if(cpurate > 0)
+            {
+                ret = (ret + cpurate) >> 1;
+            }
+            ((CPU_OCCUPY *)(*pcpu_stat))[0] = cpu_stat2;
+        }
+    }
+    return ret;
 }
 MEM_PACK *get_memoccupy ()    // get RAM message
 {
@@ -177,7 +217,14 @@ int api_get_cpu_info(char *outparam[])
 HCSVC_API
 int api_get_cpu_info2(int *icpurate, int *memrate, int *devmemrate)
 {
+    //if(!glob_lock)
+    //{
+    //    glob_lock = calloc(1, sizeof(pthread_mutex_t));
+    //    pthread_mutex_init(glob_lock, NULL);
+    //}
+    //pthread_mutex_lock(glob_lock);
     double cpurate = getCpuRate();
+#if 1
     MEM_PACK *mempack = get_memoccupy();
     DEV_MEM *devmem = get_devmem();
     int memsize = (int)(mempack->total);
@@ -187,6 +234,10 @@ int api_get_cpu_info2(int *icpurate, int *memrate, int *devmemrate)
     icpurate[0] = (int)(cpurate);
     free(mempack);
     free(devmem);
+#else
+    icpurate[0] = (int)(cpurate);
+#endif
+    //pthread_mutex_unlock(glob_lock);
     return 0;
 }
 int pcmAddWavHeader(FILE *fp, int channels, int bits, int sample_rate, int len) {
@@ -339,7 +390,37 @@ void api_get_array_free(int *pktSize)
         free(pktSize);
     }
 }
+HCSVC_API
+int* api_array_alloc(int num)
+{
+    int *ret = calloc(1, sizeof(int) * num);
+    return ret;
+}
+//代码转换:从一种编码转为另一种编码
+int code_convert(char *from_charset,char *to_charset,char *inbuf,int inlen,char *outbuf,int outlen)
+{
+    iconv_t cd;
+    int rc;
+    char **pin = &inbuf;
+    char **pout = &outbuf;
 
+    cd = iconv_open(to_charset,from_charset);
+    if (cd==0) return -1;
+    memset(outbuf,0,outlen);
+    if (iconv(cd,pin,&inlen,pout,&outlen)==-1) return -1;
+    iconv_close(cd);
+    return 0;
+}
+//UNICODE码转为GB2312码
+int u2g(char *inbuf,int inlen,char *outbuf,int outlen)
+{
+return code_convert("utf-8","gb2312",inbuf,inlen,outbuf,outlen);
+}
+//GB2312码转为UNICODE码
+int g2u(char *inbuf,size_t inlen,char *outbuf,size_t outlen)
+{
+return code_convert("gb2312","utf-8",inbuf,inlen,outbuf,outlen);
+}
 int executeCMD(const char *cmd, char *result, int read_size)
 {
     //char buf_ps[512];
@@ -347,11 +428,26 @@ int executeCMD(const char *cmd, char *result, int read_size)
     int ret = 0;
     FILE *fp;
     //strcpy(ps, cmd);
+
     if((fp = popen(cmd, "r")) != NULL)
     {
          //ret = fread(result, read_size, 1, fp);
-         ret = fread(result, 1, read_size, fp);
-         //printf("executeCMD: ret=%d \n", ret);
+#ifdef _WIN32______
+        while (fgets(result, 255, fp) != NULL) {
+            printf("executeCMD: %s", result);
+        }
+        ret = strlen(result);
+#else
+        char tmpbuf[4096];
+         ret = fread(tmpbuf, 1, read_size, fp);
+         if(ret > 0)
+         {
+            ///ret = g2u(tmpbuf, ret, result, 4096);
+            memcpy(result, tmpbuf, ret);
+         }
+#endif
+        printf("executeCMD: cmd=%s \n", cmd);
+        printf("executeCMD: ret=%d \n", ret);
          //if(fgets(result, read_size, fp) != NULL)
          //{
          //   ret = strlen(result);
@@ -411,6 +507,349 @@ int api_get_cmd(char *cmd, char *buf, int read_size)
 #endif
     return ret;
 }
+#ifdef linux
+enum VideoType {
+  kUnknown,
+  kI420,
+  kIYUV,
+  kRGB24,
+  kABGR,
+  kARGB,
+  kARGB4444,
+  kRGB565,
+  kARGB1555,
+  kYUY2,
+  kYV12,
+  kUYVY,
+  kMJPEG,
+  kNV21,
+  kNV12,
+  kBGRA,
+};
+typedef struct{
+  int32_t width;
+  int32_t height;
+  int32_t maxFPS;
+  //VideoType videoType;
+  int32_t videoType;
+  bool interlaced;
+}VideoCaptureCapability;
+
+int32_t FillCapabilities(int fd, char *result) {
+    int ret = 0;
+    int count = 0;
+    // set image format
+    int totalFmts = 4;
+    unsigned int videoFormats[] = {V4L2_PIX_FMT_MJPEG, V4L2_PIX_FMT_YUV420,
+                                    V4L2_PIX_FMT_YUYV, V4L2_PIX_FMT_UYVY };
+//  int sizes = 13;
+//  unsigned int size[][2] = {{128, 96},   {160, 120},  {176, 144},  {320, 240},
+//                            {352, 288},  {640, 480},  {704, 576},  {800, 600},
+//                            {960, 720},  {1280, 720}, {1024, 768}, {1440, 1080},
+//                            {1920, 1080}};
+    struct v4l2_frmsizeenum frmsize;
+    memset(&frmsize, 0, sizeof(frmsize));
+    struct v4l2_frmivalenum frmival;
+    memset(&frmival, 0, sizeof(frmival));
+
+    struct v4l2_fmtdesc fmt;
+    memset(&fmt, 0, sizeof(fmt));
+    fmt.index = 0;
+    fmt.type = V4L2_BUF_TYPE_VIDEO_CAPTURE;
+    int count2 = 0;
+    while (ioctl(fd, VIDIOC_ENUM_FMT, &fmt) == 0)
+    {
+        for (int fmts = 0; fmts < totalFmts; fmts++)
+        {
+            if(fmt.pixelformat == videoFormats[fmts])
+            {
+                memset(&frmsize, 0, sizeof(frmsize));
+                frmsize.pixel_format = fmt.pixelformat;
+                frmsize.index = 0;
+                count = 0;
+                while (ioctl(fd, VIDIOC_ENUM_FRAMESIZES, &frmsize) == 0)
+                {
+                    if(frmsize.type == V4L2_FRMSIZE_TYPE_DISCRETE)
+                    {
+                        if(!count)
+                        {
+                            if(count2)
+                            {
+                                strcat(result, ",");
+                            }
+                            if(fmts)
+                            {
+                                strcat(result, "\"raw\":\"");
+                            }
+                            else{
+                                strcat(result, "\"mjpeg\":\"");
+                            }
+
+                        }
+                        VideoCaptureCapability cap;
+                        cap.width = frmsize.discrete.width;
+                        cap.height = frmsize.discrete.height;
+                        if (fmt.pixelformat == V4L2_PIX_FMT_YUYV) {
+                            cap.videoType = kYUY2;
+                        } else if (fmt.pixelformat == V4L2_PIX_FMT_YUV420) {
+                            cap.videoType = kI420;
+                        } else if (fmt.pixelformat == V4L2_PIX_FMT_MJPEG) {
+                            cap.videoType = kMJPEG;
+                        } else if (fmt.pixelformat == V4L2_PIX_FMT_UYVY) {
+                            cap.videoType = kUYVY;
+                        }
+
+                        memset(&frmival, 0, sizeof(frmival));
+                        frmival.index = 0;
+                        frmival.pixel_format = fmt.pixelformat;
+                        frmival.width = frmsize.discrete.width;
+                        frmival.height = frmsize.discrete.height;
+                        if(ioctl(fd, VIDIOC_ENUM_FRAMEINTERVALS, &frmival) == 0)
+                        {
+                            if (frmival.type == V4L2_FRMIVAL_TYPE_DISCRETE)
+                            {
+                                if(frmival.discrete.numerator > 0 && frmival.discrete.denominator > 0)
+                                {
+                                    cap.maxFPS = frmival.discrete.denominator / frmival.discrete.numerator;
+                                }
+                            }
+                        }
+                        else{
+                            // get fps of current camera mode
+                            // V4l2 does not have a stable method of knowing so we just guess.
+                            if (cap.width >= 800 && cap.videoType != kMJPEG) {
+                                cap.maxFPS = 15;
+                            } else {
+                                cap.maxFPS = 30;
+                            }
+                        }
+                        //_captureCapabilities.push_back(cap);
+                        if(count)
+                        {
+                            strcat(result, " ");
+                        }
+                        char tmp[128] = "";
+                        sprintf(tmp, "%d", cap.width);
+
+                        strcat(result, tmp);
+                        strcat(result, "x");
+                        sprintf(tmp, "%d", cap.height);
+                        strcat(result, tmp);
+                        ///strcat(result, "x");
+                        ///sprintf(tmp, "%d", cap.maxFPS);
+                        ///strcat(result, tmp);
+                        printf("FillCapabilities:cap.width=%d, cap.height=%d \n", cap.width, cap.height);
+                        printf("FillCapabilities:cap.maxFPS=%d, cap.videoType=%d \n", cap.maxFPS, cap.videoType);
+                        ret = cap.videoType;
+                        count++;
+                    }
+                    frmsize.index++;
+                }
+                if(count)
+                {
+                    strcat(result, "\"");
+                    count2++;
+                }
+            }
+        }
+        fmt.index++;
+    }
+    return ret;
+}
+int show_device_linux(int deviceNumber, char* deviceNameUTF8, char* deviceUniqueIdUTF8, char *result)
+{
+    int ret = 0;
+    uint32_t deviceNameLength = 256;
+    uint32_t deviceUniqueIdUTF8Length = 256;
+    //uint32_t count = 0;
+    char device[20];
+    int fd = -1;
+    sprintf(device, "/dev/video%d", deviceNumber);
+    if ((fd = open(device, O_RDONLY)) != -1)
+    {
+        char tmp[16] = "";
+        sprintf(tmp, "video%d", deviceNumber);
+        if(strlen(result) > 0)
+        {
+            //strcat(result, ",");
+        }
+        else{
+            //strcat(result, "{");
+        }
+        strcat(result, "\"");
+        strcat(result, tmp);
+        strcat(result, "\":{");
+        printf("show_device_linux: device=%s \n", device);
+    }
+    else
+    {
+        close(fd);
+        return -1;
+    }
+    struct v4l2_capability cap;
+    if (ioctl(fd, VIDIOC_QUERYCAP, &cap) < 0)
+    {
+        close(fd);
+        return -2;
+    }
+    ret = FillCapabilities(fd, result);
+    close(fd);
+    if(ret <= 0)
+    {
+        return ret;
+    }
+    strcat(result, "}");
+    char cameraName[64];
+    memset(deviceNameUTF8, 0, deviceNameLength);
+    memcpy(cameraName, cap.card, sizeof(cap.card));
+
+    if (deviceNameLength >= strlen(cameraName)) {
+        memcpy(deviceNameUTF8, cameraName, strlen(cameraName));
+    } else {
+        return -3;
+    }
+
+    if (cap.bus_info[0] != 0)  // may not available in all drivers
+    {
+        // copy device id
+        if (deviceUniqueIdUTF8Length >= strlen((const char*)cap.bus_info))
+        {
+            memset(deviceUniqueIdUTF8, 0, deviceUniqueIdUTF8Length);
+            memcpy(deviceUniqueIdUTF8, cap.bus_info,strlen((const char*)cap.bus_info));
+        }
+        else {
+            return -4;
+        }
+    }
+    else{
+        return -5;
+    }
+    return ret;
+}
+#include <xcb/xcb.h>
+//fb0是终端的SVGA FrameBuffer驱动程序。所以获得的是终端的数据。
+//XCB是X-Window C Binding，是一个用于和X交互的C语言API。你应该安装libxcb的开发库和头文件。比如fedora要安装libxcb-devel这样的包。
+//这样在gcc编译的时候指定--libs xcb就可以了
+int get_screen_resolution2(int *width, int *height)
+{
+        /* Open the connection to the X server. Use the DISPLAY environment variable */
+
+        int i, screenNum;
+        xcb_connection_t *connection = xcb_connect (NULL, &screenNum);
+        /* Get the screen whose number is screenNum */
+        const xcb_setup_t *setup = xcb_get_setup (connection);
+        xcb_screen_iterator_t iter = xcb_setup_roots_iterator (setup);
+        // we want the screen at index screenNum of the iterator
+        for (i = 0; i < screenNum; ++i) {
+            xcb_screen_next (&iter);
+        }
+        xcb_screen_t *screen = iter.data;
+        /* report */
+        //printf ("\n");
+        //printf ("Informations of screen %ld:\n", screen->root);
+        //printf ("  width.........: %d\n", screen->width_in_pixels);
+        //printf ("  height........: %d\n", screen->height_in_pixels);
+        //printf ("  white pixel...: %ld\n", screen->white_pixel);
+        //printf ("  black pixel...: %ld\n", screen->black_pixel);
+        //printf ("\n");
+        width[0] = screen->width_in_pixels;
+        height[0] = screen->height_in_pixels;
+        return 0;
+}
+int show_desktop_linux(int deviceNumber, int *width, int *height)
+{
+    int ret = 0;
+    struct fb_var_screeninfo vinfo;
+    struct fb_fix_screeninfo finfo;
+    int screensize = 0;
+    char device[20];
+    int fd = -1;
+    char cmd[256] = "nohup sudo chmod 0777 /dev/fb0";
+    char outbuf[1024] = "";
+    sprintf(cmd, "chmod 0777 /dev/fb%d", deviceNumber);
+    ret = api_get_cmd(cmd, outbuf, 1024);
+    sprintf(device, "/dev/fb%d", deviceNumber);
+    if ((fd = open(device, O_RDONLY)) != -1)
+    {
+        printf("show_desktop_linux: device=%s \n", device);
+    }
+    else
+    {
+        close(fd);
+        printf("show_desktop_linux: fail device=%s \n", device);
+        get_screen_resolution2(width, height);
+        return -1;
+    }
+    /*取得屏幕相关参数*/
+    ioctl(fd, FBIOGET_FSCREENINFO, &finfo);
+    ioctl(fd, FBIOGET_VSCREENINFO, &vinfo);
+    screensize = vinfo.xres * vinfo.yres * vinfo.bits_per_pixel / 8;
+
+    //printf("get_screen_resolution: %d*%d\n",vinfo.xres, vinfo.yres);
+    width[0] = vinfo.xres;
+    height[0] = vinfo.yres;
+    close(fd);
+    printf("show_desktop_linux: device=%s, ret=%d \n", device, ret);
+    return ret;
+}
+HCSVC_API
+int api_list_device(char *buf)
+//int api_list_device()
+{
+    int ret = 0;
+    int width = 0;
+    int height = 0;
+
+    for (int n = 0; n < 20; n++)
+    {
+        char result[1024] = "";
+        char deviceNameUTF8[256] = "";
+        char deviceUniqueIdUTF8[256] = "";
+        ret = show_device_linux(n, deviceNameUTF8, deviceUniqueIdUTF8, result);
+        if(ret > 0)
+        {
+            printf("api_list_device:ret=%d \n", ret);
+            printf("api_list_device:deviceNameUTF8=%s \n", deviceNameUTF8);
+            printf("api_list_device:deviceUniqueIdUTF8=%s \n", deviceUniqueIdUTF8);
+            //printf("api_list_device:result=%s \n", result);
+            if(strlen(buf) > 0)
+            {
+                strcat(buf, ",");
+            }
+            if(!strlen(buf))
+            {
+                strcat(buf, "{");
+            }
+            strcat(buf, result);
+        }
+        //printf("api_list_device:result=%s \n", result);
+    }
+    for (int n = 0; n < 4; n++)
+    {
+        if(n < 4 && ((width | height) == 0))
+        {
+            char result[1024] = "";
+            ret = show_desktop_linux(n, &width, &height);
+            if(ret >= 0|| (width * height > 0))
+            {
+                strcat(result, ",\"fb0\":\"");
+                char tmp[16];
+                sprintf(tmp, "%d", width);
+                strcat(result, tmp);
+                strcat(result, "x");
+                sprintf(tmp, "%d", height);
+                strcat(result, tmp);
+                strcat(result, "\"}");
+                printf("api_list_device:width=%d, height=%d \n", width, height);
+                strcat(buf, result);
+            }
+        }
+    }
+    printf("api_list_device:2: buf=%s \n", buf);
+    ret = strlen(buf);
+    return ret;
+}
+#endif
 int get_resolution(char *key, char *buf, char *result)
 {
     int ret = 0;
@@ -473,8 +912,6 @@ int get_resolution(char *key, char *buf, char *result)
             //printf("get_resolution: key2=%s \n", key2);
         }
     }
-
-
     return ret;
 }
 int get_video_option(char *cmd, char *buf, char *result)
@@ -581,6 +1018,101 @@ int get_video_option(char *cmd, char *buf, char *result)
     printf("get_video_option: end \n");
     return ret;
 }
+//枚举指定类型的所有采集设备的名称
+//ENUMDEVICE_API HRESULT EnumDevice(CAPTURE_DEVICE_TYPE type, char * deviceList[], int nListLen, int & iNumCapDevices);
+//ffmpeg -list_options true -f dshow -i video="Integrated Camera"
+int get_av_info_win(char *buf, char *key0, char *key1)
+{
+    int ret = 0;
+    char result[4096] = "";
+    //char cmd2[4096] = "start /b ffmpeg -list_devices true -f dshow -i dummy";
+    char cmd2[4096] = "start /b ffmpeg -list_devices true -f dshow -i dummy 2>&1";
+    int read_size = 4096;
+    char *p = NULL;
+    char buf2[4096] = "";
+    printf("get_av_info_win: cmd2=%s \n", cmd2);
+    executeCMD("chcp 65001", buf2, 1024);// chcp 936
+    memset(buf2, 0, read_size * sizeof(char));
+    ret = executeCMD(cmd2, buf2, read_size);
+    if(ret > 0)
+    {
+        printf("get_av_info_win: buf2=%s \n", buf2);
+        int headsize = strlen("[dshow @ 031082a0]");
+        char *p0 = findstr(buf2, key0);//"DirectShow video devices");
+        char *p1 = findstr(buf2, key1);//"DirectShow audio devices");
+        char *p2 = NULL;
+        int idx = 0;
+        int flag = 0;
+        p = &p0[-headsize - 4];
+        do{
+            p = findstr(p, "[dshow @");
+            if(p)
+            {
+                if(!idx)
+                {
+                    //printf("get_av_info_win: p=%s \n", p);
+                }
+                if(p2)
+                {
+                    int n = (int)((long long)p - (long long)p2);
+                    //printf("get_av_info_win: n=%d \n", n);
+                    if(n > 2){
+                        if((idx & 1))
+                        {
+                            if(flag)
+                            {
+                                strcat(buf, ",");
+                            }
+                            strncpy(&buf[strlen(buf)], &p2[headsize + 2], n - headsize - 3);
+                            //printf("get_av_info_win: buf=%s \n", buf);
+                            flag += 1;
+                        }
+                        idx++;
+                    }
+                }
+                p2 = p;
+                p += headsize;
+            }
+            if((&p[headsize + 4] > p1) && p1 && (p1 > p0))
+            {
+                break;
+            }
+        }while(p);
+        ///strcpy(buf, result);
+    }
+    ret = strlen(buf);
+    return ret;
+}
+int get_video_info_win(char *buf)
+{
+    char *key0 = "DirectShow video devices";
+    char *key1 = "DirectShow audio devices";
+    char *tmp = "{\"windev\":{\"videodev\":[";
+    strcpy(buf, tmp);
+    int ret = get_av_info_win(buf, key0, key1);
+    if(ret > 0)
+    {
+        char *tmp = "]}}";
+        strcpy(&buf[strlen(buf)], tmp);
+    }
+    return ret;
+}
+int get_audio_info_win(char *buf)
+{
+    char *key0 = "DirectShow video devices";
+    char *key1 = "DirectShow audio devices";
+    char *tmp = "{\"windev\":{\"audiodev\":[";
+    strcpy(buf, tmp);
+    int ret = get_av_info_win(&buf[strlen(buf)], key1, key0);
+    if(ret > 0)
+    {
+        char *tmp = "]}}";
+        strcpy(&buf[strlen(buf)], tmp);
+    }
+    return ret;
+}
+//get info by ffmpeg
+//ffmpeg -list_devices true -f dshow -i dummy
 int get_video_info(char *cmd, char *buf)
 {
     int ret = 0;
@@ -588,7 +1120,6 @@ int get_video_info(char *cmd, char *buf)
     char cmd2[1024] = "nohup ffmpeg -f v4l2 -list_formats all -i /dev/video0";
     int read_size = 1024;
     char *p = NULL;
-
     strcpy(cmd2, "ls /dev | grep video");
     memset(buf, 0, read_size * sizeof(char));
     read_size = 1024;
@@ -666,6 +1197,7 @@ int get_video_info(char *cmd, char *buf)
 int get_screen_resolution(char *cmd, int *width, int *height)
 {
     int ret = 0;
+#ifdef linux
     //char *cmd = "nohup chmod 0777 /dev/fb0";
     char outbuf[1024] = "";
     ret = api_get_cmd(cmd, outbuf, 1024);
@@ -673,7 +1205,7 @@ int get_screen_resolution(char *cmd, int *width, int *height)
     struct fb_var_screeninfo vinfo;
     struct fb_fix_screeninfo finfo;
     int screensize = 0;
-    fd = open("/dev/fb0",O_RDWR);
+    fd = open("/dev/fb0",O_RDONLY);
     /*取得屏幕相关参数*/
     ioctl(fd, FBIOGET_FSCREENINFO, &finfo);
     ioctl(fd, FBIOGET_VSCREENINFO, &vinfo);
@@ -683,6 +1215,7 @@ int get_screen_resolution(char *cmd, int *width, int *height)
     width[0] = vinfo.xres;
     height[0] = vinfo.yres;
     close(fd);
+#endif
     return ret;
 }
 int get_screen_info(char *cmd, char *buf)
@@ -854,6 +1387,9 @@ int restart_pulseaudio()
     int read_size = 1024;
     char buf[10240] = "";
     char cmd[1024] = "ps -A|grep pulseaudio";
+#ifdef _WIN32
+    printf("restart_pulseaudio: windows \n");
+#else
     ret = executeCMD(cmd, buf, read_size);
 
     if(ret > 0)
@@ -861,6 +1397,7 @@ int restart_pulseaudio()
         memset(buf, 0, read_size);
         strcpy(cmd, "pulseaudio -k");
         ret = executeCMD(cmd, buf, read_size);
+#if 0
         do
         {
             strcpy(cmd, "ps -A|grep pulseaudio");
@@ -871,9 +1408,10 @@ int restart_pulseaudio()
                 sleep(1);
             }
         }while(ret > 0);
-
-
+#endif
     }
+
+#if 0
     strcpy(cmd, "pulseaudio --start");
     ret = executeCMD(cmd, buf, read_size);
     int count = 0;
@@ -890,13 +1428,14 @@ int restart_pulseaudio()
             printf("restart_pulseaudio fail ! \n");
         }
     }while(!ret);
-
+#endif
 
     if(ret > 0)
     {
         printf("restart_pulseaudio ok \n");
         //sleep(1);
     }
+#endif
     return ret;
 }
 int try_record(char *key)
@@ -906,46 +1445,9 @@ int try_record(char *key)
     char buf[10240] = "";
     char *p = NULL;
     char cmd[1024] = "ps -A|grep pulseaudio";
-#if 0
-    ret = executeCMD(cmd, buf, read_size);
 
-    if(ret > 0)
-    {
-#if 1
-        strcpy(cmd, "pulseaudio -k");
-        ret = executeCMD(cmd, buf, read_size);
-#else
-        char tmp[16] = "";
-        p = findstr(buf, "?");
-        if(p)
-        {
-            int n = (int)((long long)p - (long long)buf);
-            strncpy(tmp, buf, n);
-            int pid = atoi(tmp);
-            printf("try_record: pid=%d \n", pid);
-            strcpy(cmd, "kill -9 ");
-            strcat(cmd, tmp);
-            strcpy(buf, "");
-            ret = executeCMD(cmd, buf, read_size);
-
-        }
-#endif
-
-    }
-    else{
-        printf("try_record: no 'pulseaudio' run \n");
-    }
-
-    //restart pulse audio:
-    //strcpy(cmd, "pulseaudio -k");
-    //ret = executeCMD(cmd, buf, read_size);
-    strcpy(cmd, "pulseaudio --start");
-    ret = executeCMD(cmd, buf, read_size);
-    strcpy(cmd, "ps -A|grep pulseaudio");
-    ret = executeCMD(cmd, buf, read_size);
-#else
     ret = restart_pulseaudio();
-#endif
+
     if(ret > 0)
     {
 #if 0
@@ -1124,6 +1626,21 @@ int api_get_dev_info(char *cmd, char *buf)
     {
         char result[1024] = "";
         char result2[1024] = "";
+#ifdef _WIN32
+        ret = get_video_info_win(buf);
+        if(ret > 0)
+        {
+            ret = strlen(buf);
+        }
+        return ret;
+#elif defined(linux)
+        ret = api_list_device(buf);
+        if(ret > 0)
+        {
+            ret = strlen(buf);
+        }
+        return ret;
+#endif
         ret = get_video_info(cmd, result);
         ret += get_screen_info(cmd, result2);
         if(ret > 0)
@@ -1152,12 +1669,21 @@ int api_get_dev_info(char *cmd, char *buf)
             {
                 foreach_video(buf);
             }
-
+            printf("api_get_dev_info: buf=%s \n", buf);
         }
+
     }
     else if(!strncmp(cmd, "select_audio", strlen("select_audio")))
     {
         char result[1024] = "";
+#ifdef _WIN32
+        ret = get_audio_info_win(buf);
+        if(ret > 0)
+        {
+            ret = strlen(buf);
+        }
+        return ret;
+#endif
         ret = get_record_info(cmd, result);
         if(ret > 0)
         {
@@ -1165,6 +1691,7 @@ int api_get_dev_info(char *cmd, char *buf)
             strcat(buf, result);
             strcat(buf, "}");
             ret = strlen(buf);
+
             try_records(result);
             foreach_record(buf);
             if(!strcmp(cmd, "select_audio_recorder"))
@@ -1181,3 +1708,29 @@ int api_get_dev_info(char *cmd, char *buf)
     //ret = 0;
     return ret;
 }
+HCSVC_API
+#if 1
+unsigned int api_create_id(unsigned int range)
+{
+    int ret = 0;
+    unsigned int seed = (unsigned int)get_sys_time2();
+    srand(seed);
+    ret = rand() % range;
+    return ret;
+}
+#else
+unsigned int api_create_id(unsigned int range)
+{
+    int ret = 0;
+    if(!gssrc)
+    {
+        unsigned int seed = (unsigned int)get_sys_time();
+        srand(seed);
+        gssrc = rand() % range;
+        gssrc++;
+    }
+    ret = gssrc;
+    gssrc++;
+    return ret;
+}
+#endif

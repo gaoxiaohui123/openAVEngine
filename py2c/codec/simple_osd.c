@@ -2,7 +2,7 @@
 
 extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
-extern char* GetvalueStr(cJSON *json, char *key);
+extern char* GetvalueStr(cJSON *json, char *key, char *result);
 
 #define FontWidth	16
 #define FontSize	(FontWidth*FontWidth)
@@ -121,7 +121,8 @@ int api_simple_osd_init(char *handle, char *param)
 	{
 	    obj->color = color;
 	}
-	char *src_pix_fmt = GetvalueStr(obj->json, "src_pix_fmt");
+	char src_pix_fmt[64] = "";
+	GetvalueStr(obj->json, "src_pix_fmt", src_pix_fmt);
 	if (strcmp(src_pix_fmt, ""))
 	{
         if (!strcmp(src_pix_fmt, "AV_PIX_FMT_YUV420P"))
@@ -129,7 +130,8 @@ int api_simple_osd_init(char *handle, char *param)
             obj->src_pix_fmt = AV_PIX_FMT_YUV420P;
         }
     }
-	char *context = GetvalueStr(obj->json, "context");
+	char context[1024] = "";
+	GetvalueStr(obj->json, "context", context);
     if (strcmp(context, ""))
     {
         obj->context = context;
@@ -213,7 +215,8 @@ int api_simple_osd_process(char *handle, char *data, char *param)
     long long *testp = (long long *)handle;
     TextOsd *obj = (TextOsd *)testp[0];
     obj->json = mystr2json(param);
-    char *context = GetvalueStr(obj->json, "context");
+    char context[64] = "";
+    GetvalueStr(obj->json, "context", context);
     //printf("api_simple_osd_process: param= %s \n", param);
     //printf("api_simple_osd_process: context= %s \n", context);
     if (strcmp(context, ""))
@@ -236,6 +239,10 @@ int api_simple_osd_process(char *handle, char *data, char *param)
 	int width = GetvalueInt(obj->json, "width");
     if(width > 0)
     {
+        if(obj->width != width)
+        {
+            printf("api_simple_osd_process: obj->width=%d, width=%d \n", obj->width, width);
+        }
         obj->width = width;
     }
     else{
@@ -244,6 +251,10 @@ int api_simple_osd_process(char *handle, char *data, char *param)
 	int height = GetvalueInt(obj->json, "height");
 	if(height > 0)
 	{
+	    if(obj->height != height)
+        {
+            printf("api_simple_osd_process: obj->height=%d, height=%d \n", obj->height, height);
+        }
 	    obj->height = height;
 	}
 	else{
@@ -1038,22 +1049,22 @@ const unsigned char (FontDotTable[FontNum])[FontSize] =
 	},
 	//'x'
 	{
-		  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-		  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-		  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-		  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-		  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-		  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-		  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-		  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-		  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-		  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-		  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-		  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-		  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-		  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-		  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
-		  0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,
+		  0,   0, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0, 255, 255,   0,   0,
+		  0,   0, 255, 255, 255,   0,   0,   0,   0,   0,   0, 255, 255, 255,   0,   0,
+		  0,   0,   0, 255, 255, 255,   0,   0,   0,   0, 255, 255, 255,   0,   0,   0,
+		  0,   0,   0,   0, 255, 255, 255,   0,   0, 255, 255, 255,   0,   0,   0,   0,
+		  0,   0,   0,   0,   0, 255, 255,   0,   0, 255, 255,   0,   0,   0,   0,   0,
+		  0,   0,   0,   0,   0, 255, 255, 255, 255, 255,   0,   0,   0,   0,   0,   0,
+		  0,   0,   0,   0,   0,   0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,
+		  0,   0,   0,   0,   0,   0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,
+		  0,   0,   0,   0,   0,   0, 255, 255, 255,   0,   0,   0,   0,   0,   0,   0,
+		  0,   0,   0,   0,   0, 255, 255, 255, 255, 255,   0,   0,   0,   0,   0,   0,
+		  0,   0,   0,   0,   0, 255, 255,   0, 255, 255,   0,   0,   0,   0,   0,   0,
+		  0,   0,   0,   0, 255, 255,   0,   0,   0, 255, 255,   0,   0,   0,   0,   0,
+		  0,   0,   0, 255, 255, 255,   0,   0,   0, 255, 255, 255,   0,   0,   0,   0,
+		  0,   0,   0, 255, 255,   0,   0,   0,   0,   0, 255, 255,   0,   0,   0,   0,
+		  0,   0, 255, 255, 255,   0,   0,   0,   0,   0,   0, 255, 255, 255,   0,   0,
+		  0,   0, 255, 255,   0,   0,   0,   0,   0,   0,   0,   0, 255, 255,   0,   0,
 	},
 	//'y'
 	{

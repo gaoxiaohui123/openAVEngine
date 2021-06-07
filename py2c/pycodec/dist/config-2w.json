@@ -1,0 +1,426 @@
+{
+    "general": {
+        "supprams": {
+            "serverAddr": "127.0.0.1:10088",
+            "encryp": 0,
+            "temporallayer": {
+                "name": "1",
+                "value": 0
+            },
+            "qualityfirst": 0,
+            "selfmode": 7,
+            "uploadlayers": [
+                0
+            ],
+            "spatiallayer": {
+                "name": "1",
+                "value": 0
+            },
+            "osd": 5,
+            "compatible": 0,
+            "stream": {
+                "value": 2,
+                "name": "/home/gxh/works/recordtream_0.mp4"
+            }
+        },
+        "mcu": {},
+        "mode": {
+            "modeId": 4,
+            "modePos": [
+                {
+                    "chanId": 0,
+                    "deviceId": 0,
+                    "pos": [
+                        0,
+                        0,
+                        1920,
+                        1080
+                    ]
+                },
+                {
+                    "chanId": 1,
+                    "deviceId": -1,
+                    "pos": [
+                        1440,
+                        0,
+                        480,
+                        270
+                    ]
+                }
+            ]
+        }
+    },
+    "conference": {
+        "sessionId": 44959,
+        "ownerName": "dxuarqsjh",
+        "width": 1920,
+        "height": 1080
+    },
+    "control": {
+        "rect": [
+            {
+                "chanId": 0,
+                "pos": [
+                    0,
+                    0,
+                    1920,
+                    1080
+                ],
+                "deviceId": 0
+            },
+            {
+                "chanId": 1,
+                "pos": [
+                    1440.0,
+                    0.0,
+                    480.0,
+                    270.0
+                ],
+                "deviceId": 1
+            },
+            {
+                "chanId": 2,
+                "pos": [
+                    1440.0,
+                    270.0,
+                    480.0,
+                    270.0
+                ],
+                "deviceId": 2
+            },
+            {
+                "chanId": 3,
+                "pos": [
+                    1440.0,
+                    540.0,
+                    480.0,
+                    270.0
+                ],
+                "deviceId": -1
+            },
+            {
+                "chanId": 4,
+                "pos": [
+                    1440.0,
+                    810.0,
+                    480.0,
+                    270.0
+                ],
+                "deviceId": -1
+            }
+        ],
+        "mode": 6
+    },
+    "multdevice": {
+        "0": {
+            "videos": {
+                "fec": 1,
+                "denoise": 0,
+                "yuvfilename": "/home/gxh/works/datashare/for_ENC/stream1080p/Speed_1080.wmv",
+                "resolution": {
+                    "value": 0,
+                    "name": "1920x1080"
+                },
+                "capture": {
+                    "value": 1,
+                    "name": "video0:mjpeg"
+                },
+                "codec": {
+                    "value": 0,
+                    "name": "HCSVC"
+                },
+                "bitrate": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "framerate": {
+                    "value": 2,
+                    "name": "25fps"
+                }
+            },
+            "audios": {
+                "audiofmt": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "denoise": 1,
+                "codec": {
+                    "value": 0,
+                    "name": "AAC"
+                },
+                "recorder": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "framesize": {
+                    "value": 2,
+                    "name": "2048"
+                },
+                "detect": 0,
+                "aec": 0,
+                "agc": 0,
+                "channels": {
+                    "value": 1,
+                    "name": "2"
+                },
+                "samplerate": {
+                    "value": 4,
+                    "name": "48000"
+                },
+                "bitrate": {
+                    "value": 1,
+                    "name": "24000"
+                },
+                "vad": 0
+            }
+        },
+        "1": {
+            "videos": {
+                "fec": 1,
+                "denoise": 1,
+                "yuvfilename": "/home/gxh/works/datashare/ConferenceMotion_1280_720_50.yuv",
+                "resolution": {
+                    "value": 0,
+                    "name": "1920x1080"
+                },
+                "capture": {
+                    "value": 1,
+                    "name": "video0:mjpeg"
+                },
+                "codec": {
+                    "value": 0,
+                    "name": "HCSVC"
+                },
+                "bitrate": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "framerate": {
+                    "value": 2,
+                    "name": "25fps"
+                }
+            },
+            "audios": {
+                "audiofmt": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "denoise": 0,
+                "codec": {
+                    "value": 0,
+                    "name": "AAC"
+                },
+                "recorder": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "framesize": {
+                    "value": 2,
+                    "name": "2048"
+                },
+                "detect": 0,
+                "aec": 0,
+                "agc": 0,
+                "channels": {
+                    "value": 1,
+                    "name": "2"
+                },
+                "samplerate": {
+                    "value": 4,
+                    "name": "48000"
+                },
+                "bitrate": {
+                    "value": 1,
+                    "name": "24000"
+                },
+                "vad": 0
+            }
+        },
+        "3": {
+            "videos": {
+                "fec": 1,
+                "denoise": 1,
+                "yuvfilename": "/home/gxh/works/datashare/FourPeople_1280x720_30.yuv",
+                "resolution": {
+                    "name": "1280x720",
+                    "value": 1
+                },
+                "capture": {
+                    "name": "YUV",
+                    "value": 5
+                },
+                "codec": {
+                    "name": "HCSVC",
+                    "value": 0
+                },
+                "bitrate": {
+                    "name": "default",
+                    "value": 0
+                },
+                "framerate": {
+                    "name": "25fps",
+                    "value": 2
+                }
+            },
+            "audios": {
+                "audiofmt": {
+                    "name": "default",
+                    "value": 0
+                },
+                "denoise": 1,
+                "codec": {
+                    "name": "AAC",
+                    "value": 0
+                },
+                "recorder": {
+                    "name": "default",
+                    "value": 0
+                },
+                "framesize": {
+                    "name": "2048",
+                    "value": 2
+                },
+                "detect": 0,
+                "aec": 0,
+                "agc": 0,
+                "channels": {
+                    "name": "2",
+                    "value": 1
+                },
+                "samplerate": {
+                    "name": "48000",
+                    "value": 4
+                },
+                "bitrate": {
+                    "name": "24000",
+                    "value": 1
+                },
+                "vad": 0
+            }
+        },
+        "2": {
+            "videos": {
+                "fec": 1,
+                "denoise": 1,
+                "yuvfilename": "/home/gxh/works/datashare/ConferenceMotion_1280_720_50.yuv",
+                "resolution": {
+                    "name": "1280x720",
+                    "value": 1
+                },
+                "capture": {
+                    "name": "YUV",
+                    "value": 5
+                },
+                "codec": {
+                    "name": "HCSVC",
+                    "value": 0
+                },
+                "bitrate": {
+                    "name": "default",
+                    "value": 0
+                },
+                "framerate": {
+                    "name": "25fps",
+                    "value": 2
+                }
+            },
+            "audios": {
+                "audiofmt": {
+                    "name": "default",
+                    "value": 0
+                },
+                "denoise": 1,
+                "codec": {
+                    "name": "AAC",
+                    "value": 0
+                },
+                "recorder": {
+                    "name": "default",
+                    "value": 0
+                },
+                "framesize": {
+                    "name": "2048",
+                    "value": 2
+                },
+                "detect": 0,
+                "aec": 0,
+                "agc": 0,
+                "channels": {
+                    "name": "2",
+                    "value": 1
+                },
+                "samplerate": {
+                    "name": "48000",
+                    "value": 4
+                },
+                "bitrate": {
+                    "name": "24000",
+                    "value": 1
+                },
+                "vad": 0
+            }
+        },
+        "4": {
+            "videos": {
+                "fec": 1,
+                "denoise": 1,
+                "yuvfilename": "/home/gxh/works/datashare/FourPeople_1280x720_30.yuv",
+                "resolution": {
+                    "name": "1280x720",
+                    "value": 1
+                },
+                "capture": {
+                    "name": "YUV",
+                    "value": 5
+                },
+                "codec": {
+                    "name": "HCSVC",
+                    "value": 0
+                },
+                "bitrate": {
+                    "name": "default",
+                    "value": 0
+                },
+                "framerate": {
+                    "name": "25fps",
+                    "value": 2
+                }
+            },
+            "audios": {
+                "audiofmt": {
+                    "name": "default",
+                    "value": 0
+                },
+                "denoise": 1,
+                "codec": {
+                    "name": "AAC",
+                    "value": 0
+                },
+                "recorder": {
+                    "name": "default",
+                    "value": 0
+                },
+                "framesize": {
+                    "name": "2048",
+                    "value": 2
+                },
+                "detect": 0,
+                "aec": 0,
+                "agc": 0,
+                "channels": {
+                    "name": "2",
+                    "value": 1
+                },
+                "samplerate": {
+                    "name": "48000",
+                    "value": 4
+                },
+                "bitrate": {
+                    "name": "24000",
+                    "value": 1
+                },
+                "vad": 0
+            }
+        }
+    }
+}

@@ -1,11 +1,19 @@
 
 
-#include "inc.h"
-
-
+//#include "inc.h"
+#include <stdlib.h>
+#include <stdio.h>
+#include <string.h>
+#include <math.h>
+#include "cJSON.h"
+#include "hcsvc.h"
 //修改对象的值
 //cJSON_ReplaceItemInObject(item,"word",cJSON_CreateString("nihaoxiaobai"));
 //cJSON_AddItemToObject(body, "Info", filter_root);
+
+extern cJSON* renewJson(cJSON *json, char *key, int ivalue, char *cvalue, cJSON *subJson);
+
+#if 0
 cJSON* renewJson(cJSON *json, char *key, int ivalue, char *cvalue, cJSON *subJson)
 {
     cJSON *ret  = json;
@@ -64,6 +72,7 @@ cJSON* renewJson(cJSON *json, char *key, int ivalue, char *cvalue, cJSON *subJso
     }
     return ret;
 }
+#endif
 cJSON* renewJsonArray(cJSON *json, char *key, int *value, int len)
 {
     if(NULL == json)
@@ -77,6 +86,9 @@ cJSON* renewJsonArray(cJSON *json, char *key, int *value, int len)
         }
     }
     cJSON *array = cJSON_CreateArray();
+    //
+    json = api_delete_item(json, key);
+    //
     cJSON_AddItemToObject(json, key, array);
     for(int i = 0; i < len; i++)
     {
@@ -97,6 +109,9 @@ cJSON* renewJsonArray1(cJSON *json, char *key, short *value, int len)
         }
     }
     cJSON *array = cJSON_CreateArray();
+    //
+    json = api_delete_item(json, key);
+    //
     cJSON_AddItemToObject(json, key, array);
     for(int i = 0; i < len; i++)
     {
@@ -104,6 +119,30 @@ cJSON* renewJsonArray1(cJSON *json, char *key, short *value, int len)
     }
     return json;
 }
+cJSON* renewJsonArray4(cJSON *json, char *key, int *value, int len)
+{
+    if(NULL == json)
+    {
+        json = cJSON_CreateObject(); //创建JSON对象
+
+        if(NULL == json)
+        {
+            //error happend here
+            return NULL;
+        }
+    }
+    cJSON *array = cJSON_CreateArray();
+    //
+    json = api_delete_item(json, key);
+    //
+    cJSON_AddItemToObject(json, key, array);
+    for(int i = 0; i < len; i++)
+    {
+        cJSON_AddItemToArray(array, cJSON_CreateNumber(value[i]));
+    }
+    return json;
+}
+#if 0
 cJSON* renewJsonArray2(cJSON *json, char *key, short *value)
 {
     if(NULL == json)
@@ -126,6 +165,7 @@ cJSON* renewJsonArray2(cJSON *json, char *key, short *value)
     }
     return json;
 }
+#endif
 cJSON* renewJsonArray3(cJSON **json, cJSON **array, char *key, cJSON *item)
 {
     if(NULL == *json)
@@ -138,11 +178,25 @@ cJSON* renewJsonArray3(cJSON **json, cJSON **array, char *key, cJSON *item)
             return NULL;
         }
         *array = cJSON_CreateArray();
+        //
+        *json = api_delete_item(*json, key);
+        //
         cJSON_AddItemToObject(*json, key, *array);
     }
-
+    cJSON *thisarray = cJSON_GetObjectItem(*json, key);
+    if(thisarray)
+    {
+        *array = thisarray;
+    }
+    else if(NULL == *array)
+    {
+        *array = cJSON_CreateArray();
+        //
+        *json = api_delete_item(*json, key);
+        //
+        cJSON_AddItemToObject(*json, key, *array);
+    }
     cJSON_AddItemToArray(*array, item);
-
     return array;
 }
 cJSON* renewJsonFloat(cJSON *json, char *key, float fvalue)
@@ -297,41 +351,50 @@ int jsonSetUint64(void *json, const char *node, unsigned long long value)
 
 cJSON* deleteItem(cJSON *json, char *key)
 {
-    cJSON_DetachItemFromObject(json, key);
+    if(json && key)
+    {
+
+        cJSON *to_detach = cJSON_GetObjectItem(json, key);
+        if(to_detach)
+        {
+#if 0
+            cJSON_DetachItemFromObject(json, key);
+            //printf("deleteItem: to_detach=%x \n", to_detach);
+            cJSON_Delete(to_detach);
+#else
+            cJSON_DeleteItemFromObject(json, key);
+#endif
+        }
+    }
     return json;
 }
 
 cJSON* deleteJson(cJSON *json)
 {
-    return renewJson(json, NULL, 0, NULL, NULL);
+    if(json)
+    {
+        cJSON_Delete(json); //释放json对象
+    }
+    return 0;
+    //return renewJson(json, NULL, 0, NULL, NULL);
 }
 cJSON* mystr2json(char *text)
 {
     char *out;
-    cJSON *json;
+    cJSON *json = NULL;
     if (text == NULL || !strcmp(text, ""))
     {
-        //char *text = "{\"size\" : 1024, \"data\" : \"this is string\"}";
-        //char* text = "{\"name\":\"Messi\",\"age\":\"29\"}";
-        char data[128] = "";
-        for (int i = 0; i < 128; i++)
-        {
-            data[i] = (char)i;
-        }
-        //text = "{\"size\" : 1024, \"data\" : data}";
-        text = "{\"size\" : 1024, \"data\" : \"this is default string for test cjosn\"}";
+        return json;
     }
 
     json = cJSON_Parse(text);
-    if (!json) {
-        printf("Error before: [%s]\n",cJSON_GetErrorPtr());
-    } else {
+    //if (!json) {
+    //    printf("Error before: [%s]\n",cJSON_GetErrorPtr());
+    //} else {
         //将传入的JSON结构转化为字符串
-        out=cJSON_Print(json);
-        //cJSON_Delete(json);
-        //printf("%s\n",out);
-        free(out);
-    }
+        //out=cJSON_Print(json);
+        //cJSON_free(out);
+    //}
     return json;
 }
 float GetvalueFloat(cJSON *json, char *key)
@@ -379,18 +442,29 @@ int jsonGetUint64(void *json, const char *node, unsigned long long *value)
 }
 #endif
 
-char* GetvalueStr(cJSON *json, char *key)
+
+char* GetvalueStr(cJSON *json, char *key, char *result)
 {
     cJSON *item = cJSON_GetObjectItem(json, key);
     if(cJSON_IsNull(item))
     {
+        printf("GetvalueStr: null: key=%s \n", key);
     }
     else if(cJSON_IsString(item))
     {
-        return item->valuestring;
+        //printf("GetvalueStr: item->valuestring=%s \n", item->valuestring);
+        if(result)
+        {
+            strcpy(result, item->valuestring);
+        }
+        return item->valuestring;//item为临时变量,返回后会被释放掉;
+    }
+    else{
+        printf("GetvalueStr: 2: null: key=%s \n", key);
     }
     return "";
 }
+
 int *GetArrayValueInt(cJSON *json, char *key, int *arraySize)
 {
     int *ret = NULL;
@@ -415,16 +489,59 @@ int *GetArrayValueInt(cJSON *json, char *key, int *arraySize)
         int nal_mem_num = i;
         arraySize[0] = i;
         //printf("GetArrayValueInt: nal_mem_num= %d \n", nal_mem_num);
-        ret = calloc(1, sizeof(int) * nal_mem_num);
+        if(i > 0)
+        {
+            ret = calloc(1, sizeof(int) * nal_mem_num);
 
-        for( int i = 0 ; i < nal_mem_num ; i ++ ){
-            cJSON * pSub = cJSON_GetArrayItem(cjsonArr, i);
-            if(NULL == pSub ){ continue ; }
-            //char * ivalue = pSub->valuestring ;
-            int ivalue = pSub->valueint;
-            ret[i] = (short)ivalue;//可以不用傳入，通過擴展字段讀入：rtpSize[idx] = rtp_pkt_size;
-            //rtpLen += ivalue;
+            for( int i = 0 ; i < nal_mem_num ; i ++ ){
+                cJSON * pSub = cJSON_GetArrayItem(cjsonArr, i);
+                if(NULL == pSub ){ continue ; }
+                //char * ivalue = pSub->valuestring ;
+                int ivalue = pSub->valueint;
+                ret[i] = ivalue;//可以不用傳入，通過擴展字段讀入：rtpSize[idx] = rtp_pkt_size;
+                //rtpLen += ivalue;
+            }
+        }
 
+    }
+    return ret;
+}
+short *GetArrayValueShort(cJSON *json, char *key, int *arraySize)
+{
+    short *ret = NULL;
+    cJSON *cjsonArr = cJSON_GetObjectItem(json, key);
+    if( NULL != cjsonArr ){
+        int i = 0;
+        do
+        {
+            cJSON *cjsonTmp = cJSON_GetArrayItem(cjsonArr, i);
+            if( NULL == cjsonTmp )
+            {
+                //printf("GetArrayValueInt: no member \n");
+                break;
+            }
+            int num = cjsonTmp->valueint;
+            //printf("GetArrayValueInt: num= %d \n", num);
+            i++;
+        }while(1);
+
+        //int  array_size = cJSON_GetArraySize(cjsonArr);
+        //nal_mem_num = array_size;
+        int nal_mem_num = i;
+        arraySize[0] = i;
+        if(i > 0)
+        {
+            //printf("GetArrayValueInt: nal_mem_num= %d \n", nal_mem_num);
+            ret = calloc(1, sizeof(short) * nal_mem_num);
+
+            for( int i = 0 ; i < nal_mem_num ; i ++ ){
+                cJSON * pSub = cJSON_GetArrayItem(cjsonArr, i);
+                if(NULL == pSub ){ continue ; }
+                //char * ivalue = pSub->valuestring ;
+                int ivalue = pSub->valueint;
+                ret[i] = (short)ivalue;//可以不用傳入，通過擴展字段讀入：rtpSize[idx] = rtp_pkt_size;
+                //rtpLen += ivalue;
+            }
         }
     }
     return ret;
@@ -452,13 +569,19 @@ long long *GetArrayObj(cJSON *json, char *key, int *arraySize)
         //nal_mem_num = array_size;
         int nal_mem_num = i;
         arraySize[0] = i;
-        //printf("GetArrayValueInt: nal_mem_num= %d \n", nal_mem_num);
-        ret = calloc(1, sizeof(long long) * nal_mem_num);
+        if(i > 0)
+        {
+            //printf("GetArrayValueInt: nal_mem_num= %d \n", nal_mem_num);
+            if(i > 0)
+            {
+                ret = calloc(1, sizeof(long long) * nal_mem_num);
 
-        for( int i = 0 ; i < nal_mem_num ; i ++ ){
-            cJSON * pSub = cJSON_GetArrayItem(cjsonArr, i);
-            if(NULL == pSub ){ continue ; }
-            ret[i] = (long long)pSub;
+                for( int i = 0 ; i < nal_mem_num ; i ++ ){
+                    cJSON * pSub = cJSON_GetArrayItem(cjsonArr, i);
+                    if(NULL == pSub ){ continue ; }
+                    ret[i] = (long long)pSub;
+                }
+            }
         }
     }
     return ret;
@@ -516,11 +639,13 @@ static int example()
 HCSVC_API
 void* api_renew_json_float(void *json, char *key, float fvalue)
 {
+    json = api_delete_item(json, key);
     return (void *)renewJsonFloat((cJSON *)json, key, fvalue);
 }
 HCSVC_API
 void* api_renew_json_array(void *json, char *key, int *value, int len)
 {
+    json = api_delete_item(json, key);
     return (void *)renewJsonArray((cJSON *)json, key, value, len);
 }
 void* api_delete_item(void *json, char *key)
@@ -532,33 +657,52 @@ void api_json_free(void *json)
 {
     deleteJson((cJSON *)json);
 }
-#if 0
 HCSVC_API
-void* api_renew_json_int(void *json, char *key, int ivalue)
+int* api_get_array_int(char *parmstr, char *key, int *arraySize)
 {
-    return (void *)renewJson((cJSON *)json, key, ivalue, NULL, NULL);
-}
-HCSVC_API
-void* api_renew_json_str(void *json, char *key, char *cvalue)
-{
-    return (void *)renewJson((cJSON *)json, key, 0, cvalue, NULL);
-}
-
-HCSVC_API
-char* api_json2str(void *json)
-{
+    int *ret = NULL;
+    int chanNum = 0;
+    cJSON *json = mystr2json(parmstr);
     if(json)
     {
-        return cJSON_Print((cJSON *)json);
+        ret = GetArrayValueInt(json, key, arraySize);
+        deleteJson(json);
     }
-    return NULL;
+
+    return ret;
 }
 HCSVC_API
-void api_json2str_free(char *jsonstr)
+void *api_str2json(char *parmstr)
 {
-    if(jsonstr)
+    cJSON *json = mystr2json(parmstr);
+    return (void *)json;
+}
+
+#if 1
+void *glob_json = NULL;
+int64_t glob_idx = 0;
+HCSVC_API
+void api_mem_lead_cjson(int64_t start, int64_t loopn)
+{
+    printf("api_mem_lead_cjson: loopn=%lld \n", loopn);
+    for(int64_t i = start; i < (start + loopn); i++)
     {
-        free(jsonstr);
+        if((glob_idx % 50) == 0)
+        {
+            glob_json = api_renew_json_int(glob_json, "refresh_idr", glob_idx / 50);
+        }
+
+        glob_json = api_renew_json_int(glob_json , "idx", glob_idx % (1 << 30));
+        //glob_json = api_renew_json_int(glob_json , "idx", 500);
+        glob_idx++;
+        if((glob_idx % 1000) == 0)
+        {
+            printf("api_mem_lead_cjson: glob_json=%x \n", glob_json);
+            printf("api_mem_lead_cjson: glob_idx=%lld \n", glob_idx);
+            char* jsonstr = api_json2str(glob_json);
+            printf("api_mem_lead_cjson: jsonstr=%s \n", jsonstr);
+            api_json2str_free(jsonstr);
+        }
     }
 }
 #endif

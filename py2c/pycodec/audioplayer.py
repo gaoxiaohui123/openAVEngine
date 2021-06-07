@@ -31,6 +31,9 @@ class DataOffer(object):
         self.out_buffer_size = self.frame_size
         self.outbuf = create_string_buffer(self.frame_size << 1)  # redundancy
         self.sample_cnt = 0
+        self.offset = 0
+        self.block_size = 8192
+        self.data_buf = create_string_buffer(self.block_size << 1)
     def get_frame_size(self):
         ret = 0
         count = 0
@@ -70,6 +73,22 @@ class DataOffer(object):
     def stop(self):
         if self.cap != None:
             self.cap.stop()
+    def read_frame(self):
+        ret = None
+        data_size2 = 0
+        (data, data_size) = self.cap.ReadFrame()
+        if data_size > 0:
+            self.data_buf[self.offset:(self.offset + data_size)] = data[0:data_size]
+            self.offset += data_size
+            if self.offset >= self.block_size:
+                self.outbuf[0:self.block_size] = self.data_buf[0:self.block_size]
+                data_size2 = self.block_size
+                tail = self.offset - self.block_size
+                self.data_buf[0:tail] = self.data_buf[self.offset - tail:self.offset]
+                self.offset = tail
+                ret = (data_size2, self.outbuf)
+
+        return ret
     def out_frame(self):
         ret = None
         (data, data_size) = self.cap.ReadFrame()
@@ -131,8 +150,10 @@ class AudioPlayer(threading.Thread):
         self.out_buffer_size = self.frame_size
         self.mix_num = 2#4
         self.sdl_status = 1
+        self.max_mix_num = 16
 
         self.pcmfile = "/home/gxh/works/play_" + str(id) + ".pcm"
+        self.pcmfile = "./play_" + str(id) + ".pcm"
         self.pcmfile = ""
 
         #self.init()
@@ -165,6 +186,7 @@ class AudioPlayer(threading.Thread):
         self.param.update({"sdl_status": self.sdl_status})
         self.param.update({"print": 0})
         param_str = json2str(self.param)
+        print("param_str= ", param_str)
         ret = self.load.lib.api_player_init(self.handle, param_str)
         print("init: ret= ", ret)
         if ret >= 0:
@@ -172,7 +194,7 @@ class AudioPlayer(threading.Thread):
         else:
             self.status = False
         self.outbuf = create_string_buffer(self.frame_size << 1) #redundancy
-        array_type = c_char_p * self.mix_num
+        array_type = c_char_p * self.max_mix_num
         self.mix_buf = array_type()
 
     def player_stop(self):
@@ -192,8 +214,9 @@ class AudioPlayer(threading.Thread):
     def reset_mix_buf(self, mix_num):
         if mix_num > self.mix_num:
             self.mix_num = mix_num
-            array_type = c_char_p * self.mix_num
-            self.mix_buf = array_type()
+            if mix_num > self.max_mix_num:
+                array_type = c_char_p * self.mix_num
+                self.mix_buf = array_type()
     def play_one_frame(self, data, data_size):
         self.param.update({"mix_num": 1})
         param_str = json2str(self.param)
@@ -225,24 +248,30 @@ class AudioPlayer(threading.Thread):
                         (ret, ret2) = (None, None)
                         while (ret == None) or (ret2 == None):
                             if ret == None:
-                                ret = self.data_offer.out_frame()
-                                flag |= 1
+                                #ret = self.data_offer.out_frame()
+                                ret = self.data_offer.read_frame()
+                                if ret != None:
+                                    flag |= 1
                             if ret2 == None:
-                                ret2 = self.data_offer2.out_frame()
-                                flag |= 2
+                                #ret2 = self.data_offer2.out_frame()
+                                ret2 = self.data_offer2.read_frame()
+                                if ret2 != None:
+                                    flag |= 2
                             if flag != 3:
                                 time.sleep(0.001)
                         ###
                         (osize, data) = ret
                         self.mix_buf[0] = data.raw
-                        (osize, data) = ret2
-                        self.mix_buf[1] = data.raw
+                        (osize, data2) = ret2
+                        self.mix_buf[1] = data2.raw
+                        #self.mix_buf[1] = data.raw
 
                         ret = self.play_one_frame_mix(osize, 2)
                         flag = 0
                 else:
                     if self.data_offer != None:
-                        ret = self.data_offer.out_frame()
+                        #ret = self.data_offer.out_frame()
+                        ret = self.data_offer.read_frame()
                         if ret != None:
                             (osize, data) = ret
                             #print("AudioPlayer: run: osize= ", osize)
@@ -253,7 +282,8 @@ class AudioPlayer(threading.Thread):
                             ret = self.play_one_frame(data, osize)
                             flag = 1
                     if self.data_offer2 != None:
-                        ret = self.data_offer2.out_frame()
+                        #ret = self.data_offer2.out_frame()
+                        ret = self.data_offer2.read_frame()
                         if ret != None:
                             (osize, data) = ret
                             #print("AudioPlayer: run: osize= ", osize)
@@ -283,18 +313,22 @@ class AudioPlayer(threading.Thread):
 if __name__ == '__main__':
     print('Start AudioPlayer.')
     (call0, call1) = (None, None)
+    loadlib.gload.lib.api_ffmpeg_register()
     call0 = AudioPlayer(0)
     #call1 = AudioPlayer(1)
     if call0 != None:
         call0.data_offer = DataOffer(1)
         call0.frame_size = call0.data_offer.test_init()
-        ##call0.data_offer2 = DataOffer(0)
-        ##call0.frame_size = call0.data_offer2.test_init()
+        #call0.frame_size = 8192  # test
+        call0.data_offer2 = DataOffer(0)
+        call0.frame_size = call0.data_offer2.test_init()
+        #call0.frame_size = 8192  # test
         call0.init()
         call0.start()
     if call1 != None:
         call1.data_offer = DataOffer(1)
         call1.frame_size = call1.data_offer.test_init()
+        #call1.frame_size = 8192  # test
         call1.init()
         call1.start()
     #time.sleep(2)

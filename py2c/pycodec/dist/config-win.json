@@ -1,0 +1,236 @@
+{
+    "multdevice": {
+        "1": {
+            "videos": {
+                "framerate": {
+                    "value": 2,
+                    "name": "25fps"
+                },
+                "bitrate": {
+                    "value": 3,
+                    "name": "800kbps"
+                },
+                "fec": 0,
+                "denoise": 0,
+                "codec": {
+                    "value": 0,
+                    "name": "HCSVC"
+                },
+                "capture": {
+                    "value": 1,
+                    "name": "Integrated Camera"
+                },
+                "resolution": {
+                    "value": 0,
+                    "name": "1920x1080"
+                },
+                "yuvfilename": "C:/Users/86139/winshare/FourPeople_1280x720_30.yuv"
+            },
+            "audios": {
+                "recorder": {
+                    "value": 1,
+                    "name": "micro (USB Live Camera audio)"
+                },
+                "agc": 0,
+                "framesize": {
+                    "value": 2,
+                    "name": "2048"
+                },
+                "aec": 0,
+                "detect": 0,
+                "bitrate": {
+                    "value": 1,
+                    "name": "24000"
+                },
+                "vad": 0,
+                "audiofmt": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "denoise": 0,
+                "codec": {
+                    "value": 0,
+                    "name": "AAC"
+                },
+                "channels": {
+                    "value": 1,
+                    "name": "2"
+                },
+                "samplerate": {
+                    "value": 4,
+                    "name": "48000"
+                }
+            }
+        },
+        "0": {
+            "videos": {
+                "framerate": {
+                    "value": 2,
+                    "name": "25fps"
+                },
+                "bitrate": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "fec": 1,
+                "denoise": 0,
+                "codec": {
+                    "value": 0,
+                    "name": "HCSVC"
+                },
+                "capture": {
+                    "value": 0,
+                    "name": "USB  Live camera"
+                },
+                "resolution": {
+                    "value": 0,
+                    "name": "1920x1080"
+                },
+                "yuvfilename": "D:/msys64/home/gxh/works/datashare/for_ENC/stream1080p/Speed_1080.wmv"
+            },
+            "audios": {
+                "recorder": {
+                    "value": 1,
+                    "name": "micro (USB Live Camera audio)"
+                },
+                "agc": 0,
+                "framesize": {
+                    "value": 2,
+                    "name": "2048"
+                },
+                "aec": 0,
+                "detect": 0,
+                "bitrate": {
+                    "value": 1,
+                    "name": "24000"
+                },
+                "vad": 0,
+                "audiofmt": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "denoise": 1,
+                "codec": {
+                    "value": 0,
+                    "name": "AAC"
+                },
+                "channels": {
+                    "value": 1,
+                    "name": "2"
+                },
+                "samplerate": {
+                    "value": 4,
+                    "name": "48000"
+                }
+            }
+        }
+    },
+    "control": {
+        "rect": [
+            {
+                "chanId": 0,
+                "pos": [
+                    0,
+                    0,
+                    1920,
+                    1080
+                ],
+                "deviceId": -1
+            },
+            {
+                "chanId": 1,
+                "pos": [
+                    1440.0,
+                    0.0,
+                    480.0,
+                    270.0
+                ],
+                "deviceId": 0
+            },
+            {
+                "chanId": 2,
+                "pos": [
+                    1440.0,
+                    270.0,
+                    480.0,
+                    270.0
+                ],
+                "deviceId": -1
+            },
+            {
+                "chanId": 3,
+                "pos": [
+                    1440.0,
+                    540.0,
+                    480.0,
+                    270.0
+                ],
+                "deviceId": -1
+            },
+            {
+                "chanId": 4,
+                "pos": [
+                    1440.0,
+                    810.0,
+                    480.0,
+                    270.0
+                ],
+                "deviceId": -1
+            }
+        ],
+        "mode": 6
+    },
+    "general": {
+        "mcu": {},
+        "mode": {
+            "modeId": 4,
+            "modePos": [
+                {
+                    "chanId": 0,
+                    "deviceId": 0,
+                    "pos": [
+                        0,
+                        0,
+                        1920,
+                        1080
+                    ]
+                },
+                {
+                    "chanId": 1,
+                    "deviceId": -1,
+                    "pos": [
+                        1440,
+                        0,
+                        480,
+                        270
+                    ]
+                }
+            ]
+        },
+        "supprams": {
+            "compatible": 0,
+            "spatiallayer": {
+                "name": "1",
+                "value": 0
+            },
+            "uploadlayers": [
+                0
+            ],
+            "serverAddr": "127.0.0.1:10088",
+            "temporallayer": {
+                "name": "1",
+                "value": 0
+            },
+            "osd": 5,
+            "selfmode": 7,
+            "qualityfirst": 0,
+            "encryp": 0
+        }
+    },
+    "conference": {
+        "sessionId": 44340,
+        "ownerName": "vqwmdsaln",
+        "width": 1920,
+        "height": 1080
+    }
+}

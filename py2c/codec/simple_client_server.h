@@ -40,10 +40,15 @@
 #include <errno.h> 
 #include <ctype.h>
 #include <sys/types.h>
+#ifdef linux
 #include <sys/socket.h>
-
 #include <netinet/in.h>
 #include <arpa/inet.h>
+#elif defined(__WIN32__)
+#include <winsock2.h>
+#endif
+
+
 #include <sys/time.h>	/* for gettimeofday */
 
 #include "../../openfec_v1.4.2/src/lib_common/of_openfec_api.h"

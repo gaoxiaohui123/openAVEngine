@@ -1,0 +1,131 @@
+{
+    "conference": {
+        "sessionId": 38145,
+        "ownerName": "vmtbiusgj",
+        "width": 1280,
+        "height": 720
+    },
+    "control": {
+        "mode": -1,
+        "rect": []
+    },
+    "general": {
+        "mode": {
+            "modeId": 4,
+            "modePos": [
+                {
+                    "chanId": 0,
+                    "deviceId": 0,
+                    "pos": [
+                        0,
+                        0,
+                        1280,
+                        720
+                    ]
+                },
+                {
+                    "chanId": 1,
+                    "deviceId": -1,
+                    "pos": [
+                        960,
+                        0,
+                        320,
+                        180
+                    ]
+                }
+            ]
+        },
+        "mcu": {},
+        "supprams": {
+            "serverAddr": "47.92.7.66:10088",
+            "compatible": 0,
+            "osd": 5,
+            "selfmode": 0,
+            "netack": 6,
+            "encryp": 0,
+            "spatiallayer": {
+                "name": "1",
+                "value": 0
+            },
+            "temporallayer": {
+                "name": "16",
+                "value": 4
+            },
+            "uploadlayers": [
+                0
+            ],
+            "bwadjust": {
+                "name": "0.25",
+                "value": 0
+            },
+            "lossrate": {
+                "name": "0",
+                "value": 0
+            }
+        }
+    },
+    "multdevice": {
+        "0": {
+            "audios": {
+                "recorder": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "codec": {
+                    "value": 0,
+                    "name": "AAC"
+                },
+                "samplerate": {
+                    "value": 4,
+                    "name": "48000"
+                },
+                "bitrate": {
+                    "value": 1,
+                    "name": "24000"
+                },
+                "channels": {
+                    "value": 1,
+                    "name": "2"
+                },
+                "audiofmt": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "framesize": {
+                    "value": 2,
+                    "name": "2048"
+                },
+                "denoise": 1,
+                "agc": 0,
+                "aec": 0,
+                "detect": 0,
+                "vad": 0
+            },
+            "videos": {
+                "capture": {
+                    "value": 5,
+                    "name": "FILE"
+                },
+                "yuvfilename": "/home/gxh/works/datashare/for_ENC/stream1080p/Speed_1080.wmv",
+                "codec": {
+                    "value": 0,
+                    "name": "HCSVC"
+                },
+                "resolution": {
+                    "value": 1,
+                    "name": "1280x720"
+                },
+                "framerate": {
+                    "value": 2,
+                    "name": "25fps"
+                },
+                "bitrate": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "denoise": 0,
+                "fec": 1
+            }
+        }
+    }
+}

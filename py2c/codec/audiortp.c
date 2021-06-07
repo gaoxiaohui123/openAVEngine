@@ -35,17 +35,16 @@
 
 extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
-extern char* GetvalueStr(cJSON *json, char *key);
 extern int *GetArrayValueInt(cJSON *json, char *key, int *arraySize);
 extern cJSON* renewJson(cJSON *json, char *key, int ivalue, char *cvalue, cJSON *subJson);
 extern cJSON* renewJsonInt(cJSON *json, char *key, int ivalue);
 extern cJSON* renewJsonStr(cJSON *json, char *key, char *cvalue);
 extern cJSON* deleteJson(cJSON *json);
 extern long long *GetArrayObj(cJSON *json, char *key, int *arraySize);
-extern cJSON* renewJsonArray2(cJSON *json, char *key, short *value);
+//extern cJSON* renewJsonArray2(cJSON *json, char *key, short *value);
 extern cJSON* renewJsonArray3(cJSON **json, cJSON **array, char *key, cJSON *item);
 extern cJSON *get_net_info2(NetInfo *info, cJSON *pJsonRoot);
-extern inline int GetAudioNetInfo(uint8_t* dataPtr, int insize, NetInfo *info);
+extern int GetAudioNetInfo(uint8_t* dataPtr, int insize, NetInfo *info, int times);
 
 
 extern int64_t get_sys_time();
@@ -69,6 +68,27 @@ static void AudioResetObj(AudioRtpObj *obj)
     obj->max_packet2 = -1;
     obj->min_packet = MAX_USHORT;//-1;
     obj->max_packet = -1;
+    //
+    obj->delay_time = 0;
+    obj->offset_time = 1;
+    obj->delay_info[0].delay = -1;
+    obj->delay_info[0].max_delay = 0;
+    obj->delay_info[0].last_max_delay = 0;
+    obj->delay_info[0].sum_delay = 0;
+    obj->delay_info[0].cnt_delay = 0;
+    obj->delay_info[0].cnt_max = 1;
+    obj->delay_info[1].delay = -1;
+    obj->delay_info[1].max_delay = 0;
+    obj->delay_info[1].last_max_delay = 0;
+    obj->delay_info[1].sum_delay = 0;
+    obj->delay_info[1].cnt_delay = 0;
+    obj->delay_info[1].cnt_max = 10;
+    obj->delay_info[2].delay = -1;
+    obj->delay_info[2].max_delay = 0;
+    obj->delay_info[2].last_max_delay = 0;
+    obj->delay_info[2].sum_delay = 0;
+    obj->delay_info[2].cnt_delay = 0;
+    obj->delay_info[2].cnt_max = 100;
 }
 int audio_raw2rtp_packet(void *hnd, char *inBuf, char *outBuf)
 {
@@ -83,7 +103,9 @@ int audio_raw2rtp_packet(void *hnd, char *inBuf, char *outBuf)
     int speakerNum = 0;
     int maxSpeakerId = -1;
     long long *objList = NULL;
+    long long *objList2 = NULL;
     int arraySize = 0;
+    int arraySize2 = 0;
     int netIdx = 0;
 
     int insize = GetvalueInt(json, "insize");
@@ -99,6 +121,8 @@ int audio_raw2rtp_packet(void *hnd, char *inBuf, char *outBuf)
     if(selfChanId > 0)
     {
         objList = GetArrayObj(json, "netInfo", &arraySize);
+        objList2 = GetArrayObj(json, "rttInfo", &arraySize2);
+        //printf("audio_raw2rtp_packet: arraySize2= %d\n",arraySize2);
         speakerList = GetArrayValueInt(json, "speakers", &speakerNum);
         for(int i = 0; i < speakerNum; i++)
         {
@@ -118,7 +142,8 @@ int audio_raw2rtp_packet(void *hnd, char *inBuf, char *outBuf)
 	rtp_hdr->marker		 = 0;//(size >= len);   //标志位，由具体协议规定其值。		M
 	rtp_hdr->ssrc        = (unsigned int)hnd;;//htonl(10);    //随机指定为10，并且在本RTP会话中全局唯一	SSRC
 	rtp_hdr->extension	 = 1;//														X
-	rtp_hdr->timestamp = obj->time_stamp;;///htonl(ts_current);
+	rtp_hdr->timestamp = obj->time_stamp;///htonl(ts_current);
+	//printf("audio_raw2rtp_packet: obj->time_stamp= %u \n", obj->time_stamp);
 	rtp_hdr->seq_no = obj->seq_num;///htons(seq_num ++); //序列号，每发送一个RTP包增1
 	if (obj->seq_num >= MAX_USHORT)
 	{
@@ -131,19 +156,21 @@ int audio_raw2rtp_packet(void *hnd, char *inBuf, char *outBuf)
 	{
 		rtp_ext = (AUDIO_EXTEND_HEADER *)&outBuf[sizeof(RTP_FIXED_HEADER)];
 		memset(rtp_ext, 0, sizeof(AUDIO_EXTEND_HEADER));
-		rtp_ext->rtp_extend_profile = 0;
+		rtp_ext->rtp_extend_profile = EXTEND_PROFILE_ID;//0;
 		extlen = (rtp_extend_length + 1) << 2;
 		rtp_ext->rtp_extend_length = ((rtp_extend_length & 0xFF) << 8) | ((rtp_extend_length >> 8));
 		//
 		{
-		    rtp_ext->seq_no = rtp_hdr->seq_no;
-		    rtp_ext->nack.info_status = 0;
-		    rtp_ext->nack.enable_nack = 0;
-			rtp_ext->nack.is_lost_packet = 0;
-			rtp_ext->nack.loss_rate = 0;
-			rtp_ext->nack.time_offset = time_offset;
+		    //rtp_ext->seq_no = rtp_hdr->seq_no;
+		    rtp_ext->nack.nack0.info_status = 0;
+		    rtp_ext->nack.nack0.enable_nack = 0;
+			rtp_ext->nack.nack0.is_lost_packet = 0;
+			rtp_ext->nack.nack0.loss_rate = 0;
+			rtp_ext->nack.nack0.time_offset = time_offset;
 			int64_t now_time = (int64_t)api_get_time_stamp_ll();
-			rtp_ext->nack.time_info.time_stamp = now_time;
+			rtp_ext->nack.nack0.time_info.time_stamp0 = now_time & 0xFFFFFFFF;
+			rtp_ext->nack.nack0.time_info.time_stamp1 = (now_time >> 32) & 0xFFFFFFFF;
+			RTT_HEADER *rtt_list = (RTT_HEADER *)&rtp_ext->nack.nack0.time_info.rtt_list;
 
 			//printf("audio_raw2rtp_packet: selfChanId=%d \n", selfChanId);
 			if(selfChanId > 0 && speakerNum > 0)
@@ -155,15 +182,26 @@ int audio_raw2rtp_packet(void *hnd, char *inBuf, char *outBuf)
                 //printf("audio_raw2rtp_packet: maxSpeakerId=%d \n", maxSpeakerId);
 	    		if(I == (selfChanId - 1))//if(!(obj->seq_num & 1))
 		    	{
-			        rtp_ext->nack.enable_nack = 1;
-				    rtp_ext->nack.time_info.rtt_list.st0 = now_time & 0xFFFF;
-    				rtp_ext->nack.time_info.rtt_list.rt0 = 0;
-	    			rtp_ext->nack.time_info.rtt_list.st1 = 0;
-		    		rtp_ext->nack.time_info.rtt_list.rt1 = 0;
-			    	rtp_ext->nack.chanId = selfChanId;
-				    rtp_ext->nack.loss_rate = 0;
-    				rtp_ext->nack.info_status = 0;
-    				//printf("audio_raw2rtp_packet: rtp_ext->nack.info_status=%d \n", rtp_ext->nack.info_status);
+			        rtp_ext->nack.nack0.enable_nack = 1;
+				    rtt_list->rtt0.st0 = now_time & 0xFFFF;
+    				rtt_list->rtt0.rt0 = 0;
+	    			rtt_list->rtt0.st1 = 0;
+		    		rtt_list->rtt0.rt1 = 0;
+			    	rtp_ext->nack.nack0.chanId = selfChanId;
+				    rtp_ext->nack.nack0.loss_rate = 0;
+    				rtp_ext->nack.nack0.info_status = 0;
+    				if(objList2)
+    				{
+    				    cJSON *thisjson = (cJSON *)objList2[0];
+                        if(thisjson)
+                        {
+                            int decodeId = GetvalueInt(thisjson, "decodeId");
+                            int rtt = GetvalueInt(thisjson, "rtt");
+                            rtt_list->rtt1.rtt = (rtt + 7) >> 3;
+		    		        rtt_list->rtt1.decodeId = decodeId;
+                        }
+    				}
+    				//printf("audio_raw2rtp_packet: rtp_ext->nack.nack0.info_status=%d \n", rtp_ext->nack.nack0.info_status);
 	    		}
 		    	else{
 			        //接收端收到了对端的时间信息
@@ -182,14 +220,26 @@ int audio_raw2rtp_packet(void *hnd, char *inBuf, char *outBuf)
                                 //int st1 = GetvalueInt(thisjson, "st1");
                                 //int rt1 = GetvalueInt(thisjson, "rt1");
                                 //printf("%d, %d, %d, %d, %d, %d \n", chanId, loss_rate, st0, rt0, st1, rt1);
-				                rtp_ext->nack.enable_nack = 1;
-    				            rtp_ext->nack.loss_rate = loss_rate;//loss_rate in [1,101]
-	    			            rtp_ext->nack.time_info.rtt_list.st0 = st0;
-		    		            rtp_ext->nack.time_info.rtt_list.rt0 = rt0;
-			    	            rtp_ext->nack.time_info.rtt_list.st1 = now_time & 0xFFFF;
-				                rtp_ext->nack.chanId = chanId;
-				                rtp_ext->nack.info_status = 1;
-				                //printf("audio_raw2rtp_packet: rtp_ext->nack.info_status=%d \n", rtp_ext->nack.info_status);
+				                rtp_ext->nack.nack0.enable_nack = 1;
+    				            rtp_ext->nack.nack0.loss_rate = loss_rate;//loss_rate in [1,101]
+	    			            rtt_list->rtt0.st0 = st0;
+		    		            rtt_list->rtt0.rt0 = rt0;
+			    	            rtt_list->rtt0.st1 = now_time & 0xFFFF;
+			    	            rtt_list->rtt0.rt1 = 0;
+				                rtp_ext->nack.nack0.chanId = chanId;
+				                rtp_ext->nack.nack0.info_status = 1;
+				                //printf("audio_raw2rtp_packet: rtp_ext->nack.nack0.info_status=%d \n", rtp_ext->nack.nack0.info_status);
+				                if(objList2)
+    				            {
+    				                cJSON *thisjson = (cJSON *)objList2[0];
+                                    if(thisjson)
+                                    {
+                                        int decodeId = GetvalueInt(thisjson, "decodeId");
+                                        int rtt = GetvalueInt(thisjson, "rtt");
+                                        rtt_list->rtt1.rtt = (rtt + 7) >> 3;
+		    		                    rtt_list->rtt1.decodeId = decodeId;
+                                    }
+    				            }
                             }
 
 				        }
@@ -203,6 +253,18 @@ int audio_raw2rtp_packet(void *hnd, char *inBuf, char *outBuf)
 	int header_size = (sizeof(RTP_FIXED_HEADER) + sizeof(AUDIO_EXTEND_HEADER));
 	memcpy(&outBuf[header_size], inBuf, insize);
 	ret = sizeof(RTP_FIXED_HEADER) + sizeof(AUDIO_EXTEND_HEADER) + insize;
+    if(objList)
+	{
+	    free(objList);
+	}
+	if(objList2)
+	{
+	    free(objList2);
+	}
+	if(speakerList)
+	{
+	    free(speakerList);
+	}
 
 
     return ret;
@@ -239,6 +301,7 @@ int api_audio_raw2rtp_packet(char *handle, char *data, char *param, char *outbuf
         obj->json = mystr2json(param);
 
         unsigned int timestamp = (unsigned int)GetvalueInt(obj->json, "timestamp");
+
         if(timestamp)
         {
             obj->time_stamp = timestamp;//test
@@ -252,7 +315,6 @@ int api_audio_raw2rtp_packet(char *handle, char *data, char *param, char *outbuf
         }
         int insize = GetvalueInt(obj->json, "insize");
 
-
 	    ret = audio_raw2rtp_packet(obj, data, outbuf);
 	    //printf("api_raw2rtp_packet: ret= %d \n", ret);
 
@@ -264,6 +326,7 @@ int api_audio_raw2rtp_packet(char *handle, char *data, char *param, char *outbuf
 	}
     return ret;
 }
+#if 0
 HCSVC_API
 int api_audio_reset_seqnum(void *hnd, uint8_t* dataPtr, int insize, int seq_num)
 {
@@ -298,6 +361,7 @@ int api_audio_reset_seqnum(void *hnd, uint8_t* dataPtr, int insize, int seq_num)
     ret = seq_num;
     return ret;
 }
+#endif
 //===================unpacket===================================================
 int audio_rtp_packet2raw(void *hnd, char *inBuf, char *outBuf)
 {
@@ -318,7 +382,7 @@ int audio_rtp_packet2raw(void *hnd, char *inBuf, char *outBuf)
 	int rtp_extend_length = 0;
 	static int frmnum = 0;
 	int discard = 0;
-	int rtp_pkt_size = insize;
+	unsigned int rtp_pkt_size = insize;
 
 	rtp_hdr =(RTP_FIXED_HEADER*)&inBuf[0];
 	ssrc = rtp_hdr->ssrc;
@@ -339,21 +403,24 @@ int audio_rtp_packet2raw(void *hnd, char *inBuf, char *outBuf)
 	if(rtp_hdr->extension)
 	{
 		rtp_ext = (AUDIO_EXTEND_HEADER *)&inBuf[sizeof(RTP_FIXED_HEADER)];
-		extprofile = rtp_ext->rtp_extend_profile & 7;
+		extprofile = rtp_ext->rtp_extend_profile;// & 7;
 		rtp_extend_length = rtp_ext->rtp_extend_length;
 		rtp_extend_length = ((rtp_extend_length & 0xFF) << 8) | ((rtp_extend_length >> 8));
 		extlen = (rtp_extend_length + 1) << 2;
         if (extlen < 0 || extlen > insize) {
            printf("error: audio_rtp_unpacket: extlen=%d \n",extlen);
+           printf("error: audio_rtp_unpacket: insize=%d \n",insize);
            return -1;
         }
         //get extend info
         {
-	        int is_lost_packet = rtp_ext->nack.is_lost_packet;
-	        int loss_rate = rtp_ext->nack.loss_rate;
-	        //int time_status = rtp_ext->nack.time_status;
-	        int time_offset = rtp_ext->nack.time_offset;
-	        int64_t packet_time_stamp = rtp_ext->nack.time_info.time_stamp;
+	        int is_lost_packet = rtp_ext->nack.nack0.is_lost_packet;
+	        int loss_rate = rtp_ext->nack.nack0.loss_rate;
+	        //int time_status = rtp_ext->nack.nack0.time_status;
+	        int time_offset = rtp_ext->nack.nack0.time_offset;
+	        uint64_t time_stamp0 = rtp_ext->nack.nack0.time_info.time_stamp0;
+	        uint64_t time_stamp1 = rtp_ext->nack.nack0.time_info.time_stamp1;
+	        int64_t packet_time_stamp = time_stamp0 | (time_stamp1 << 32);
         }
     }
     int header_size = (sizeof(RTP_FIXED_HEADER) + sizeof(AUDIO_EXTEND_HEADER));
@@ -406,7 +473,7 @@ int api_audio_rtp_packet2raw(char *handle, char *data, char *param, char *outbuf
     return ret;
 }
 
-#if 1
+#if 0
 //注意：冗余包未计入丢包率统计，将会严重影响丢包率统计的准确性
 //实验结果证明，该算法是正确的，只是精度，依赖于延迟时间的长度，
 //单位时间内，音频包的个数少，因此，要获得“稳定的“结果，需要足够长的延时（一般一秒以上）
@@ -640,7 +707,15 @@ static int get_frame(void *hnd, char *outbuf, char *complete, char *extend_info,
     int counted_loss_rate = 0;
     RTP_FIXED_HEADER  *rtp_hdr = NULL;
 	AUDIO_EXTEND_HEADER *rtp_ext = NULL;
-
+    if(obj->delay_time > 0)
+    {
+        delay_time = obj->delay_time;
+        //printf("get_frame: delay_time= %d \n", delay_time);
+        if(delay_time > MAX_DELAY_TIME)
+        {
+            delay_time = MAX_DELAY_TIME;
+        }
+    }
 	uint32_t last_frame_time_stamp = obj->last_frame_time_stamp;
 	int packet_distance = obj->max_packet - obj->min_packet;
 	long long now_ms = get_sys_time();
@@ -798,6 +873,8 @@ static int get_frame(void *hnd, char *outbuf, char *complete, char *extend_info,
                         }
                         //last_frame_time_stamp
                         timestamp = rtp_hdr->timestamp;
+                        //printf("audio: get_frame: timestamp= %u \n", timestamp);
+                        //printf("audio: get_frame: this_seqnum= %u \n", this_seqnum);
 
                         if(!start_timestamp)
                         {
@@ -808,7 +885,10 @@ static int get_frame(void *hnd, char *outbuf, char *complete, char *extend_info,
                             if(rtp_hdr->extension)
 			                {
 				                rtp_ext = (AUDIO_EXTEND_HEADER *)&buf[sizeof(RTP_FIXED_HEADER)];
-                                nack_time = rtp_ext->nack.time_info.time_stamp;
+				                uint64_t time_stamp0 = rtp_ext->nack.nack0.time_info.time_stamp0;
+	                            uint64_t time_stamp1 = rtp_ext->nack.nack0.time_info.time_stamp1;
+	                            nack_time = time_stamp0 | (time_stamp1 << 32);
+                                //nack_time = rtp_ext->nack.nack0.time_info.time_stamp;
                             }
                         }
                         if(abs(timestamp - start_timestamp) > delay_time)
@@ -844,7 +924,7 @@ static int get_frame(void *hnd, char *outbuf, char *complete, char *extend_info,
                             {
                                 //printf("get_frame: selfChanId= %d \n", selfChanId);
                                 NetInfo netInfo = {};
-                                int enable_nack = GetAudioNetInfo((uint8_t*)buf, size, &netInfo);
+                                int enable_nack = GetAudioNetInfo((uint8_t*)buf, size, &netInfo, 1);
                                 if(enable_nack)
                                 {
                                     //printf("get_frame: netInfo.info_status= %d \n", netInfo.info_status);
@@ -870,7 +950,7 @@ static int get_frame(void *hnd, char *outbuf, char *complete, char *extend_info,
 #else
                                         if(loss_rate > 0)
                                         {
-                                            netInfo.loss_rate = loss_rate + 1;
+                                            netInfo.loss_rate = loss_rate;// + 1;
                                         }
 #endif
                                         thisjson = get_net_info2(&netInfo, thisjson);
@@ -964,9 +1044,9 @@ static int get_frame(void *hnd, char *outbuf, char *complete, char *extend_info,
                             int ref_idc = 0;
                             sprintf(complete, "%d", ref_idc);
                             strcat(complete, ",loss");
-                            if(delay > (delay_time * 3))
+                            if(delay > (delay_time * 3) && (delay > 300))
                             {
-                                printf("warning: get_frame: delay= %d, ret= %d, packet_distance= %d \n", delay, ret, packet_distance);
+                                printf("warning: audio :get_frame: delay= %d, ret= %d, packet_distance= %d \n", delay, ret, packet_distance);
                             }
                             //if(timestamp0 == obj->last_frame_time_stamp)
                             if(0)
@@ -1002,6 +1082,9 @@ static int get_frame(void *hnd, char *outbuf, char *complete, char *extend_info,
                         //printf("warning: get_frame: start_seq_num= %d \n", start_seq_num);
                         //printf("warning: get_frame: stop_seq_num= %d \n", stop_seq_num);
                     }
+                    //printf("audio: get_frame: j= %d \n", j);
+                    //printf("audio: get_frame: start_seq_num= %d \n", start_seq_num);
+                    //printf("audio: get_frame: stop_seq_num= %d \n", stop_seq_num);
                     if(last_timestamp)
                     {
                         if(last_timestamp == obj->last_frame_time_stamp)
@@ -1141,12 +1224,107 @@ static int get_frame(void *hnd, char *outbuf, char *complete, char *extend_info,
         {
             printf("error: get_frame: strlen(extend_info)= %d \n", strlen(extend_info));
         }
-        free(jsonStr);
+        cJSON_free(jsonStr);
     }
     //printf("get_frame: end: ret= %d \n", ret);
     return ret;
 }
+static int add_delay(DelayInfo *delay_info, int delay)
+{
+    int ret = delay;
+    if(delay >= 0)
+    {
+        for(int i = 0; i < 3; i++)
+        {
+            if(delay_info[i].max_delay < delay)
+            {
+                delay_info[i].max_delay = delay;
+            }
+            delay_info[i].sum_delay += delay;
+            delay_info[i].cnt_delay += 1;
+            if(delay_info[i].cnt_delay >= delay_info[i].cnt_max)
+            {
+                delay_info[i].delay = delay_info[i].sum_delay / delay_info[i].cnt_max;
+                delay_info[i].last_max_delay = delay_info[i].max_delay;
+                delay_info[i].max_delay = delay;
+                delay_info[i].sum_delay = 0;
+                delay_info[i].cnt_delay = 0;
+            }
+            //else{
+            //    delay_info[i].delay = delay_info[i].sum_delay / delay_info[i].cnt_delay;
+            //}
+        }
+        if(delay_info[1].delay > 0)
+        {
+            ret = delay_info[1].max_delay;
+            if(delay_info[1].last_max_delay > 0)
+            {
+                ret = delay_info[1].last_max_delay;
+            }
+            if(ret < delay_info[2].delay)//瞬间波谷，容许在下个大周期更新；
+            {
+                ret = delay_info[2].delay;
+            }
+            if(ret > delay_info[2].last_max_delay)//瞬间峰值
+            {
+                ret = delay_info[2].last_max_delay;
+            }
+            //持续偏大，必须快速更新
+            //if(ret < delay_info[1].delay)
+            //{
+            //    ret = delay_info[1].delay;
+            //}
+        }
+    }
+    return ret;
+}
+//需要注意：非对时情况下的错误
+//rtt = ((rt0 - st0) + (rt1 - st1)) / 2 = ((rt1 - st0) - (st1 - rt0)) / 2
+//rtt不受对时影响，但(rt0 - st0)必须对时
+static int renew_delay_time(void *hnd, uint8_t *buf, int size, int delay_time)
+{
+    int ret = delay_time;
+    AudioRtpObj *obj = (AudioRtpObj *)hnd;
+    cJSON *json = obj->json;
+    int selfChanId = GetvalueInt(json, "selfChanId");
+    //int *chanIdList = GetArrayValueInt(json, "chanId", &chanNum);
+    if(selfChanId > 0)
+    {
+        NetInfo netInfo = {};
+        int enable_nack = GetAudioNetInfo((uint8_t*)buf, size, &netInfo, 0);
+        if(enable_nack)
+        {
+            //printf("renew_delay_time: netInfo.decodeId= %d, selfChanId=%d \n", netInfo.decodeId, selfChanId);
+            //printf("renew_delay_time: netInfo.rtt= %d \n", netInfo.rtt);
+            if(netInfo.decodeId == selfChanId)
+            {
+                int diff_time = (netInfo.rtt << 3);
+                //printf("audio: renew_delay_time: diff_time= %d \n", diff_time);
+                ret = add_delay(obj->delay_info, diff_time);
+            }
+#if 0
+            if(!netInfo.info_status)
+            {
+                int diff_time = netInfo.rt0 - netInfo.st0;
+                if(diff_time <= 0)
+                {
+                    if(diff_time < obj->offset_time)
+                    {
+                        obj->offset_time = diff_time;
+                    }
+                }
+                if(obj->offset_time <= 0)
+                {
+                    diff_time -= obj->offset_time;
+                }
+                ret = add_delay(obj->delay_info, diff_time);
 
+            }
+#endif
+        }
+    }
+    return ret;
+}
 int audio_resort_packet(void *hnd, char *data, char *outbuf, char *complete, char *extend_info, char *outparam[])
 {
     int ret = 0;
@@ -1178,8 +1356,8 @@ int audio_resort_packet(void *hnd, char *data, char *outbuf, char *complete, cha
     //printf("audio_resort_packet: obj->recv_buf= %x \n", obj->recv_buf);
     if(obj->recv_buf == NULL)
     {
-        printf("resort_packet: obj->Obj_id= %x \n", obj->Obj_id);
-        printf("resort_packet: obj->buf_size= %d \n", obj->buf_size);
+        printf("audio: resort_packet: obj->Obj_id= %x \n", obj->Obj_id);
+        printf("audio: resort_packet: obj->buf_size= %d \n", obj->buf_size);
         obj->recv_buf = calloc(1, sizeof(uint8_t *) * obj->buf_size);
         for(int i = 0; i < obj->buf_size; i++)
         {
@@ -1330,14 +1508,18 @@ int audio_resort_packet(void *hnd, char *data, char *outbuf, char *complete, cha
         //printf("resort_packet: I= %d \n", I);
         //printf("resort_packet: I = %d \n", I);
         //printf("resort_packet: obj->recv_buf[I]= %x \n", obj->recv_buf[I]);
-
+        if(obj->delay_time <= 0)
+        {
+            obj->delay_time = delay_time;
+        }
+        obj->delay_time = renew_delay_time(hnd, data, insize, obj->delay_time);
         memcpy(&obj->recv_buf[I][sizeof(int)], data, insize);
         int *p = (int *)&obj->recv_buf[I][0];
         //printf("audio_resort_packet: insize= %d \n", insize);
         p[0] = insize;
     }
     else{
-        printf("warning: audio_resort_packet: old packet: insize= %d \n", insize);
+        //printf("warning: audio_resort_packet: old packet: insize= %d \n", insize);
     }
     //printf("audio_resort_packet: obj->min_packet= %d \n", obj->min_packet);
     //printf("audio_resort_packet: obj->max_packet= %d \n", obj->max_packet);
@@ -1349,6 +1531,7 @@ int audio_resort_packet(void *hnd, char *data, char *outbuf, char *complete, cha
 	//printf("resort_packet: packet_distance= %d \n", packet_distance);
 	//if(obj->max_packet >= 0 && obj->min_packet >= 0)
     {
+
         if(packet_distance > min_distance)
         {
             //printf("get_frame: \n");

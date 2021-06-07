@@ -51,10 +51,13 @@ class AudioCapture(threading.Thread):
         self.filename = "/home/gxh/works/audio/dukou_ref3.wav"  # #20063.wav
         # self.filename = ""
         self.filename = "./dukou_ref3.wav"
+        #self.filename = ""
 
         self.pcmfile = "/home/gxh/works/cap_resample_" + str(id) + ".pcm"
+        self.pcmfile = "./acap_resample_" + str(id) + ".pcm"
         self.pcmfile = ""
         self.capfile = "/home/gxh/works/cap_" + str(id) + ".pcm"
+        self.capfile = "./acap" + str(id) + ".pcm"
         self.capfile = ""
         self.out_channels = 2
         self.out_nb_samples = 1024
@@ -65,7 +68,7 @@ class AudioCapture(threading.Thread):
         self.out_buffer_size = self.frame_size
         self.max_buf_num = 8
         self.datatype = 2
-        self.process = 1
+        self.process = 1#0#1
         self.select_device = -1
         self.param = {}
         self.outbuf = None
@@ -89,15 +92,24 @@ class AudioCapture(threading.Thread):
         data = outbuf2.raw
         data2 = data[0:ret]
         result = None
-        if sys.version_info >= (3, 0):
-            #data2 = data2.replace(b"\'", b"\"")
-            print("data2= ", data2)
-            #在json字符串中不能出现单引号
-            #result = json.loads(data2, encoding='utf-8')
-            result = json.loads(data2.decode())
-        else:
-            result = json.loads(data2)
+        try:
+            if sys.version_info >= (3, 0):
+                #data2 = data2.replace(b"\'", b"\"")
+                print("data2= ", data2)
+                #在json字符串中不能出现单引号
+                #result = json.loads(data2, encoding='utf-8')
+                result = json.loads(data2.decode())
+            else:
+                result = json.loads(data2)
+        except:
+            print("audio: get_device_info: failed !")
+            return infolist
         if result != None:
+            windev = result.get("windev")
+            if windev != None:
+                audiodev = windev.get("audiodev")
+                if audiodev != None:
+                    return audiodev
             for key, value in result.items():
                 if ("card" in key) and ("device" in value):
                     key = key.replace("card", "")
@@ -145,17 +157,22 @@ class AudioCapture(threading.Thread):
             self.status = True
         else:
             self.status = False
+            print("AudioCapture:init: fail !!!")
         self.outbuf = create_string_buffer(self.frame_size << 1)  # redundancy
-
+        print("AudioCapture:init: over ")
     def run(self):
         print("AudioCapture: run 0")
         while self.__running.isSet():
             self.__flag.wait()  # 为True时立即返回, 为False时阻塞直到内部的标识位为True后返回
             ret = 0
-            # ret = self.load.lib.api_audio_capture_read_frame(self.handle, 0)
-            ret = self.load.lib.api_audio_capture_read_frame(self.handle)
-            if ret > 0:
-                pass
+            if self.status:
+                # ret = self.load.lib.api_audio_capture_read_frame(self.handle, 0)
+                ret = self.load.lib.api_audio_capture_read_frame(self.handle)
+                if ret > 0:
+                    #print("VideoCapture: run: ret= ", ret)
+                    pass
+                else:
+                    time.sleep(0.01)
             else:
                 # print("VideoCapture: run: ret= ", ret)
                 # self.stop()
@@ -165,10 +182,13 @@ class AudioCapture(threading.Thread):
         self.stop()
 
     def ReadFrame(self):
+        if not self.status:
+            return ("", -1)
         data = ""
         ret = self.load.lib.api_audio_capture_read_frame2(self.handle, self.outbuf)
         if ret > 0:
             data = self.outbuf
+            #print("ReadFrame: run: ret= ", ret)
         return (data, ret)
 
     def Close(self):

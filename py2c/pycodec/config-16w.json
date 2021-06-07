@@ -1,0 +1,509 @@
+{
+    "control": {
+        "mode": 6,
+        "rect": [
+            {
+                "chanId": 0,
+                "pos": [
+                    0,
+                    0,
+                    1920,
+                    1080
+                ],
+                "deviceId": 0
+            },
+            {
+                "chanId": 1,
+                "pos": [
+                    1440.0,
+                    0.0,
+                    480.0,
+                    270.0
+                ],
+                "deviceId": 1
+            },
+            {
+                "chanId": 2,
+                "pos": [
+                    1440.0,
+                    270.0,
+                    480.0,
+                    270.0
+                ],
+                "deviceId": 2
+            },
+            {
+                "chanId": 3,
+                "pos": [
+                    1440.0,
+                    540.0,
+                    480.0,
+                    270.0
+                ],
+                "deviceId": -1
+            },
+            {
+                "chanId": 4,
+                "pos": [
+                    1440.0,
+                    810.0,
+                    480.0,
+                    270.0
+                ],
+                "deviceId": -1
+            }
+        ]
+    },
+    "conference": {
+        "sessionId": 55696,
+        "ownerName": "qztxwmpon",
+        "width": 1920,
+        "height": 1080
+    },
+    "multdevice": {
+        "0": {
+            "videos": {
+                "denoise": 1,
+                "bitrate": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "yuvfilename": "/home/gxh/works/datashare/for_ENC/stream1080p/Speed_1080.wmv",
+                "framerate": {
+                    "value": 2,
+                    "name": "25fps"
+                },
+                "capture": {
+                    "value": 1,
+                    "name": "video0:mjpeg"
+                },
+                "codec": {
+                    "value": 0,
+                    "name": "HCSVC"
+                },
+                "resolution": {
+                    "value": 1,
+                    "name": "1280x720"
+                },
+                "fec": 1
+            },
+            "audios": {
+                "denoise": 1,
+                "detect": 0,
+                "codec": {
+                    "value": 0,
+                    "name": "AAC"
+                },
+                "audiofmt": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "aec": 0,
+                "vad": 0,
+                "agc": 0,
+                "samplerate": {
+                    "value": 4,
+                    "name": "48000"
+                },
+                "bitrate": {
+                    "value": 1,
+                    "name": "24000"
+                },
+                "recorder": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "channels": {
+                    "value": 1,
+                    "name": "2"
+                },
+                "framesize": {
+                    "value": 2,
+                    "name": "2048"
+                }
+            }
+        },
+        "1": {
+            "videos": {
+                "denoise": 0,
+                "framerate": {
+                    "value": 2,
+                    "name": "25fps"
+                },
+                "codec": {
+                    "value": 0,
+                    "name": "HCSVC"
+                },
+                "resolution": {
+                    "value": 4,
+                    "name": "640x480"
+                },
+                "bitrate": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "capture": {
+                    "value": 5,
+                    "name": "FILE"
+                },
+                "yuvfilename": "/home/gxh/works/datashare/for_ENC/stream1080p/Dolphins_1080.wmv",
+                "fec": 1
+            },
+            "audios": {
+                "framesize": {
+                    "value": 2,
+                    "name": "2048"
+                },
+                "denoise": 1,
+                "codec": {
+                    "value": 0,
+                    "name": "AAC"
+                },
+                "audiofmt": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "samplerate": {
+                    "value": 4,
+                    "name": "48000"
+                },
+                "vad": 0,
+                "agc": 0,
+                "aec": 0,
+                "bitrate": {
+                    "value": 1,
+                    "name": "24000"
+                },
+                "recorder": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "channels": {
+                    "value": 1,
+                    "name": "2"
+                },
+                "detect": 0
+            }
+        },
+        "3": {
+            "videos": {
+                "denoise": 0,
+                "framerate": {
+                    "value": 2,
+                    "name": "25fps"
+                },
+                "codec": {
+                    "value": 0,
+                    "name": "HCSVC"
+                },
+                "resolution": {
+                    "value": 4,
+                    "name": "640x480"
+                },
+                "bitrate": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "capture": {
+                    "value": 5,
+                    "name": "FILE"
+                },
+                "fec": 1,
+                "yuvfilename": "/home/gxh/works/datashare/for_ENC/stream1080p/Speed_1080.wmv"
+            },
+            "audios": {
+                "framesize": {
+                    "value": 2,
+                    "name": "2048"
+                },
+                "denoise": 1,
+                "codec": {
+                    "value": 0,
+                    "name": "AAC"
+                },
+                "audiofmt": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "samplerate": {
+                    "value": 4,
+                    "name": "48000"
+                },
+                "vad": 0,
+                "agc": 0,
+                "aec": 0,
+                "bitrate": {
+                    "value": 1,
+                    "name": "24000"
+                },
+                "recorder": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "channels": {
+                    "value": 1,
+                    "name": "2"
+                },
+                "detect": 0
+            }
+        },
+        "2": {
+            "videos": {
+                "denoise": 0,
+                "framerate": {
+                    "value": 2,
+                    "name": "25fps"
+                },
+                "codec": {
+                    "value": 0,
+                    "name": "HCSVC"
+                },
+                "resolution": {
+                    "value": 4,
+                    "name": "640x480"
+                },
+                "bitrate": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "capture": {
+                    "value": 5,
+                    "name": "FILE"
+                },
+                "yuvfilename": "/home/gxh/works/datashare/for_ENC/stream1080p/Robotica_1080.wmv",
+                "fec": 1
+            },
+            "audios": {
+                "framesize": {
+                    "value": 2,
+                    "name": "2048"
+                },
+                "denoise": 1,
+                "codec": {
+                    "value": 0,
+                    "name": "AAC"
+                },
+                "audiofmt": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "samplerate": {
+                    "value": 4,
+                    "name": "48000"
+                },
+                "vad": 0,
+                "agc": 0,
+                "aec": 0,
+                "bitrate": {
+                    "value": 1,
+                    "name": "24000"
+                },
+                "recorder": {
+                    "value": 0,
+                    "name": "default"
+                },
+                "channels": {
+                    "value": 1,
+                    "name": "2"
+                },
+                "detect": 0
+            }
+        }
+    },
+    "general": {
+        "supprams": {
+            "encryp": 0,
+            "temporallayer": {
+                "name": "16",
+                "value": 4
+            },
+            "selfmode": 0,
+            "qualityfirst": 0,
+            "spatiallayer": {
+                "name": "1",
+                "value": 0
+            },
+            "bwadjust": {
+                "name": "0.25",
+                "value": 0
+            },
+            "serverAddr": "127.0.0.1:10088",
+            "osd": 5,
+            "compatible": 0,
+            "uploadlayers": [
+                0
+            ],
+            "netack": 6,
+            "lossrate": {
+                "name": "0",
+                "value": 0
+            }
+        },
+        "mcu": {},
+        "mode": {
+            "modeId": 19,
+            "modePos": [
+                {
+                    "chanId": 0,
+                    "deviceId": -1,
+                    "pos": [
+                        0,
+                        0,
+                        480,
+                        270
+                    ]
+                },
+                {
+                    "chanId": 1,
+                    "deviceId": -1,
+                    "pos": [
+                        480,
+                        0,
+                        480,
+                        270
+                    ]
+                },
+                {
+                    "chanId": 2,
+                    "deviceId": -1,
+                    "pos": [
+                        960,
+                        0,
+                        480,
+                        270
+                    ]
+                },
+                {
+                    "chanId": 3,
+                    "deviceId": -1,
+                    "pos": [
+                        1440,
+                        0,
+                        480,
+                        270
+                    ]
+                },
+                {
+                    "chanId": 4,
+                    "deviceId": 0,
+                    "pos": [
+                        0,
+                        270,
+                        480,
+                        270
+                    ]
+                },
+                {
+                    "chanId": 5,
+                    "deviceId": 1,
+                    "pos": [
+                        480,
+                        270,
+                        480,
+                        270
+                    ]
+                },
+                {
+                    "chanId": 6,
+                    "deviceId": 2,
+                    "pos": [
+                        960,
+                        270,
+                        480,
+                        270
+                    ]
+                },
+                {
+                    "chanId": 7,
+                    "deviceId": 3,
+                    "pos": [
+                        1440,
+                        270,
+                        480,
+                        270
+                    ]
+                },
+                {
+                    "chanId": 8,
+                    "deviceId": -1,
+                    "pos": [
+                        0,
+                        540,
+                        480,
+                        270
+                    ]
+                },
+                {
+                    "chanId": 9,
+                    "deviceId": -1,
+                    "pos": [
+                        480,
+                        540,
+                        480,
+                        270
+                    ]
+                },
+                {
+                    "chanId": 10,
+                    "deviceId": -1,
+                    "pos": [
+                        960,
+                        540,
+                        480,
+                        270
+                    ]
+                },
+                {
+                    "chanId": 11,
+                    "deviceId": -1,
+                    "pos": [
+                        1440,
+                        540,
+                        480,
+                        270
+                    ]
+                },
+                {
+                    "chanId": 12,
+                    "deviceId": -1,
+                    "pos": [
+                        0,
+                        810,
+                        480,
+                        270
+                    ]
+                },
+                {
+                    "chanId": 13,
+                    "deviceId": -1,
+                    "pos": [
+                        480,
+                        810,
+                        480,
+                        270
+                    ]
+                },
+                {
+                    "chanId": 14,
+                    "deviceId": -1,
+                    "pos": [
+                        960,
+                        810,
+                        480,
+                        270
+                    ]
+                },
+                {
+                    "chanId": 15,
+                    "deviceId": -1,
+                    "pos": [
+                        1440,
+                        810,
+                        480,
+                        270
+                    ]
+                }
+            ]
+        }
+    }
+}
