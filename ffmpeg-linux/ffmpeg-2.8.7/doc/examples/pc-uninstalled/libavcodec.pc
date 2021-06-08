@@ -1,0 +1,12 @@
+prefix=
+exec_prefix=
+libdir=${pcfiledir}/../../../libavcodec
+includedir=${pcfiledir}/../../..
+
+Name: libavcodec
+Description: FFmpeg codec library
+Version: 56.60.100
+Requires: libswresample >= 1.2.101, libavutil >= 54.31.100
+Conflicts:
+Libs: -L${libdir} -Wl,-rpath,${libdir} -lavcodec -lavicap32 -lgdi32 -lpsapi -lole32 -lstrmiids -luuid -loleaut32 -lshlwapi -lws2_32 -liconv -lx264 -L/mingw32/i686-w64-mingw32/mingw32/lib -lmfx -lstdc++ -lole32 -luuid -laacplus -lm -llzma -lbz2 -pthread -lpsapi -ladvapi32 -lshell32 -lmfx -laacplus -lx264 -lopenh264 -lcommon -lprocessing -lconsole_common -lz -lrtmp -lstdc++ -lm
+Cflags: -I${includedir}

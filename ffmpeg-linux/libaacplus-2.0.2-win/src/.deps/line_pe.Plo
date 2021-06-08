@@ -1,0 +1,121 @@
+line_pe.lo: line_pe.c D:/msys64/mingw32/i686-w64-mingw32/include/math.h \
+ D:/msys64/mingw32/i686-w64-mingw32/include/crtdefs.h \
+ D:/msys64/mingw32/i686-w64-mingw32/include/corecrt.h \
+ D:/msys64/mingw32/i686-w64-mingw32/include/_mingw.h \
+ D:/msys64/mingw32/i686-w64-mingw32/include/_mingw_mac.h \
+ D:/msys64/mingw32/i686-w64-mingw32/include/_mingw_secapi.h \
+ D:/msys64/mingw32/i686-w64-mingw32/include/vadefs.h \
+ D:/msys64/mingw32/i686-w64-mingw32/include/sdks/_mingw_ddk.h \
+ aacplusenc.h ../config.h ../include/aacplus.h \
+ D:/msys64/mingw32/lib/gcc/i686-w64-mingw32/10.2.0/include/stdint.h \
+ D:/msys64/mingw32/i686-w64-mingw32/include/stdint.h \
+ D:/msys64/mingw32/lib/gcc/i686-w64-mingw32/10.2.0/include/stddef.h \
+ D:/msys64/mingw32/i686-w64-mingw32/include/stddef.h minmax.h sbr_def.h \
+ psy_const.h cfftn.h hybrid.h sbr_ram.h \
+ D:/msys64/mingw32/i686-w64-mingw32/include/stdio.h \
+ D:/msys64/mingw32/i686-w64-mingw32/include/corecrt_stdio_config.h \
+ D:/msys64/mingw32/i686-w64-mingw32/include/_mingw_off_t.h \
+ D:/msys64/mingw32/i686-w64-mingw32/include/swprintf.inl \
+ D:/msys64/mingw32/i686-w64-mingw32/include/sec_api/stdio_s.h \
+ D:/msys64/mingw32/i686-w64-mingw32/include/assert.h sbr_main.h \
+ fram_gen.h tran_det.h code_env.h qmf_enc.h env_est.h mh_det.h nf_est.h \
+ invf_est.h ton_corr.h tns.h sbr.h aac_ram.h tns_param.h aac_rom.h \
+ dyn_bits.h adj_thr_data.h qc_data.h block_switch.h psy_data.h \
+ interface.h psy_configuration.h psy_main.h FFR_bitbuffer.h bitenc.h \
+ stprepro.h aacenc.h adj_thr.h adts.h band_nrg.h bit_cnt.h \
+ D:/msys64/mingw32/lib/gcc/i686-w64-mingw32/10.2.0/include-fixed/limits.h \
+ D:/msys64/mingw32/lib/gcc/i686-w64-mingw32/10.2.0/include-fixed/syslimits.h \
+ D:/msys64/mingw32/i686-w64-mingw32/include/limits.h bit_sbr.h \
+ channel_map.h env_bit.h FloatFR.h \
+ D:/msys64/mingw32/lib/gcc/i686-w64-mingw32/10.2.0/include/stdarg.h \
+ D:/msys64/mingw32/i686-w64-mingw32/include/stdarg.h \
+ D:/msys64/mingw32/i686-w64-mingw32/include/_mingw_stdarg.h freq_sca.h \
+ grp_data.h line_pe.h ms_stereo.h pre_echo_control.h ps_bitenc.h ps_enc.h \
+ cmondata.h qc_main.h quantize.h resampler.h sbr_misc.h sbr_rom.h \
+ sf_estim.h spreading.h stat_bits.h tns_func.h transform.h
+D:/msys64/mingw32/i686-w64-mingw32/include/math.h:
+D:/msys64/mingw32/i686-w64-mingw32/include/crtdefs.h:
+D:/msys64/mingw32/i686-w64-mingw32/include/corecrt.h:
+D:/msys64/mingw32/i686-w64-mingw32/include/_mingw.h:
+D:/msys64/mingw32/i686-w64-mingw32/include/_mingw_mac.h:
+D:/msys64/mingw32/i686-w64-mingw32/include/_mingw_secapi.h:
+D:/msys64/mingw32/i686-w64-mingw32/include/vadefs.h:
+D:/msys64/mingw32/i686-w64-mingw32/include/sdks/_mingw_ddk.h:
+aacplusenc.h:
+../config.h:
+../include/aacplus.h:
+D:/msys64/mingw32/lib/gcc/i686-w64-mingw32/10.2.0/include/stdint.h:
+D:/msys64/mingw32/i686-w64-mingw32/include/stdint.h:
+D:/msys64/mingw32/lib/gcc/i686-w64-mingw32/10.2.0/include/stddef.h:
+D:/msys64/mingw32/i686-w64-mingw32/include/stddef.h:
+minmax.h:
+sbr_def.h:
+psy_const.h:
+cfftn.h:
+hybrid.h:
+sbr_ram.h:
+D:/msys64/mingw32/i686-w64-mingw32/include/stdio.h:
+D:/msys64/mingw32/i686-w64-mingw32/include/corecrt_stdio_config.h:
+D:/msys64/mingw32/i686-w64-mingw32/include/_mingw_off_t.h:
+D:/msys64/mingw32/i686-w64-mingw32/include/swprintf.inl:
+D:/msys64/mingw32/i686-w64-mingw32/include/sec_api/stdio_s.h:
+D:/msys64/mingw32/i686-w64-mingw32/include/assert.h:
+sbr_main.h:
+fram_gen.h:
+tran_det.h:
+code_env.h:
+qmf_enc.h:
+env_est.h:
+mh_det.h:
+nf_est.h:
+invf_est.h:
+ton_corr.h:
+tns.h:
+sbr.h:
+aac_ram.h:
+tns_param.h:
+aac_rom.h:
+dyn_bits.h:
+adj_thr_data.h:
+qc_data.h:
+block_switch.h:
+psy_data.h:
+interface.h:
+psy_configuration.h:
+psy_main.h:
+FFR_bitbuffer.h:
+bitenc.h:
+stprepro.h:
+aacenc.h:
+adj_thr.h:
+adts.h:
+band_nrg.h:
+bit_cnt.h:
+D:/msys64/mingw32/lib/gcc/i686-w64-mingw32/10.2.0/include-fixed/limits.h:
+D:/msys64/mingw32/lib/gcc/i686-w64-mingw32/10.2.0/include-fixed/syslimits.h:
+D:/msys64/mingw32/i686-w64-mingw32/include/limits.h:
+bit_sbr.h:
+channel_map.h:
+env_bit.h:
+FloatFR.h:
+D:/msys64/mingw32/lib/gcc/i686-w64-mingw32/10.2.0/include/stdarg.h:
+D:/msys64/mingw32/i686-w64-mingw32/include/stdarg.h:
+D:/msys64/mingw32/i686-w64-mingw32/include/_mingw_stdarg.h:
+freq_sca.h:
+grp_data.h:
+line_pe.h:
+ms_stereo.h:
+pre_echo_control.h:
+ps_bitenc.h:
+ps_enc.h:
+cmondata.h:
+qc_main.h:
+quantize.h:
+resampler.h:
+sbr_misc.h:
+sbr_rom.h:
+sf_estim.h:
+spreading.h:
+stat_bits.h:
+tns_func.h:
+transform.h:

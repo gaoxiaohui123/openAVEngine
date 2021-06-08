@@ -1,0 +1,167 @@
+MSDK	gen8+	​https://github.com/Intel-Media-SDK/MediaSDK
+Libva	gen5+	​https://github.com/intel/libva
+i965 driver	gen5 ~ gen9.5	​https://github.com/intel/intel-vaapi-driver
+iHD driver	gen8+	​https://github.com/intel/media-driver
+1)
+refer to:https://blog.csdn.net/Tosonw/article/details/90412626
+
+sudo apt install vainfo
+查看库文件
+ls -a /usr/lib/x86_64-linux-gnu/dri/
+ls -lh /usr/lib/x86_64-linux-gnu/dri/
+#查看是否安装了驱动
+apt list i965-va-driver
+#如果没有安装，则进行安装
+sudo apt install -y i965-va-driver
+2)
+build libva:
+./autogen.sh #-with-drivers-path=/usr/lib/x86_64-linux-gnu/dri
+make 
+sudo make install
+/usr/local/lib/
+/usr/lib/x86_64-linux-gnu/(之前安装的位置)
+3)vaapi驱动,只支持linux
+build intel-vaapi-driver:
+./autogen.sh
+./configure #--prefix=/usr/lib/x86_64-linux-gnu/dri/
+make
+sudo make install 
+/usr/lib/x86_64-linux-gnu/dri/i965_drv_video.so
+或/usr/local/lib/dri/
+4)
+提供一系列 VA API相关的测试。比如vainfo命令，可以用来检测我们的硬件支持哪些VA API编解码特性。
+git clone https://github.com/intel/libva-utils
+./autogen.sh
+./configure
+make
+make install
+
+5)
+git clone https://github.com/intel/gmmlib
+cd Source
+mkdir build && cd build
+cmake [-DCMAKE_BUILD_TYPE= Release] [-DARCH= 64] ../GmmLib
+make
+sudo make install
+/usr/local/lib/libigdgmm.so
+6)intel media sdk 驱动(底层依然依赖vaapi),建议打开此模式,能获得更高的性能,且支持linx与windows
+build media-driver:
+mkdir build_media (注意:和media-driver在同一级目录)
+cd build_media
+cmake ../media-driver
+/usr/lib/x86_64-linux-gnu/dri/iHD_drv_video.so
+/usr/local/lib/libigfxcmrt.so
+7)
+libva info: Trying to open /usr/lib/x86_64-linux-gnu/dri/i965_drv_video.so
+libva error: /usr/lib/x86_64-linux-gnu/dri/i965_drv_video.so has no function __vaDriverInit_1_0
+libva info: va_openDriver() returns -1
+vaInitialize failed with error code -1 (unknown libva error),exit
+###
+export LIBVA_DRIVER_NAME=iHD
+8)
+build msdk:
+mkdir build && cd build
+cmake ..
+make
+make install
+/opt/intel/mediasdk/
+9)
+libva新旧版本冲突
+whereis libva:
+/usr/lib/x86_64-linux-gnu/libva.so 旧版
+/usr/local/lib/libva.so 新版
+ffmpeg新就版本冲突
+wehereis ffmpeg
+/usr/bin/ffmpeg 旧版本
+卸载 apt-get purge ffmpeg
+当前目录下运行ffmpeg,注意LD_LIBRARY_PATH
+将编译好的动态库拷贝到指定目录如`pwd`/mylib,并通过ldd确认是否能正确加载;
+configure需要修改的原因：
+有些库并未安装，没有产生pkconfig，因此需要修改检测条件，否则容易报找不到库的错误；
+10)
+git clone https://github.com/FFmpeg/FFmpeg.git
+export PKG_CONFIG_PATH=/opt/intel/mediasdk/lib/pkgconfig:$PKG_CONFIG_PATH
+./configure --enable-vaapi --enable-libmfx --enable-shared --extra-cflags=" -fPIC " \
+--enable-encoder=h264_qsv \
+11)
+sudo apt-get remove cmake cmake-data
+https://cmake.org/download/
+12）
+for windows:
+编译mfx_dispatcher
+https://github.com/lu-zero/mfx_dispatch
+autoreconf -i
+64bit:
+CFLAGS="-fPIC" ./configure --host=x86_64-w64-mingw32
+32bit:
+CFLAGS="-fPIC" ./configure --prefix=/usr/local --host=i386-w64-mingw32
+make -j 4
+make install DESTDIR=/mingw32/i686-w64-mingw32
+注意：修改pkgconfig/libmfx.pc的路径指向实际路径
+去掉configure中：
+"-llibmfx $advapi32_extralibs" && warn "using libmfx without pkg-config"
+13)
+发布（部署）：
+linux:
+libmfx.so.1之外
+libmfxhw64.so.1是关键
+windows:
+静态链接libmfx.a,不依赖任何其他动态库；
+
+eg:
+硬件解码 1. h264: h264_qsv    2. h265: hevc_qsv
+Check supported qsv decoder list:
+ffmpeg -decoders|grep qsv
+Check supported qsv decoder list:
+ffmpeg -encoders|grep qsv
+ffmpeg -h encoder=h264_qsv
+decode eg:
+./ffmpeg -hwaccel qsv -c:v h264_qsv -i input.mp4  -vf hwdownload,format=nv12  out.yuv
+./ffmpeg -hwaccel qsv -c:v h264_qsv -i input.mp4 -vf hwdownload,format=nv12 -pix_fmt yuv420p output.yuv
+ffmpeg -hwaccel qsv -c:v h264_qsv -i input.mp4 -vf hwdownload,format=nv12 -pix_fmt yuv420p -f sdl -
+ffmpeg -hwaccel qsv -c:v h264_qsv -i input.mp4 -f null -
+ffmpeg -hwaccel qsv -c:v hevc_qsv -load_plugin hevc_hw -i input.mp4 -vf hwdownload,format=p010 -pix_fmt p010le output.yuv
+./ffmpeg -hwaccel qsv -c:v h264_qsv -i ../../../datashare/for_ENC/test070614.wmv  -vf hwdownload,format=nv12  ../../../out.yuv
+encode eg:
+ffmpeg -init_hw_device qsv=hw -filter_hw_device hw -f rawvideo -pix_fmt yuv420p -s:v 1920x1080 -i input.yuv -vf hwupload=extra_hw_frames=64,format=qsv -c:v h264_qsv -b:v 5M output.mp4
+ffmpeg -init_hw_device qsv=hw -filter_hw_device hw -v verbose -f rawvideo -video_size 1920x1080 -pix_fmt p010le -i input.yuv -an \
+-vf 'hwupload=extra_hw_frames=64,format=qsv' -c:v hevc_qsv -profile:v main10 output.mp4
+transcode eg: (MFE will be enabled by default if MSDK can support it)
+ffmpeg -init_hw_device qsv=hw -filter_hw_device hw -i input.mp4 -vf hwupload=extra_hw_frames=64,format=qsv -c:v h264_qsv -b:v 5M -maxrate 5M output.mp4
+ffmpeg -init_hw_device qsv=hw -filter_hw_device hw -i input.mp4 -vf hwupload=extra_hw_frames=64,format=qsv -c:v h264_qsv -q 25 output.mp4
+ffmpeg -hwaccel qsv -c:v h264_qsv -i input.mp4 -c:v h264_qsv -b:v 5M -look_ahead 1 output.mp4
+ffmpeg -hwaccel qsv -c:v h264_qsv -i input.mp4 -c:v h264_qsv -global_quality 25 output.mp4
+ffmpeg -hwaccel qsv -c:v h264_qsv -i input.mp4 -c:v h264_qsv -global_quality 25 output.mp4
+ffmpeg -hwaccel qsv -c:v h264_qsv -i input.mp4 -c:v h264_qsv -global_quality 25 -look_ahead 1 output.mp4
+ffmpeg -hwaccel qsv -c:v hevc_qsv -i input.mp4 -vf 'vpp_qsv=framerate=60,scale_qsv=w=1920:h=1080' -c:v h264_qsv output.mp4
+ffmpeg -hwaccel qsv -c:v hevc_qsv -i input.mp4 -vf 'vpp_qsv=framerate=60,scale_qsv=w=1920:h=1080:format=rgb32,hwdownload,format=rgb32' -f sdl -
+1:N
+ffmpeg -hwaccel qsv -c:v h264_qsv -i input.mp4 \
+        -filter_complex "split=2[s1][s2]; [s1]scale_qsv=1280:720[o1];[s2]scale_qsv=960:540[o2]" \
+        -map [o1] -c:v h264_qsv -b:v 3200k 3200a.mp4 \
+        -map [o2] -c:v h264_qsv -b:v 1750k 1750a.264
+M:N
+ffmpeg -hwaccel qsv -c:v h264_qsv -i input1.mp4 -hwaccel qsv -c:v h264_qsv -i input2.mp4 \
+     -filter_complex '[0:v]split=2[out1][out2],[1:v]split=2[out3][out4]' \
+     -map '[out1]' -c:v h264_qsv output1.mp4 -map '[out2]' -c:v h264_qsv output2.mp4 \
+     -map '[out3]' -c:v h264_qsv output3.mp4 -map '[out4]' -c:v h264_qsv output4.mp4
+
+-qsv_device is an qsv customized option can be used to specify a hardware device and avoid the default device initialization failure when multiple devices usable (eg: an Intel integrated GPU and an AMD/Nvidia discrete graphics card). One example on Linux (more details please see ​https://trac.ffmpeg.org/ticket/7649)
+fmpeg -hwaccel qsv -qsv_device /dev/dri/renderD128 -c:v h264_qsv -i input.mp4 -c:v h264_qsv output.mp4
+
+Hybrid transcode eg:
+It is also possible to use "vaapi decode + vaapi scaling + qsv encode" (available on Linux platform)
+ffmpeg -hwaccel vaapi -hwaccel_output_format vaapi -i input.mp4 -vf 'scale_vaapi=1280:720,hwmap=derive_device=qsv,format=qsv' -c:v h264_qsv output.mp4
+
+Or use "dxva decode + qsv scaling + qsv encode" (available on Windows)
+ffmpeg -hwaccel dxva2 -hwaccel_output_format dxva2_vld -i input.mp4 -vf 'hwmap=derive_device=qsv,format=qsv,scale_qsv=w=1280:h=720' -c:v h264_qsv output.mp4
+
+
+av_find_encoder_by_name(“h264_qsv”); 
+av_find_encoder_by_name(“h265_qsv”);
+
+
+
+
+
+

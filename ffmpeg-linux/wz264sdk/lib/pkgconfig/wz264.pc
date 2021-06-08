@@ -1,0 +1,11 @@
+prefix=/root/work/cloudTrans/dep/wz264/output
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: wz264
+Description: H.264 (MPEG4 AVC) encoder library
+Version: 
+Libs: -L${exec_prefix}/lib -lwz264 
+Libs.private: -lpthread -lm
+Cflags: -I${prefix}/include
