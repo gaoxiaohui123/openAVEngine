@@ -1,0 +1,43 @@
+mkdir build
+cd build
+cmake .. -DENABLE_CJSON_UTILS=Off -DENABLE_CJSON_TEST=On -DCMAKE_INSTALL_PREFIX=/usr （生成bin+lib）
+cmake .. -DENABLE_CJSON_UTILS=Off -DENABLE_CJSON_TEST=On -DCMAKE_INSTALL_PREFIX=/usr -DBUILD_SHARED_LIBS=Off （生成bin）
+make
+sudo make install （安装libcjson.so
+
+注意：
+在根目录下的文件CMakeLists.txt增加：set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+############################################
+/* Supply a block of JSON, and this returns a cJSON object you can interrogate. Call cJSON_Delete when finished. */
+extern cJSON *cJSON_Parse(const char *value);//从 给定的json字符串中得到cjson对象
+/* Render a cJSON entity to text for transfer/storage. Free the char* when finished. */
+extern char  *cJSON_Print(cJSON *item);//从cjson对象中获取有格式的json对象
+/* Render a cJSON entity to text for transfer/storage without any formatting. Free the char* when finished. */
+extern char  *cJSON_PrintUnformatted(cJSON *item);//从cjson对象中获取无格式的json对象
+
+/* Delete a cJSON entity and all subentities. */
+extern void   cJSON_Delete(cJSON *c);//删除cjson对象，释放链表占用的内存空间
+
+/* Returns the number of items in an array (or object). */
+extern int    cJSON_GetArraySize(cJSON *array);//获取cjson对象数组成员的个数
+/* Retrieve item number "item" from array "array". Returns NULL if unsuccessful. */
+extern cJSON *cJSON_GetArrayItem(cJSON *array,int item);//根据下标获取cjosn对象数组中的对象
+/* Get item "string" from object. Case insensitive. */
+extern cJSON *cJSON_GetObjectItem(cJSON *object,const char *string);//根据键获取对应的值（cjson对象）
+
+/* For analysing failed parses. This returns a pointer to the parse error. You'll probably need to look a few chars back to make sense of it. Defined when cJSON_Parse() returns 0. 0 when cJSON_Parse() succeeds. */
+extern const char *cJSON_GetErrorPtr(void);//获取错误字符串
+
+#######################open fec#############################################
+
+src/CMakeLists.txt
+add_library(openfec  STATIC  ${openfec_sources})
+./CMakeLists.txt
+set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
+
+mkdir build
+cmake .. -DDEBUG:STRING=OFF
+make
+
+
+
