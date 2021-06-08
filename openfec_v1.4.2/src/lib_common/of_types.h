@@ -35,6 +35,10 @@
 #ifndef OF_TYPES
 #define OF_TYPES
 
+#ifdef _WIN32
+//#include <D:/msys64/mingw32/i686-w64-mingw32/include/stdint.h>//aded by gxh
+typedef unsigned long long   __uint64;
+#endif
 
 #ifndef __cplusplus
 #ifndef bool

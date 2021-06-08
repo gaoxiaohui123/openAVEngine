@@ -38,7 +38,7 @@ if (ENABLE_CUSTOM_COMPILER_FLAGS)
             -Wswitch-default
             -Wconversion
             -Wc++-compat
-            -fstack-protector-strong
+            #gxh -fstack-protector-strong
             -Wcomma
             -Wdouble-promotion
             -Wparentheses

@@ -1,0 +1,22 @@
+#IncludeRegexLine: ^[ 	]*#[ 	]*(include|import)[ 	]*[<"]([^">]+)([">])
+
+#IncludeRegexScan: ^.*$
+
+#IncludeRegexComplain: ^$
+
+#IncludeRegexTransform: 
+
+/home/xiaohuigao/works/huichang/svc_codec/bizconf_svc_codec/openfec_v1.4.2/tools/descr_stats_v1.2/descr_stats.c
+stdlib.h
+-
+stdio.h
+-
+unistd.h
+-
+string.h
+-
+errno.h
+-
+math.h
+-
+

@@ -60,7 +60,9 @@
 #include "../../src/lib_common/of_mem.h"	/* for of_dump_buffer declaration only */
 
 #ifdef WIN32
-#include "../src/getopt.h"
+//gxh #include "../src/getopt.h"
+#include <getopt.h>
+#include <Windows.h>
 #endif
 
 #include "defaults.h"

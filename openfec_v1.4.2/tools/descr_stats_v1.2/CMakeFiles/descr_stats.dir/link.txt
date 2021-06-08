@@ -1,0 +1,1 @@
+/usr/bin/cc -O4 -fPIC -O3 -DNDEBUG  -rdynamic CMakeFiles/descr_stats.dir/descr_stats.c.o  -o ../../perf_eval/descr_stats  -L/home/gxh/works/huichang/svc_codec/bizconf_svc_codec/openfec_v1.4.2/bin/Release -Wl,-rpath,/home/gxh/works/huichang/svc_codec/bizconf_svc_codec/openfec_v1.4.2/bin/Release -lm 

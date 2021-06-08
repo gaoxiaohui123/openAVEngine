@@ -1,0 +1,1 @@
+/usr/bin/cc  -O4 -fPIC -O3 -DNDEBUG   CMakeFiles/test_code_params.dir/code_params_test.c.o  -o ../../bin/Release/test_code_params  -L/home/xiaohuigao/works/huichang/svc_codec/bizconf_svc_codec/openfec_v1.4.2/bin/Release -rdynamic ../../bin/Release/libopenfec.a -lm -Wl,-rpath,/home/xiaohuigao/works/huichang/svc_codec/bizconf_svc_codec/openfec_v1.4.2/bin/Release 
