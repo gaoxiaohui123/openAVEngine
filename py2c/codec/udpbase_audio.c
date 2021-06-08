@@ -2086,7 +2086,7 @@ static int audio_set_codec(SocketObj *sock, SessionInfoObj *sessionInfo, int is_
         obj->json = api_renew_json_int(obj->json , "out_channels", 2);
         obj->json = api_renew_json_int(obj->json , "mtu_size", config->mtu_size);
         obj->json = api_renew_json_int(obj->json , "adapt_cpu", config->adapt_cpu);
-        char *jsonStr = cJSON_Print(obj->json );
+        char *jsonStr = api_json2str(obj->json );
         api_audio_codec_init(obj->handle, jsonStr);
 
         for(int l = 0; l < 4; l++)
@@ -2136,7 +2136,7 @@ static int audio_set_codec(SocketObj *sock, SessionInfoObj *sessionInfo, int is_
         obj->json = api_renew_json_int(obj->json , "out_channels", 2);
         obj->json = api_renew_json_int(obj->json , "mtu_size", config->mtu_size);
         obj->json = api_renew_json_int(obj->json , "adapt_cpu", config->adapt_cpu);
-        char *jsonStr = cJSON_Print(obj->json );
+        char *jsonStr = api_json2str(obj->json );
         api_audio_codec_init(obj->handle, jsonStr);
         for(int l = 0; l < 4; l++)
         {

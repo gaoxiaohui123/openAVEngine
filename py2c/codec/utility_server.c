@@ -140,73 +140,51 @@ cJSON* renewJson(cJSON *json, char *key, int ivalue, char *cvalue, cJSON *subJso
     }
     return ret;
 }
-static cJSON* renewJsonArray(cJSON *json, char *key, int *value, int len)
+
+//static cJSON* deleteJson(cJSON *json)
+//{
+//    return renewJson(json, NULL, 0, NULL, NULL);
+//}
+cJSON* deleteJson(cJSON *json)
 {
-    cJSON *array = cJSON_CreateArray();
-    cJSON_AddItemToObject(json, key, array);
-    for(int i = 0; i < len; i++)
+    if(json)
     {
-        cJSON_AddItemToArray(array, cJSON_CreateNumber(value[i]));
+        cJSON_Delete(json); //释放json对象
     }
-    return json;
+    return 0;
+    //return renewJson(json, NULL, 0, NULL, NULL);
 }
-#if 0
-static cJSON* renewJsonArray2(cJSON *json, char *key, short *value)
+HCSVC_API
+void api_json_free(void *json)
 {
-    cJSON *array = cJSON_CreateArray();
-    cJSON_AddItemToObject(json, key, array);
-    int i = 0;
-    while(value[i] > 0)
-    {
-        cJSON_AddItemToArray(array, cJSON_CreateNumber(value[i]));
-        i++;
-    }
-    return json;
+    deleteJson((cJSON *)json);
 }
-#endif
-static cJSON* renewJsonInt(cJSON *json, char *key, int ivalue)
-{
-    return renewJson(json, key, ivalue, NULL, NULL);
-}
-static cJSON* renewJsonStr(cJSON *json, char *key, char *cvalue)
-{
-    return renewJson(json, key, 0, cvalue, NULL);
-}
-static cJSON* deleteJson(cJSON *json)
-{
-    return renewJson(json, NULL, 0, NULL, NULL);
-}
-static cJSON* mystr2json(char *text)
+cJSON* mystr2json(char *text)
 {
     char *out;
-    cJSON *json;
+    cJSON *json = NULL;
     if (text == NULL || !strcmp(text, ""))
     {
-        //char *text = "{\"size\" : 1024, \"data\" : \"this is string\"}";
-        //char* text = "{\"name\":\"Messi\",\"age\":\"29\"}";
-        char data[128] = "";
-        for (int i = 0; i < 128; i++)
-        {
-            data[i] = (char)i;
-        }
-        //text = "{\"size\" : 1024, \"data\" : data}";
-        text = "{\"size\" : 1024, \"data\" : \"this is default string for test cjosn\"}";
+        return json;
     }
 
     json = cJSON_Parse(text);
-    if (!json) {
-        printf("Error before: [%s]\n",cJSON_GetErrorPtr());
-    } else {
+    //if (!json) {
+    //    printf("Error before: [%s]\n",cJSON_GetErrorPtr());
+    //} else {
         //将传入的JSON结构转化为字符串
-        out=cJSON_Print(json);
-        //cJSON_Delete(json);
-        //printf("%s\n",out);
-        //free(out);
-        cJSON_free(out);
-    }
+        //out=cJSON_Print(json);
+        //cJSON_free(out);
+    //}
     return json;
 }
-static float GetvalueFloat(cJSON *json, char *key)
+HCSVC_API
+void *api_str2json(char *parmstr)
+{
+    cJSON *json = mystr2json(parmstr);
+    return (void *)json;
+}
+float GetvalueFloat(cJSON *json, char *key)
 {
     cJSON *item = cJSON_GetObjectItem(json, key);
     if(cJSON_IsNull(item))
@@ -218,7 +196,7 @@ static float GetvalueFloat(cJSON *json, char *key)
     }
     return 0;
 }
-static int GetvalueInt(cJSON *json, char *key)
+int GetvalueInt(cJSON *json, char *key)
 {
     cJSON *item = cJSON_GetObjectItem(json, key);
     if(cJSON_IsNull(item))
@@ -234,7 +212,7 @@ static int GetvalueInt(cJSON *json, char *key)
 static void foreach()
 {
     char *parmstr = "{\"video\":{\"mjpeg\":\"1x2\", \"raw\":\"3x4\"}}";
-    cJSON *json = mystr2json(parmstr);
+    cJSON *json = (cJSON *)api_str2json(parmstr);
     cJSON *item = json;
     do{
         if(cJSON_IsObject(item))
@@ -599,62 +577,62 @@ static char *get_extern_info(char *data, int insize)
 		cJSON *pJsonRoot  = NULL;
 		char *key = "refs";
 		int ivalue = refs;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "ref_idx";
 		ivalue = ref_idx;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "ref_idc";
 		ivalue = ref_idc;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "res_num";
 		ivalue = res_num;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "res_idx";
 		ivalue = res_idx;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "qua_num";
 		ivalue = qua_num;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 
         key = "is_header";
 		ivalue = (rtp_header_size == insize);
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 
 		key = "qua_idx";
 		ivalue = qua_idx;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "is_lost_packet";
 		ivalue = is_lost_packet;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "loss_rate";
 		ivalue = loss_rate;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		//key = "time_status";
 		//ivalue = time_status;
-		//pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		//pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "time_offset";
 		ivalue = time_offset;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "seqnum";
 		ivalue = seqnum;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "enable_fec";
 		ivalue = enable_fec;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "refresh_idr";
 		ivalue = refresh_idr;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "timestamp";
 		ivalue = timestamp;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "packet_time_stamp";
 		char ctmp[32] = "";
 	    sprintf(ctmp, "%ld", packet_time_stamp);
-		pJsonRoot = renewJsonStr(pJsonRoot, key, ctmp);
+		pJsonRoot = api_renew_json_str(pJsonRoot, key, ctmp);
 
-		ret = cJSON_Print(pJsonRoot); //free(ret);//返回json字符串，注意外面用完要记得释放空间
+		ret = api_json2str(pJsonRoot); //free(ret);//返回json字符串，注意外面用完要记得释放空间
 
-		deleteJson(pJsonRoot);
+		api_json_free(pJsonRoot);
 
     }
     return ret;
@@ -689,30 +667,30 @@ static char *get_audio_extern_info(char *data)
 
 		char *key = "is_lost_packet";
 		int ivalue = is_lost_packet;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "loss_rate";
 		ivalue = loss_rate;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		//key = "time_status";
 		//ivalue = time_status;
-		//pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		//pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "time_offset";
 		ivalue = time_offset;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "seqnum";
 		ivalue = seqnum;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "timestamp";
 		ivalue = timestamp;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "packet_time_stamp";
 		char ctmp[32] = "";
 	    sprintf(ctmp, "%ld", packet_time_stamp);
-		pJsonRoot = renewJsonStr(pJsonRoot, key, ctmp);
+		pJsonRoot = api_renew_json_str(pJsonRoot, key, ctmp);
 
-		ret = cJSON_Print(pJsonRoot); //free(ret);//返回json字符串，注意外面用完要记得释放空间
+		ret = api_json2str(pJsonRoot); //free(ret);//返回json字符串，注意外面用完要记得释放空间
 
-		deleteJson(pJsonRoot);
+		api_json_free(pJsonRoot);
 
     }
     return ret;
@@ -797,7 +775,8 @@ int api_get_extern_info(char *data, int insize, char *outparam[])
     {
         memcpy(outparam[0], extend_info, strlen(extend_info));
         ret = strlen(extend_info);
-        free(extend_info);
+        //free(extend_info);
+        api_json2str_free(extend_info);
     }
     return ret;
 }
@@ -810,7 +789,8 @@ int api_get_audio_extern_info(char *data, char *outparam[])
     {
         memcpy(outparam[0], extend_info, strlen(extend_info));
         ret = strlen(extend_info);
-        free(extend_info);
+        //free(extend_info);
+        api_json2str_free(extend_info);
     }
     return ret;
 }

@@ -38,14 +38,9 @@
 //static char global_info_outparam[MAX_OBJ_NUM][MAX_OUTCHAR_SIZE];
 //static char global_time_outparam[MAX_OBJ_NUM][TIME_OUTCHAR_SIZE];
 
-extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
 extern int *GetArrayValueInt(cJSON *json, char *key, int *arraySize);
 extern short *GetArrayValueShort(cJSON *json, char *key, int *arraySize);
-extern cJSON* renewJson(cJSON *json, char *key, int ivalue, char *cvalue, cJSON *subJson);
-extern cJSON* renewJsonInt(cJSON *json, char *key, int ivalue);
-extern cJSON* renewJsonStr(cJSON *json, char *key, char *cvalue);
-extern cJSON* deleteJson(cJSON *json);
 extern cJSON* renewJsonArray1(cJSON *json, char *key, short *value, int len);
 extern cJSON* renewJsonArray4(cJSON *json, char *key, int *value, int len);
 //extern cJSON* renewJsonArray2(cJSON *json, char *key, short *value);
@@ -1229,7 +1224,7 @@ int api_raw2rtp_packet(char *handle, char *data, char *param, char *outbuf, char
 
         }
 
-        obj->json = mystr2json(param);
+        obj->json = (cJSON *)api_str2json(param);
 
         unsigned int timestamp = (unsigned int)GetvalueInt(obj->json, "timestamp");
         if(timestamp)
@@ -1293,10 +1288,10 @@ int api_raw2rtp_packet(char *handle, char *data, char *param, char *outbuf, char
 
 	    cJSON *json2 = NULL;
         json2 = renewJsonArray1(json2, "rtpSize", obj->rtpSize, ret);
-        char *jsonStr = cJSON_Print(json2);//比较耗时
-        deleteJson(json2);
+        char *jsonStr = api_json2str(json2);//比较耗时
+        api_json_free(json2);
         strcpy(obj->outparam[0], jsonStr);
-        cJSON_free(jsonStr);
+        api_json2str_free(jsonStr);
         //printf("api_raw2rtp_packet: obj->outparam[0]= %s \n", obj->outparam[0]);
         ret = sum;
 
@@ -1323,7 +1318,7 @@ int api_raw2rtp_packet(char *handle, char *data, char *param, char *outbuf, char
 
         if(obj->json)
         {
-            deleteJson(obj->json);
+            api_json_free(obj->json);
 	        obj->json = NULL;
         }
 
@@ -1768,48 +1763,12 @@ int rtp_packet2raw(void *hnd, char *inBuf, char *outBuf)
     int count = 0;//no used; use rtpLen
 	int rtpLen = 0;
 	int oSize = 0;
-#if 1
+
     obj->rtpSize = GetArrayValueShort(json, "rtpSize", &nal_mem_num);
     for( int i = 0 ; i < nal_mem_num ; i ++ ){
         rtpLen += obj->rtpSize[i];
     }
-#else
-    cJSON *cjsonArr = cJSON_GetObjectItem(json, "rtpSize");
-    if( NULL != cjsonArr ){
-        int i = 0;
-        do
-        {
-            cJSON *cjsonTmp = cJSON_GetArrayItem(cjsonArr, i);
-            if( NULL == cjsonTmp )
-            {
-                //printf("rtp_packet2raw: no member \n");
-                break;
-            }
-            int num = cjsonTmp->valueint;
-            //printf("rtp_packet2raw: num= %d \n", num);
-            i++;
-        }while(1);
 
-        //int  array_size = cJSON_GetArraySize(cjsonArr);
-        //nal_mem_num = array_size;
-        nal_mem_num = i;
-        //printf("rtp_packet2raw: nal_mem_num= %d \n", nal_mem_num);
-        obj->rtpSize = calloc(1, sizeof(short) * nal_mem_num);
-
-        for( int i = 0 ; i < nal_mem_num ; i ++ ){
-            cJSON * pSub = cJSON_GetArrayItem(cjsonArr, i);
-            if(NULL == pSub ){ continue ; }
-            //char * ivalue = pSub->valuestring ;
-            int ivalue = pSub->valueint;
-            obj->rtpSize[i] = (unsigned short)ivalue;//可以不用傳入，通過擴展字段讀入：rtpSize[idx] = rtp_pkt_size;
-            rtpLen += ivalue;
-
-        }
-    }
-    else{
-        return ret;
-    }
-#endif
     //printf("rtp_packet2raw: nal_mem_num= %d \n", nal_mem_num);
     svc_nalu->nal_mem_num = nal_mem_num;
     svc_nalu->buf = inBuf;
@@ -1854,7 +1813,7 @@ int api_rtp_packet2raw(char *handle, char *data, char *param, char *outbuf, char
                 //obj->logfp = fopen(filename, "w");
             }
         }
-        obj->json = mystr2json(param);
+        obj->json = (cJSON *)api_str2json(param);
 
         //printf("api_rtp_packet2raw: start \n");
 
@@ -1879,10 +1838,10 @@ int api_rtp_packet2raw(char *handle, char *data, char *param, char *outbuf, char
 
 	        cJSON *json2 = NULL;
             json2 = renewJsonArray1(json2, "rtpSize", rtpSize, nal_mem_num);
-            char *jsonStr = cJSON_Print(json2);//比较耗时
-            deleteJson(json2);
+            char *jsonStr = api_json2str(json2);//比较耗时
+            api_json_free(json2);
             strcpy(obj->outparam[0], jsonStr);
-            cJSON_free(jsonStr);
+            api_json2str_free(jsonStr);
             free(rtpSize);
 
             if(sum != ret)
@@ -1903,7 +1862,7 @@ int api_rtp_packet2raw(char *handle, char *data, char *param, char *outbuf, char
 	    }
 	    if(obj->json)
 	    {
-	        deleteJson(obj->json);
+	        api_json_free(obj->json);
 	        obj->json = NULL;
 	    }
 	}
@@ -1978,55 +1937,55 @@ cJSON *get_net_info2(NetInfo *info, cJSON *pJsonRoot)
         //cJSON *pJsonRoot  = NULL;
 		char *key = "info_status";
 		int ivalue = info->info_status;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 
 		key = "chanId";
 		ivalue = info->chanId;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//8
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);//8
 
 		key = "res_idx";
 		ivalue = info->res_idx;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//8
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);//8
 
 		key = "decodeId";
 		ivalue = info->decodeId;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//8
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);//8
 
 		key = "loss_rate";
 		ivalue = info->loss_rate;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//12
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);//12
 
 		key = "st0";
 		ivalue = info->st0;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//11
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);//11
 
 		key = "rt0";
 		ivalue = info->rt0;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//11
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);//11
 
 		key = "st1";
 		ivalue = info->st1;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//11
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);//11
 
 		key = "rt1";
 		ivalue = info->rt1;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//11
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);//11
 
 		key = "ssrc";
 		ivalue = info->ssrc;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//11
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);//11
 
 		key = "tstmp0";
 		ivalue = (int)((uint64_t)info->time_stamp & 0xFFFFFFFF);
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//11
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);//11
 
 		key = "tstmp1";
 		ivalue = (int)((uint64_t)info->time_stamp >> 32);
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);//11
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);//11
 
-		//ret = cJSON_Print(pJsonRoot); //free(ret);//返回json字符串，注意外面用完要记得释放空间
+		//ret = api_json2str(pJsonRoot); //free(ret);//返回json字符串，注意外面用完要记得释放空间
 
-		//deleteJson(pJsonRoot);
+		//api_json_free(pJsonRoot);
     }
     return pJsonRoot;
 }
@@ -2063,58 +2022,58 @@ char *get_extern_info(char *data)
 		cJSON *pJsonRoot  = NULL;
 		char *key = "refs";
 		int ivalue = refs;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "ref_idx";
 		ivalue = ref_idx;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "ref_idc";
 		ivalue = ref_idc;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "res_num";
 		ivalue = res_num;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "res_idx";
 		ivalue = res_idx;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "qua_num";
 		ivalue = qua_num;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 
 		key = "qua_idx";
 		ivalue = qua_idx;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "is_lost_packet";
 		ivalue = is_lost_packet;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "loss_rate";
 		ivalue = loss_rate;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		//key = "time_status";
 		//ivalue = time_status;
-		//pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		//pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "time_offset";
 		ivalue = time_offset;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "seqnum";
 		ivalue = seqnum;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "enable_fec";
 		ivalue = enable_fec;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "refresh_idr";
 		ivalue = refresh_idr;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "timestamp";
 		ivalue = timestamp;
-		pJsonRoot = renewJsonInt(pJsonRoot, key, ivalue);
+		pJsonRoot = api_renew_json_int(pJsonRoot, key, ivalue);
 		key = "packet_time_stamp";
 		char ctmp[32] = "";
 	    sprintf(ctmp, "%lld", packet_time_stamp);
-		pJsonRoot = renewJsonStr(pJsonRoot, key, ctmp);
+		pJsonRoot = api_renew_json_str(pJsonRoot, key, ctmp);
 
-		ret = cJSON_Print(pJsonRoot); //free(ret);//返回json字符串，注意外面用完要记得释放空间
+		ret = api_json2str(pJsonRoot); //free(ret);//返回json字符串，注意外面用完要记得释放空间
 
-		deleteJson(pJsonRoot);
+		api_json_free(pJsonRoot);
 
     }
     return ret;
@@ -3176,14 +3135,14 @@ void renew_netinfo(void *hnd, char *buf, int size, char **net_info)
                 *net_info = (void *)jsonInfo;
             }
             else{
-                char *jsonStr = cJSON_Print(jsonInfo);//比较耗时
-                deleteJson(jsonInfo);
+                char *jsonStr = api_json2str(jsonInfo);//比较耗时
+                api_json_free(jsonInfo);
                 strcpy(*net_info, jsonStr);
                 if(strlen(*net_info) >= MAX_OUTCHAR_SIZE)
                 {
                     printf("error: get_frame: strlen(net_info)= %d \n", strlen(*net_info));
                 }
-                cJSON_free(jsonStr);
+                api_json2str_free(jsonStr);
             }
         }
     }
@@ -3441,7 +3400,7 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
             obj->Obj_id = id;
             //
 #if 1
-            obj->json = mystr2json(param);
+            obj->json = (cJSON *)api_str2json(param);
             cJSON *json = obj->json;
             obj->loglevel = GetvalueInt(json, "loglevel");
             if(!obj->logfp && obj->loglevel)
@@ -3459,7 +3418,7 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
 
         if(!obj->json)
         {
-            obj->json = mystr2json(param);
+            obj->json = (cJSON *)api_str2json(param);
         }
         obj->param = param;
         int selfChanId = GetvalueInt(obj->json, "selfChanId");
@@ -3512,10 +3471,10 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
             cJSON *json = NULL;
             //json = renewJsonArray2(json, "oRtpSize", rtpSize);
             json = renewJsonArray1(json, "oRtpSize", rtpSize, ret);
-            char *jsonStr = cJSON_Print(json);
+            char *jsonStr = api_json2str(json);
             strcpy(outparam[0], jsonStr);
-            deleteJson(json);
-            cJSON_free(jsonStr);
+            api_json_free(json);
+            api_json2str_free(jsonStr);
 
             ret = sum;
 #else
@@ -3543,7 +3502,7 @@ int api_resort_packet(char *handle, char *data, char *param, char *outbuf, char 
         }
         //printf("api_resort_packet: end: ret= %d \n", ret);
         //printf("api_resort_packet: 3 \n");
-        deleteJson(obj->json);
+        api_json_free(obj->json);
         obj->json = NULL;
         //printf("api_resort_packet: 4 \n");
     }
@@ -3864,7 +3823,7 @@ StructPointer api_resort_packet_all(char *handle, char *dataList[], int *dataSiz
         ResetObj(obj);
         obj->Obj_id = id;
         //
-        obj->json = mystr2json(param);
+        obj->json = (cJSON *)api_str2json(param);
         cJSON *json = obj->json;
         obj->loglevel = GetvalueInt(json, "loglevel");
         int selfChanId = GetvalueInt(obj->json, "selfChanId");
@@ -3881,7 +3840,7 @@ StructPointer api_resort_packet_all(char *handle, char *dataList[], int *dataSiz
     }
     if(!obj->json)
     {
-        obj->json = mystr2json(param);
+        obj->json = (cJSON *)api_str2json(param);
     }
     obj->param = param;
     int selfChanId = GetvalueInt(obj->json, "selfChanId");
@@ -3919,7 +3878,7 @@ StructPointer api_resort_packet_all(char *handle, char *dataList[], int *dataSiz
             loss_rate = this_loss_rate;
             char *key = "loss_rate";
 		    int ivalue = loss_rate;
-		    obj->json = renewJsonInt(obj->json, key, ivalue);
+		    obj->json = api_renew_json_int(obj->json, key, ivalue);
 		    if(this_loss_rate > 1)
 		    {
 		        if(obj->loglevel == 3)
@@ -3987,14 +3946,14 @@ StructPointer api_resort_packet_all(char *handle, char *dataList[], int *dataSiz
 #endif
             char *net_info = obj->outparam[1];
 
-            char *jsonStr = cJSON_Print(jsonInfo);//比较耗时
-            deleteJson(jsonInfo);
+            char *jsonStr = api_json2str(jsonInfo);//比较耗时
+            api_json_free(jsonInfo);
             strcpy(net_info, jsonStr);
             if(strlen(net_info) >= MAX_OUTCHAR_SIZE)
             {
                 printf("error: get_frame: strlen(net_info)= %d \n", strlen(net_info));
             }
-            cJSON_free(jsonStr);
+            api_json2str_free(jsonStr);
         }
     }
     if(frame_num >= (MAX_RESORT_FRAME_NUM - 1) && obj->loglevel)
@@ -4002,7 +3961,7 @@ StructPointer api_resort_packet_all(char *handle, char *dataList[], int *dataSiz
         printf("warning: api_resort_packet_all: frame_num= %d \n", frame_num);
     }
 
-    deleteJson(obj->json);
+    api_json_free(obj->json);
     obj->json = NULL;
     obj->pRet->frame_num = frame_num;
     obj->pRet->loss_rate = loss_rate;
@@ -4105,9 +4064,9 @@ void api_test_write_str(int num)
             }
         }
         //
-        char *ret = cJSON_Print(json);//比较耗时
+        char *ret = api_json2str(json);//比较耗时
         //printf("api_test_write_str: ret= %s\n",ret);
-        deleteJson(json);
+        api_json_free(json);
         strcpy(pinfo, ret);
         free(ret);
     }
@@ -4129,7 +4088,7 @@ void api_test_write_str(int num)
             cJSON_AddItemToArray(array, thisjson);//cJSON_CreateNumber(value[i]));
             //cJSON_AddItemToArray(array, cJSON_CreateObject(thisjson));
         }
-        char *ret = cJSON_Print(json);
+        char *ret = api_json2str(json);
         //printf("api_test_write_str: ret= %s\n",ret);
     }
     else if(flag == 3)
@@ -4202,7 +4161,7 @@ int api_get_rtpheader(char *data, char *param, char *outparam[])
 {
     int ret = 0;
     //printf("api_get_rtpheader: param=%s \n", param);
-    cJSON* json = mystr2json(param);
+    cJSON* json = (cJSON *)api_str2json(param);
     int size = 0;
     int *rtpSize = GetArrayValueInt(json, "rtpSize", &size);
     //
@@ -4210,17 +4169,17 @@ int api_get_rtpheader(char *data, char *param, char *outparam[])
     //
     cJSON *json2 = NULL;
     json2 = renewJsonArray4(json2, "rtpSize", rtpSize, size);
-    char *jsonStr = cJSON_Print(json2);//比较耗时
-    deleteJson(json2);
+    char *jsonStr = api_json2str(json2);//比较耗时
+    api_json_free(json2);
     strcpy(outparam[0], jsonStr);
     //free(jsonStr);
-    cJSON_free(jsonStr);
+    api_json2str_free(jsonStr);
     //
     if(rtpSize)
     {
         free(rtpSize);
     }
-    deleteJson(json);
+    api_json_free(json);
     return ret;
 }
 HCSVC_API

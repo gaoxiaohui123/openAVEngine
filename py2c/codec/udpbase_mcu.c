@@ -618,7 +618,7 @@ int VideoInit(McuObj *mcu)
         obj->json = api_renew_json_int(obj->json , "color", 1);
         obj->json = api_renew_json_int(obj->json , "adapt_cpu", config->adapt_cpu);
         obj->json = api_renew_json_int(obj->json , "print", 0);
-        char *jsonStr = cJSON_Print(obj->json );
+        char *jsonStr = api_json2str(obj->json );
         printf("mcu: VideoInit: jsonStr=%s \n", jsonStr);
         api_video_encode_open(obj->handle, jsonStr);
 
@@ -690,7 +690,7 @@ int AudioInit(McuObj *mcu)
         obj->json = api_renew_json_int(obj->json , "out_channels", 2);
         obj->json = api_renew_json_int(obj->json , "mtu_size", config->mtu_size);
         obj->json = api_renew_json_int(obj->json , "adapt_cpu", config->adapt_cpu);
-        char *jsonStr = cJSON_Print(obj->json );
+        char *jsonStr = api_json2str(obj->json );
         printf("mcu: AudioInit: jsonStr=%s \n", jsonStr);
         api_audio_codec_init(obj->handle, jsonStr);
 
@@ -750,14 +750,14 @@ int McuInit(McuObj *mcu)
     printf("McuInit: 1: ret=%d \n", ret);
     ret = AudioInit(mcu);
     printf("McuInit: 2: ret=%d \n", ret);
-    cJSON *json = NULL;//mystr2json(params);
+    cJSON *json = NULL;
     ret = api_avstream_init(mcu->streamHnd, mcu->params);
     printf("McuInit: 3: ret=%d \n", ret);
     set_avstream2video(mcu->video->handle, mcu->streamHnd);
     set_avstream2audio(mcu->audio->handle, mcu->streamHnd);
     if(json)
     {
-        deleteJson(json);
+        api_json_free(json);
         json = NULL;
     }
     printf("McuInit: ok \n");

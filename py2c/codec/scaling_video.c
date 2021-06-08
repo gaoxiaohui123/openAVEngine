@@ -30,10 +30,8 @@
 
 #include "inc.h"
 
-extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
 extern char* GetvalueStr(cJSON *json, char *key, char *result);
-extern cJSON* deleteJson(cJSON *json);
 
 static void fill_yuv_image(uint8_t *data[4], int linesize[4],
                            int width, int height, int frame_index)
@@ -151,7 +149,7 @@ int api_scale_init(char *handle, char *param)
     ret = api_create_scale_handle(handle);
     long long *testp = (long long *)handle;
     ScaleObj *obj = (ScaleObj *)testp[0];
-    obj->json = mystr2json(param);
+    obj->json = (cJSON *)api_str2json(param);
     obj->param = param;
     //obj->Obj_id = id;
     //obj->outbuf = outbuf;
@@ -267,7 +265,7 @@ int api_ff_scale(int id, char *data, char *param, char *outbuf, char *outparam[]
 {
     int ret = 0;
     ScaleObj scale;
-    cJSON *json = mystr2json(param);
+    cJSON *json = (cJSON *)api_str2json(param);
     //
     scale.Obj_id = id;
     scale.outbuf = outbuf;
@@ -374,7 +372,7 @@ int api_ff_scale(int id, char *data, char *param, char *outbuf, char *outparam[]
     //int src_w = GetvalueInt(json, "src_w");
     scale.sws_ctx = NULL;
     ret = FFScaleFrame0(&scale);
-    deleteJson(json);
+    api_json_free(json);
     return ret;
 }
 #if 0

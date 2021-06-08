@@ -56,7 +56,6 @@ typedef struct
 
 }AudioPlayerObj;
 
-extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
 extern char* GetvalueStr(cJSON *json, char *key, char *result);
 extern int64_t get_sys_time();
@@ -200,7 +199,7 @@ int api_player_init(char *handle, char *param)
     AudioPlayerObj *obj = (AudioPlayerObj *)testp[0];
 
     printf("api_player_init: param= %s \n", param);
-    obj->json = mystr2json(param);
+    obj->json = (cJSON *)api_str2json(param);
     printf("api_player_init: obj->json= %x \n", obj->json);
     obj->param = param;
     obj->print = GetvalueInt(obj->json, "print");
@@ -331,7 +330,7 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
     {
         long long *testp = (long long *)handle;
         AudioPlayerObj *obj = (AudioPlayerObj *)testp[0];
-        obj->json = mystr2json(param);
+        obj->json = (cJSON *)api_str2json(param);
         obj->param = (void *)obj->json;//param;
 
         obj->mix_num = GetvalueInt(obj->json, "mix_num");
@@ -431,7 +430,7 @@ int audio_play_frame(char *handle, char *param, char *indata, int insize)
         }
         //av_free(obj->audio_frame);//test
         obj->frame_idx++;
-        deleteJson(obj->param);
+        api_json_free(obj->param);
         obj->param = NULL;
         obj->json = NULL;
     }
@@ -447,7 +446,7 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
         //printf("audio_play_frame_mix: insize=%d \n", insize);
         long long *testp = (long long *)handle;
         AudioPlayerObj *obj = (AudioPlayerObj *)testp[0];
-        obj->json = mystr2json(param);
+        obj->json = (cJSON *)api_str2json(param);
         obj->param = (void *)obj->json;
 
         if(obj->fp_pcm)
@@ -608,7 +607,7 @@ int audio_play_frame_mix(char *handle, char *param, char *indata[], int insize)
 
         //av_free(obj->audio_frame);//test
         obj->frame_idx++;
-        deleteJson(obj->param);
+        api_json_free(obj->param);
         obj->param = NULL;
         obj->json = NULL;
     }

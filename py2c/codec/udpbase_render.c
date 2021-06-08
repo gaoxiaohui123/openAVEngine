@@ -305,12 +305,12 @@ void * FrameBufferFinder(CallRender *obj, int id)
 int RenderInit(CallRender *obj)
 {
     int ret = 0;
-    cJSON *json = NULL;//mystr2json(params);
+    cJSON *json = NULL;
 
     ret = api_sdl_init(obj->handle, obj->params);
     if(json)
     {
-        deleteJson(json);
+        api_json_free(json);
         json = NULL;
     }
 
@@ -852,7 +852,7 @@ int AddRect(CallRender *obj, SDL_Rect rect, int id)
             head->idx++;
             head->num++;
         }
-        //deleteJson(json);
+        //api_json_free(json);
         //json = NULL;
     }
     pthread_mutex_unlock(&obj->lock);

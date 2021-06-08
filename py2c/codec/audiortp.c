@@ -32,16 +32,9 @@
 
 #include "inc.h"
 
-
-extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
 extern int *GetArrayValueInt(cJSON *json, char *key, int *arraySize);
-extern cJSON* renewJson(cJSON *json, char *key, int ivalue, char *cvalue, cJSON *subJson);
-extern cJSON* renewJsonInt(cJSON *json, char *key, int ivalue);
-extern cJSON* renewJsonStr(cJSON *json, char *key, char *cvalue);
-extern cJSON* deleteJson(cJSON *json);
 extern long long *GetArrayObj(cJSON *json, char *key, int *arraySize);
-//extern cJSON* renewJsonArray2(cJSON *json, char *key, short *value);
 extern cJSON* renewJsonArray3(cJSON **json, cJSON **array, char *key, cJSON *item);
 extern cJSON *get_net_info2(NetInfo *info, cJSON *pJsonRoot);
 extern int GetAudioNetInfo(uint8_t* dataPtr, int insize, NetInfo *info, int times);
@@ -298,7 +291,7 @@ int api_audio_raw2rtp_packet(char *handle, char *data, char *param, char *outbuf
             }
 
         }
-        obj->json = mystr2json(param);
+        obj->json = (cJSON *)api_str2json(param);
 
         unsigned int timestamp = (unsigned int)GetvalueInt(obj->json, "timestamp");
 
@@ -321,7 +314,7 @@ int api_audio_raw2rtp_packet(char *handle, char *data, char *param, char *outbuf
         sprintf(obj->outparam[1], "%d", obj->seq_num);
         outparam[1] = obj->outparam[1];
 	    //char text[2048] = "";//2048/4=512//512*1400=700kB
-	    deleteJson(obj->json);
+	    api_json_free(obj->json);
 	    obj->json = NULL;
 	}
     return ret;
@@ -459,7 +452,7 @@ int api_audio_rtp_packet2raw(char *handle, char *data, char *param, char *outbuf
                 //obj->logfp = fopen(filename, "w");
             }
         }
-        obj->json = mystr2json(param);
+        obj->json = (cJSON *)api_str2json(param);
         int insize = GetvalueInt(obj->json, "insize");
         //printf("api_audio_rtp_packet2raw: insize= %d \n", insize);
 
@@ -467,7 +460,7 @@ int api_audio_rtp_packet2raw(char *handle, char *data, char *param, char *outbuf
 
 	    //outparam[0] = text;
 
-	    deleteJson(obj->json);
+	    api_json_free(obj->json);
 	    obj->json = NULL;
 	}
     return ret;
@@ -1217,14 +1210,14 @@ static int get_frame(void *hnd, char *outbuf, char *complete, char *extend_info,
     }
     if(jsonInfo)
     {
-        char *jsonStr = cJSON_Print(jsonInfo);//比较耗时
-        deleteJson(jsonInfo);
+        char *jsonStr = api_json2str(jsonInfo);//比较耗时
+        api_json_free(jsonInfo);
         strcpy(extend_info, jsonStr);
         if(strlen(extend_info) >= MAX_OUTCHAR_SIZE)
         {
             printf("error: get_frame: strlen(extend_info)= %d \n", strlen(extend_info));
         }
-        cJSON_free(jsonStr);
+        api_json2str_free(jsonStr);
     }
     //printf("get_frame: end: ret= %d \n", ret);
     return ret;
@@ -1584,7 +1577,7 @@ int api_audio_resort_packet(char *handle, char *data, char *param, char *outbuf,
 #endif
         }
 
-        obj->json = mystr2json(param);
+        obj->json = (cJSON *)api_str2json(param);
         obj->param = param;
         int selfChanId = GetvalueInt(obj->json, "selfChanId");
         int insize = GetvalueInt(obj->json, "insize");
@@ -1613,7 +1606,7 @@ int api_audio_resort_packet(char *handle, char *data, char *param, char *outbuf,
         if(ret > 0)// && !strlen(outparam[0]) && !strlen(outparam[1]))
         {
         }
-        deleteJson(obj->json);
+        api_json_free(obj->json);
         obj->json = NULL;
     }
     return ret;

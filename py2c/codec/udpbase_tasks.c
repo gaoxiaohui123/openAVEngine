@@ -166,7 +166,7 @@ int api_start_broadcast(char *handle, char *params0)
     json = (cJSON *)api_str2json(params);
     json = api_renew_json_int(json, "port", port);
     json = api_renew_json_str(json, "server_ip", server_ip);
-    char *jsonStr = cJSON_Print(json);
+    char *jsonStr = api_json2str(json);
 
     ret = api_taskpool_addtask(handle, jsonStr, client_broadcast, taskId);
     //NetInfoObj *globalNetInfoObj = NULL;
@@ -445,7 +445,7 @@ int api_start_capture(char *handle, char *params0)
     json = api_renew_json_int(json, "scale", 0);
     json = api_renew_json_int(json, "color", 1);
     json = api_renew_json_int(json, "print", 0);
-    char *jsonStr = cJSON_Print(json);
+    char *jsonStr = api_json2str(json);
     printf("api_start_capture: jsonStr= %s \n", jsonStr);
 
     //taskId = 4;
@@ -510,7 +510,7 @@ int api_start_render(char *handle, char *params0)
     json = api_renew_json_int(json, "scale", 0);
     json = api_renew_json_int(json, "color", 4);
     json = api_renew_json_int(json, "print", 0);
-    char *jsonStr = cJSON_Print(json);
+    char *jsonStr = api_json2str(json);
     printf("api_start_render: jsonStr= %s \n", jsonStr);
 
     //taskId = 5;
@@ -606,7 +606,7 @@ int api_start_video(char *handle, char *params0)
     json = api_renew_json_int(json, "refs", refs);
     json = api_renew_json_float(json, "bwthreshold", bwthreshold);
     json = api_renew_json_float(json, "lossrate", lossrate);
-    char *jsonStr = cJSON_Print(json);
+    char *jsonStr = api_json2str(json);
     if(isEncoder)
     {
         ret = api_taskpool_addtask(handle, jsonStr, video_encode, taskId);//client_main
@@ -810,7 +810,7 @@ int api_start_acapture(char *handle, char *params0)
     json = api_renew_json_int(json, "datatype", 2);
     json = api_renew_json_int(json, "process", 1);
     json = api_renew_json_int(json, "print", 0);
-    char *jsonStr = cJSON_Print(json);
+    char *jsonStr = api_json2str(json);
     printf("api_start_acapture: jsonStr= %s \n", jsonStr);
 
     ret = api_taskpool_addtask(handle, jsonStr, audio_capture, taskId);
@@ -872,7 +872,7 @@ int api_start_player(char *handle, char *params0)
     json = api_renew_json_str(json, "pcmfile", "");
     json = api_renew_json_int(json, "sdl_status", 1);//0：纯音频模式；1：音视频
     json = api_renew_json_int(json, "print", 0);
-    char *jsonStr = cJSON_Print(json);
+    char *jsonStr = api_json2str(json);
     printf("api_start_player: jsonStr= %s \n", jsonStr);
 
     ret = api_taskpool_addtask(handle, jsonStr, audio_player, taskId);
@@ -945,7 +945,7 @@ int api_start_audio(char *handle, char *params0)
     json = api_renew_json_int(json, "enable_netack", enable_netack);
     json = api_renew_json_int(json, "status", 1);
     json = api_renew_json_float(json, "lossrate", lossrate);
-    char *jsonStr = cJSON_Print(json);
+    char *jsonStr = api_json2str(json);
     if(isEncoder)
     {
         ret = api_taskpool_addtask(handle, jsonStr, audio_encode, taskId);//client_main
@@ -1120,7 +1120,7 @@ int api_start_stream(char *handle, char *params0)
     json = api_renew_json_int(json, "osd_enable", osd_enable);
     json = api_renew_json_int(json, "framerate", framerate);
     json = api_renew_json_int(json, "refs", refs);
-    char *jsonStr = cJSON_Print(json);
+    char *jsonStr = api_json2str(json);
     ret = api_taskpool_addtask(handle, jsonStr, read_stream, taskId);
 
     obj = (SocketObj *)task->hnd[taskId];
@@ -1180,7 +1180,7 @@ int api_start_mcu(char *handle, char *params0)
     json = api_renew_json_int(json, "osd_enable", osd_enable);
     json = api_renew_json_int(json, "framerate", framerate);
     json = api_renew_json_int(json, "refs", refs);
-    char *jsonStr = cJSON_Print(json);
+    char *jsonStr = api_json2str(json);
     ret = api_taskpool_addtask(handle, jsonStr, mcu_task, taskId);
     printf("api_start_mcu: ok, taskId=%d \n", taskId);
     return taskId;
@@ -1381,7 +1381,7 @@ int pool_test(int port, int is_video)
     json = api_renew_json_int(json, "port", port);
     json = api_renew_json_str(json, "server_ip", server_ip);
 
-    jsonStr = cJSON_Print(json);
+    jsonStr = api_json2str(json);
     int taskId = 0;
     ret = api_taskpool_addtask(handle, jsonStr, server_main, taskId);
 
@@ -1392,7 +1392,7 @@ int pool_test(int port, int is_video)
     json = api_renew_json_int(json, "port", port);
     json = api_renew_json_str(json, "server_ip", server_ip);
 
-    jsonStr = cJSON_Print(json);
+    jsonStr = api_json2str(json);
     taskId = 1;
     ret = api_taskpool_addtask(handle, jsonStr, client_broadcast, taskId);
 #endif
@@ -1425,7 +1425,7 @@ if(is_video)
     json = api_renew_json_int(json, "width", DEFAULT_WIDTH);
     json = api_renew_json_int(json, "height", DEFAULT_HEIGHT);
     json = api_renew_json_int(json, "status", 1);
-    jsonStr = cJSON_Print(json);
+    jsonStr = api_json2str(json);
     ret = api_taskpool_addtask(handle, jsonStr, video_encode, taskId);//client_main
 
     //sleep(1);//???
@@ -1446,7 +1446,7 @@ if(is_video)
     json = api_renew_json_int(json, "width", DEFAULT_WIDTH);
     json = api_renew_json_int(json, "height", DEFAULT_HEIGHT);
     json = api_renew_json_int(json, "status", 1);
-    jsonStr = cJSON_Print(json);
+    jsonStr = api_json2str(json);
     ret = api_taskpool_addtask(handle, jsonStr, video_decode, taskId);
 
     //sleep(1);//???
@@ -1487,7 +1487,7 @@ if(is_video)
     json = api_renew_json_int(json, "scale", 0);
     json = api_renew_json_int(json, "color", 1);
     json = api_renew_json_int(json, "print", 0);
-    jsonStr = cJSON_Print(json);
+    jsonStr = api_json2str(json);
     printf("pool_test: jsonStr= %s \n", jsonStr);
 
     taskId = 4;
@@ -1514,7 +1514,7 @@ if(is_video)
     json = api_renew_json_int(json, "scale", 0);
     json = api_renew_json_int(json, "color", 4);
     json = api_renew_json_int(json, "print", 0);
-    jsonStr = cJSON_Print(json);
+    jsonStr = api_json2str(json);
     printf("pool_test: jsonStr= %s \n", jsonStr);
 
     taskId = 5;
@@ -1584,7 +1584,7 @@ if(!is_video)
     json = api_renew_json_int(json, "testmode", 0);
     json = api_renew_json_int(json, "nettime", 0);
     json = api_renew_json_int(json, "status", 1);
-    jsonStr = cJSON_Print(json);
+    jsonStr = api_json2str(json);
     ret = api_taskpool_addtask(handle, jsonStr, audio_encode, taskId);//client_main
 
     //sleep(1);//???
@@ -1604,7 +1604,7 @@ if(!is_video)
     json = api_renew_json_int(json, "nettime", 0);
     json = api_renew_json_int(json, "status", 1);
     //json = api_renew_json_str(json, "pcmfp", "");
-    jsonStr = cJSON_Print(json);
+    jsonStr = api_json2str(json);
     ret = api_taskpool_addtask(handle, jsonStr, audio_decode, taskId);
     //
     strcpy(params, ctmp);
@@ -1635,7 +1635,7 @@ if(!is_video)
     json = api_renew_json_int(json, "datatype", 2);
     json = api_renew_json_int(json, "process", 1);
     json = api_renew_json_int(json, "print", 0);
-    jsonStr = cJSON_Print(json);
+    jsonStr = api_json2str(json);
     printf("pool_test: jsonStr= %s \n", jsonStr);
 
     taskId = 8;
@@ -1660,7 +1660,7 @@ if(!is_video)
     json = api_renew_json_str(json, "pcmfile", "");
     json = api_renew_json_int(json, "sdl_status", 0);//0：纯音频模式；1：音视频
     json = api_renew_json_int(json, "print", 0);
-    jsonStr = cJSON_Print(json);
+    jsonStr = api_json2str(json);
     printf("pool_test: jsonStr= %s \n", jsonStr);
 
     taskId = 9;

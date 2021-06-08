@@ -133,7 +133,7 @@ static int CaptureInit(CallCapture *obj)
     ret = api_audio_capture_init(obj->handle, obj->params);
     if(json)
     {
-        deleteJson(json);
+        api_json_free(json);
         json = NULL;
     }
 

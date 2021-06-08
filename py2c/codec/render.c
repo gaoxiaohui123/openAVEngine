@@ -1,10 +1,8 @@
 
 #include "inc.h"
 
-extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
 extern char* GetvalueStr(cJSON *json, char *key, char *result);
-extern cJSON* deleteJson(cJSON *json);
 extern int64_t get_sys_time();
 int glob_sld_status = 0;
 FILE *yuvfp = NULL;
@@ -522,7 +520,7 @@ HCSVC_API
 int api_split_screen(char *handle, char * show_buffer, char *param, int width, int height)
 {
     SDL_Rect rect;
-    cJSON *json = mystr2json(param);
+    cJSON *json = (cJSON *)api_str2json(param);
 
     int show_flag = GetvalueInt(json, "show_flag");
     if(show_flag == 2 && handle)
@@ -539,7 +537,7 @@ int api_split_screen(char *handle, char * show_buffer, char *param, int width, i
     rect.w = GetvalueInt(json, "rect_w");
     rect.h = GetvalueInt(json, "rect_h");
     int ret = split_screen(handle, show_buffer, rect, width, height, show_flag);
-    deleteJson(json);
+    api_json_free(json);
     return ret;
 }
 #if 0
@@ -1082,7 +1080,7 @@ int api_sdl_init(char *handle, char *param)
     long long *testp = (long long *)handle;
     SDLObj *obj = (SDLObj *)testp[0];
     printf("api_sdl_init: param= %s \n", param);
-    obj->json = mystr2json(param);
+    obj->json = (cJSON *)api_str2json(param);
     printf("api_sdl_init: obj->json= %x \n", obj->json);
     obj->param = param;
 

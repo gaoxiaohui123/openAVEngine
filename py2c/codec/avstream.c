@@ -1,18 +1,12 @@
 
 #include "inc.h"
 
-extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
 extern char* GetvalueStr(cJSON *json, char *key, char *result);
 extern int *GetArrayValueInt(cJSON *json, char *key, int *arraySize);
-extern cJSON* renewJson(cJSON *json, char *key, int ivalue, char *cvalue, cJSON *subJson);
-extern cJSON* renewJsonInt(cJSON *json, char *key, int ivalue);
-extern cJSON* renewJsonStr(cJSON *json, char *key, char *cvalue);
-extern cJSON* deleteJson(cJSON *json);
 extern long long *GetArrayObj(cJSON *json, char *key, int *arraySize);
 //extern cJSON* renewJsonArray2(cJSON *json, char *key, short *value);
 extern cJSON* renewJsonArray3(cJSON **json, cJSON **array, char *key, cJSON *item);
-extern cJSON *get_net_info2(NetInfo *info, cJSON *pJsonRoot);
 
 extern void *ResampleCreate(void *handle);
 extern void ResampleClose(void *handle);
@@ -606,10 +600,10 @@ int WiteFrame2(AVStreamObj *stream, AVPacket *pkt, int avtype)
 int AVWriteFrame(AVStreamObj *stream, char *data, char *param, char *outbuf, char *outparam[])
 {
     int ret = -1;
-    cJSON *json = mystr2json(param);
+    cJSON *json = (cJSON *)api_str2json(param);
     char *key = "get_pkt";
 	int ivalue = 1;
-	json = renewJsonInt(json, key, ivalue);
+	json = api_renew_json_int(json, key, ivalue);
     AVMuxer *mux = (AVMuxer *)stream->mux;
     int is_video = GetvalueInt(json, "is_video");
     char *data2 = data;
@@ -620,11 +614,11 @@ int AVWriteFrame(AVStreamObj *stream, char *data, char *param, char *outbuf, cha
 
         key = "width";
 		ivalue = width;
-		json = renewJsonInt(json, key, ivalue);
+		json = api_renew_json_int(json, key, ivalue);
 
 		key = "height";
 		ivalue = height;
-		json = renewJsonInt(json, key, ivalue);
+		json = api_renew_json_int(json, key, ivalue);
 
         if(width != stream->width || height != stream->height)
         {
@@ -661,7 +655,7 @@ int AVWriteFrame(AVStreamObj *stream, char *data, char *param, char *outbuf, cha
                 FFScaleFrame(scale);
             }
         }
-        char *param2 = cJSON_Print(json);
+        char *param2 = api_json2str(json);
         api_video_encode_one_frame(stream->video_codec_handle, data2, param2, outbuf, outparam);
 
         long long *testp = (long long *)stream->video_codec_handle;
@@ -679,7 +673,7 @@ int AVWriteFrame(AVStreamObj *stream, char *data, char *param, char *outbuf, cha
         free(param2);
     }
     else{
-        char *param2 = cJSON_Print(json);
+        char *param2 = api_json2str(json);
         api_audio_codec_one_frame(stream->audio_codec_handle, data2, param2, outbuf, outparam);
         long long *testp = (long long *)stream->audio_codec_handle;
         CodecObj *obj = (CodecObj *)testp[0];
@@ -697,7 +691,7 @@ int AVWriteFrame(AVStreamObj *stream, char *data, char *param, char *outbuf, cha
         av_free_packet(&obj->pkt);
         free(param2);
     }
-    deleteJson(json);
+    api_json_free(json);
     return ret;
 }
 int ReadInit(AVStreamObj *pRead)
@@ -1674,7 +1668,7 @@ int api_avstream_init(char *handle, char *param)
     long long *testp = (long long *)handle;
     AVStreamObj *obj = (AVStreamObj *)testp[0];
     printf("api_avstream_init: param= %s \n", param);
-    obj->json = mystr2json(param);
+    obj->json = (cJSON *)api_str2json(param);
     printf("api_avstream_init: obj->json= %x \n", obj->json);
 
     GetvalueStr(obj->json, "infile", obj->infile);
@@ -1744,11 +1738,11 @@ int api_audio_codec_one_frame_stream(char *handle, char *data, char *param, char
 {
     long long *testp = (long long *)handle;
     AVStreamObj *stream = (AVStreamObj *)testp[0];
-    cJSON *json = mystr2json(param);
+    cJSON *json = (cJSON *)api_str2json(param);
     char *key = "is_audio";
 	int ivalue = 0;
-	json = renewJsonInt(json, key, ivalue);
-	char *param2 = cJSON_Print(json);
+	json = api_renew_json_int(json, key, ivalue);
+	char *param2 = api_json2str(json);
     AVWriteFrame(stream, data, param2, outbuf, outparam);
     free(param2);
 }
@@ -1757,11 +1751,11 @@ int api_video_encode_one_frame_stream(char *handle, char *data, char *param, cha
 {
     long long *testp = (long long *)handle;
     AVStreamObj *stream = (AVStreamObj *)testp[0];
-    cJSON *json = mystr2json(param);
+    cJSON *json = (cJSON *)api_str2json(param);
     char *key = "is_video";
 	int ivalue = 1;
-	json = renewJsonInt(json, key, ivalue);
-	char *param2 = cJSON_Print(json);
+	json = api_renew_json_int(json, key, ivalue);
+	char *param2 = api_json2str(json);
     AVWriteFrame(stream, data, param2, outbuf, outparam);
     free(param2);
 }

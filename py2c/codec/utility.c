@@ -16,10 +16,7 @@
 
 pthread_mutex_t * glob_lock = NULL;
 static int gssrc = 0;
-extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
-extern cJSON* renewJson(cJSON *json, char *key, int ivalue, char *cvalue, cJSON *subJson);
-extern cJSON* deleteJson(cJSON *json);
 extern int64_t get_sys_time();
 extern int64_t get_sys_time2();
 
@@ -1520,7 +1517,7 @@ int try_records(char *inbuf)
 }
 int foreach_video(char *result)
 {
-    cJSON *json = mystr2json(result);
+    cJSON *json = (cJSON *)api_str2json(result);
     cJSON *item = json;
     //cJSON *json2 = cJSON_CreateObject();
     char ret[1024] = "";
@@ -1577,14 +1574,14 @@ int foreach_video(char *result)
 
     }while(!cJSON_IsNull(item) && item);
 
-    deleteJson(json);
-    //deleteJson(json2);
+    api_json_free(json);
+    //api_json_free(json2);
 
     return strlen(ret);
 }
 int foreach_record(char *result)
 {
-    cJSON *json = mystr2json(result);
+    cJSON *json = (cJSON *)api_str2json(result);
     cJSON *item = json;
     char ret[1024] = "";
     do{
@@ -1614,7 +1611,7 @@ int foreach_record(char *result)
         item = item->child;
 
     }while(!cJSON_IsNull(item) && item);
-    deleteJson(json);
+    api_json_free(json);
     return strlen(ret);
 }
 HCSVC_API

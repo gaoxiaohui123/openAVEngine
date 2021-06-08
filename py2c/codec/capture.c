@@ -33,10 +33,8 @@
 
 #define USE_DSHOW 1
 
-extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
 extern char* GetvalueStr(cJSON *json, char *key, char *result);
-extern cJSON* deleteJson(cJSON *json);
 extern int64_t get_sys_time();
 
 static int glob_ffmpeg_reg_idx = 0;
@@ -1124,7 +1122,7 @@ int api_capture_init(char *handle, char *param)
     ret = api_create_capture_handle(handle);
     long long *testp = (long long *)handle;
     CaptureObj *obj = (CaptureObj *)testp[0];
-    obj->json = mystr2json(param);
+    obj->json = (cJSON *)api_str2json(param);
     obj->param = param;
 
     obj->osd_enable = GetvalueInt(obj->json, "osd");

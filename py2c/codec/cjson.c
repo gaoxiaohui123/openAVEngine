@@ -215,26 +215,10 @@ cJSON* renewJsonFloat(cJSON *json, char *key, float fvalue)
     if(NULL != key)
     {
         {
-            cJSON *item = cJSON_GetObjectItem(ret, key);
-            if(cJSON_IsNumber(item))
-            {
-                cJSON_ReplaceItemInObject(ret, key, cJSON_CreateNumber(fvalue));
-                //cJSON_ReplaceItemInObject(ret, key, ivalue);
-            }
-            else{
-                cJSON_AddNumberToObject(ret, key, fvalue);
-            }
+            cJSON_AddNumberToObject(ret, key, fvalue);
         }
     }
     return ret;
-}
-cJSON* renewJsonInt(cJSON *json, char *key, int ivalue)
-{
-    return renewJson(json, key, ivalue, NULL, NULL);
-}
-cJSON* renewJsonStr(cJSON *json, char *key, char *cvalue)
-{
-    return renewJson(json, key, 0, cvalue, NULL);
 }
 
 #if 0
@@ -368,60 +352,6 @@ cJSON* deleteItem(cJSON *json, char *key)
     }
     return json;
 }
-
-cJSON* deleteJson(cJSON *json)
-{
-    if(json)
-    {
-        cJSON_Delete(json); //释放json对象
-    }
-    return 0;
-    //return renewJson(json, NULL, 0, NULL, NULL);
-}
-cJSON* mystr2json(char *text)
-{
-    char *out;
-    cJSON *json = NULL;
-    if (text == NULL || !strcmp(text, ""))
-    {
-        return json;
-    }
-
-    json = cJSON_Parse(text);
-    //if (!json) {
-    //    printf("Error before: [%s]\n",cJSON_GetErrorPtr());
-    //} else {
-        //将传入的JSON结构转化为字符串
-        //out=cJSON_Print(json);
-        //cJSON_free(out);
-    //}
-    return json;
-}
-float GetvalueFloat(cJSON *json, char *key)
-{
-    cJSON *item = cJSON_GetObjectItem(json, key);
-    if(cJSON_IsNull(item))
-    {
-    }
-    else if(cJSON_IsNumber(item))
-    {
-        return item->valuedouble;
-    }
-    return 0;
-}
-int GetvalueInt(cJSON *json, char *key)
-{
-    cJSON *item = cJSON_GetObjectItem(json, key);
-    if(cJSON_IsNull(item))
-    {
-    }
-    else if(cJSON_IsNumber(item))
-    {
-        return item->valueint;
-    }
-    return 0;
-}
-
 #if 0
 int jsonGetUint64(void *json, const char *node, unsigned long long *value)
 {
@@ -590,7 +520,7 @@ long long *GetArrayObj(cJSON *json, char *key, int *arraySize)
 static void foreach()
 {
     char *parmstr = "{\"video\":{\"mjpeg\":\"1x2\", \"raw\":\"3x4\"}}";
-    cJSON *json = mystr2json(parmstr);
+    cJSON *json = (cJSON *)api_str2json(parmstr);
     cJSON *item = json;
     do{
         if(cJSON_IsObject(item))
@@ -627,12 +557,12 @@ static void foreach()
 static int example()
 {
     char *parmstr = "{\"video\":\"mjpeg\", \"fb\":\"3x4\"}";
-    cJSON *json = mystr2json(parmstr);
+    cJSON *json = (cJSON *)api_str2json(parmstr);
     cJSON *item = json->child;
     cJSON *item2 = item->next;
     char *key = item2->string;
     printf("api_get_dev_info: key=%s \n", key);
-    deleteJson(json);
+    api_json_free(json);
     return 0;
 }
 
@@ -652,37 +582,28 @@ void* api_delete_item(void *json, char *key)
 {
     return (void *)deleteItem((cJSON *)json, key);
 }
-HCSVC_API
-void api_json_free(void *json)
-{
-    deleteJson((cJSON *)json);
-}
+
 HCSVC_API
 int* api_get_array_int(char *parmstr, char *key, int *arraySize)
 {
     int *ret = NULL;
     int chanNum = 0;
-    cJSON *json = mystr2json(parmstr);
+    cJSON *json = (cJSON *)api_str2json(parmstr);
     if(json)
     {
         ret = GetArrayValueInt(json, key, arraySize);
-        deleteJson(json);
+        api_json_free(json);
     }
 
     return ret;
 }
-HCSVC_API
-void *api_str2json(char *parmstr)
-{
-    cJSON *json = mystr2json(parmstr);
-    return (void *)json;
-}
+
 
 #if 1
 void *glob_json = NULL;
 int64_t glob_idx = 0;
 HCSVC_API
-void api_mem_lead_cjson(int64_t start, int64_t loopn)
+void api_mem_lead_cjson(int64_t start, int64_t loopn)//api_mem_leak_cjson
 {
     printf("api_mem_lead_cjson: loopn=%lld \n", loopn);
     for(int64_t i = start; i < (start + loopn); i++)

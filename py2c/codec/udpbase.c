@@ -708,7 +708,7 @@ int server_broadcast_run(SocketObj *obj)
             time0 = now_time;
             sendsize = 0;
             if(bitrate > 0)
-                MYPRINT("server_broadcast_run: bitrate=%5.1f (Kbps) \n", bitrate);
+                MYPRINT2("server_broadcast_run: bitrate=%5.1f (Kbps) \n", bitrate);
         }
         pthread_mutex_lock(&obj->status_lock);
         status = (obj->broadcast_status > 0) & (obj->recv_status > 0); //obj->send_status ;
@@ -755,9 +755,9 @@ int ProcessCmd(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in 
             {
                 if(errno != EAGAIN && !send_num)
                 {
-                    MYPRINT("ProcessCmd: send_num=%d \n", send_num);
+                    MYPRINT2("ProcessCmd: send_num=%d \n", send_num);
                     perror("ProcessCmd: sendto kBroadCastReg error:");
-                    MYPRINT("ProcessCmd: errno=%d \n", errno);
+                    MYPRINT2("ProcessCmd: errno=%d \n", errno);
                     ret = -2;
                 }
             }
@@ -811,9 +811,9 @@ int ProcessCmd(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in 
                 {
                     if(errno != EAGAIN && !send_num)
                     {
-                        MYPRINT("ProcessCmd: send_num=%d \n", send_num);
+                        MYPRINT2("ProcessCmd: send_num=%d \n", send_num);
                         perror("ProcessCmd: sendto kGetSessionId error:");
-                        MYPRINT("ProcessCmd: errno=%d \n", errno);
+                        MYPRINT2("ProcessCmd: errno=%d \n", errno);
                         ret = -2;
                     }
                 }
@@ -837,7 +837,7 @@ int ProcessCmd(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in 
             int sessionId = udata->sessionId;
             if(sessionId < 0 || sessionId >= glob_session_num)
             {
-                MYPRINT("error: ProcessCmd: kGetChanId: sessionId=%d, obj->session_idx=%d \n", sessionId, obj->session_idx);
+                MYPRINT2("error: ProcessCmd: kGetChanId: sessionId=%d, obj->session_idx=%d \n", sessionId, obj->session_idx);
                 break;
             }
 
@@ -858,9 +858,9 @@ int ProcessCmd(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in 
                     {
                         if(errno != EAGAIN && !send_num)
                         {
-                            MYPRINT("ProcessCmd: send_num=%d \n", send_num);
+                            MYPRINT2("ProcessCmd: send_num=%d \n", send_num);
                             perror("ProcessCmd: sendto kGetChanId error:");
-                            MYPRINT("ProcessCmd: errno=%d \n", errno);
+                            MYPRINT2("ProcessCmd: errno=%d \n", errno);
                             ret = -2;
                         }
                     }
@@ -868,7 +868,7 @@ int ProcessCmd(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in 
                 else{
                     if(chanId < 0 || chanId >= 128)
                     {
-                        MYPRINT("error: ProcessCmd: kGetChanId: chanId=%d \n", chanId);
+                        MYPRINT2("error: ProcessCmd: kGetChanId: chanId=%d \n", chanId);
                     }
                     ssinfo->chanIdList[chanId] = chanId;
                     ssinfo->randIdList[chanId] = randId;
@@ -883,8 +883,8 @@ int ProcessCmd(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in 
             if(sessionId < glob_session_num)//obj->session_idx
             {
                 SessionInfo *ssinfo = &obj->SessionList[sessionId];
-                MYPRINT("ProcessCmd: sessionId=%d \n", sessionId);
-                MYPRINT("ProcessCmd: ssinfo->status=%d \n", ssinfo->status);
+                MYPRINT2("ProcessCmd: sessionId=%d \n", sessionId);
+                MYPRINT2("ProcessCmd: ssinfo->status=%d \n", ssinfo->status);
                 if(ssinfo->status)
                 {
                     int chanId = udata->chanId;
@@ -892,9 +892,9 @@ int ProcessCmd(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in 
                     int actor = udata->actor;
                     if(chanId < MAX_CHAN_NUM)
                     {
-                        MYPRINT("ProcessCmd: udata->actor=%d \n", udata->actor);
-                        MYPRINT("ProcessCmd: udata->chanId=%d \n", udata->chanId);
-                        MYPRINT("ProcessCmd: udata->sessionId=%d \n", udata->sessionId);
+                        MYPRINT2("ProcessCmd: udata->actor=%d \n", udata->actor);
+                        MYPRINT2("ProcessCmd: udata->chanId=%d \n", udata->chanId);
+                        MYPRINT2("ProcessCmd: udata->sessionId=%d \n", udata->sessionId);
 
                         if(actor < DECACTOR)
                         {
@@ -910,7 +910,7 @@ int ProcessCmd(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in 
                         {
                             pnew = (SockNode *)malloc(sizeof(SockNode));
                             if (pnew == NULL) {
-                                MYPRINT("创建失败！");
+                                MYPRINT2("创建失败！");
                                 ret = -2;
                                 StopSend(obj);
                             }
@@ -922,7 +922,7 @@ int ProcessCmd(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in 
                             pnew->chanId = chanId;
                             //addnode(ssinfo->decodecHead, pnew);   //将新节点插入节点3的后面
                             sockNodeAdd(ssinfo->decodecHead, pnew);
-                            MYPRINT("ProcessCmd: 插入后的链表：");
+                            MYPRINT2("ProcessCmd: 插入后的链表：");
                             display(ssinfo->decodecHead);
                         }
                         //ack
@@ -931,9 +931,9 @@ int ProcessCmd(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in 
                         {
                             if(errno != EAGAIN && !send_num)
                             {
-                                MYPRINT("ProcessCmd: send_num=%d \n", send_num);
+                                MYPRINT2("ProcessCmd: send_num=%d \n", send_num);
                                 perror("ProcessCmd: sendto kReg error:");
-                                MYPRINT("ProcessCmd: errno=%d \n", errno);
+                                MYPRINT2("ProcessCmd: errno=%d \n", errno);
                                 ret = -2;
                             }
                         }
@@ -950,9 +950,9 @@ int ProcessCmd(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in 
             {
                 if(errno != EAGAIN && !send_num)
                 {
-                    MYPRINT("ProcessCmd: send_num=%d \n", send_num);
+                    MYPRINT2("ProcessCmd: send_num=%d \n", send_num);
                     perror("ProcessCmd: sendto kHeartBeat error:");
-                    MYPRINT("ProcessCmd: errno=%d \n", errno);
+                    MYPRINT2("ProcessCmd: errno=%d \n", errno);
                     ret = -2;
                 }
             }
@@ -967,9 +967,9 @@ int ProcessCmd(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in 
             {
                 if(errno != EAGAIN && !send_num)
                 {
-                    MYPRINT("ProcessCmd: send_num=%d \n", send_num);
+                    MYPRINT2("ProcessCmd: send_num=%d \n", send_num);
                     perror("ProcessCmd: sendto kHeartBeat error:");
-                    MYPRINT("ProcessCmd: errno=%d \n", errno);
+                    MYPRINT2("ProcessCmd: errno=%d \n", errno);
                     ret = -2;
                 }
             }
@@ -985,9 +985,9 @@ int ProcessCmd(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in 
             {
                 if(errno != EAGAIN && !send_num)
                 {
-                    MYPRINT("ProcessCmd: send_num=%d \n", send_num);
+                    MYPRINT2("ProcessCmd: send_num=%d \n", send_num);
                     perror("ProcessCmd: sendto kRTT error:");
-                    MYPRINT("ProcessCmd: errno=%d \n", errno);
+                    MYPRINT2("ProcessCmd: errno=%d \n", errno);
                     ret = -2;
                 }
             }
@@ -1001,7 +1001,7 @@ int ProcessCmd(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in 
             //display(obj->sockHead);
             //ack
             int sessionId = udata->sessionId;
-            MYPRINT("ProcessCmd: kBye: sessionId=%d \n", sessionId);
+            MYPRINT2("ProcessCmd: kBye: sessionId=%d \n", sessionId);
             if(sessionId >= 0 && sessionId < obj->session_idx)
             {
                 SessionInfo *ssinfo = &obj->SessionList[sessionId];
@@ -1015,9 +1015,9 @@ int ProcessCmd(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in 
             {
                 if(errno != EAGAIN && !send_num)
                 {
-                    MYPRINT("ProcessCmd: send_num=%d \n", send_num);
+                    MYPRINT2("ProcessCmd: send_num=%d \n", send_num);
                     perror("ProcessCmd: sendto kBye error:");
-                    MYPRINT("ProcessCmd: errno=%d \n", errno);
+                    MYPRINT2("ProcessCmd: errno=%d \n", errno);
                     ret = -2;
                 }
             }
@@ -1032,13 +1032,13 @@ int ProcessCmd(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in 
             {
                 if(errno != EAGAIN && !send_num)
                 {
-                    MYPRINT("ProcessCmd: send_num=%d \n", send_num);
+                    MYPRINT2("ProcessCmd: send_num=%d \n", send_num);
                     perror("ProcessCmd: sendto kExit error:");
-                    MYPRINT("ProcessCmd: errno=%d \n", errno);
+                    MYPRINT2("ProcessCmd: errno=%d \n", errno);
                     ret = -2;
                 }
             }
-            MYPRINT("ProcessCmd: kExit \n");
+            MYPRINT2("ProcessCmd: kExit \n");
             StopRecv(obj);
             //StopBroadCast(obj);//test
             //StopSend(obj);
@@ -1061,9 +1061,9 @@ int RelayData(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in a
     {
         if(errno != EAGAIN && !send_num)
         {
-            MYPRINT("RelayData: send_num=%d \n", send_num);
+            MYPRINT2("RelayData: send_num=%d \n", send_num);
             perror("RelayData: sendto error:");
-            MYPRINT("RelayData: errno=%d \n", errno);
+            MYPRINT2("RelayData: errno=%d \n", errno);
             ret = -2;
             //StopBroadCast(obj);
         }
@@ -1073,19 +1073,19 @@ int RelayData(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in a
     //get sessionId,
     int sessionId = udata->sessionId;
     int chanId0 = udata->chanId;
-    //MYPRINT("RelayData: obj->session_idx=%d \n", obj->session_idx);
+    //MYPRINT2("RelayData: obj->session_idx=%d \n", obj->session_idx);
     if(sessionId >= obj->session_idx || sessionId < 0)
     {
-        MYPRINT("RelayData: obj->session_idx=%d \n", obj->session_idx);
-        MYPRINT("RelayData: sessionId=%d \n", sessionId);
-        MYPRINT("RelayData: chanId0=%d \n", chanId0);
+        MYPRINT2("RelayData: obj->session_idx=%d \n", obj->session_idx);
+        MYPRINT2("RelayData: sessionId=%d \n", sessionId);
+        MYPRINT2("RelayData: chanId0=%d \n", chanId0);
         return ret;
     }
     SessionInfo *ssinfo = &obj->SessionList[sessionId];
     SockNode *head = ssinfo->decodecHead;
     if(head == NULL)
     {
-        MYPRINT("RelayData: head=%x \n", head);
+        MYPRINT2("RelayData: head=%x \n", head);
     }
     //return ret;//test
     //else if(head->num == 0)
@@ -1109,9 +1109,9 @@ int RelayData(SocketObj *obj, char *send_buf, int send_num, struct sockaddr_in a
             {
                 if(errno != EAGAIN && !send_num)
                 {
-                    MYPRINT("RelayData: send_num=%d \n", send_num);
+                    MYPRINT2("RelayData: send_num=%d \n", send_num);
                     perror("RelayData: sendto error:");
-                    MYPRINT("RelayData: errno=%d \n", errno);
+                    MYPRINT2("RelayData: errno=%d \n", errno);
                     ret = -2;
                     //StopBroadCast(obj);
                 }
@@ -1160,10 +1160,10 @@ int server_recv_run(SocketObj *obj, SOCKFD sock_fd, struct sockaddr_in addr_serv
         {
             if(errno != EAGAIN && !recv_num)
             {
-                MYPRINT("server_recv_run: recv_num=%d \n", recv_num);
+                MYPRINT2("server_recv_run: recv_num=%d \n", recv_num);
                 free(recv_buf);
                 perror("server_recv_run: recvfrom error:");
-                MYPRINT("server_recv_run: errno=%d \n", errno);
+                MYPRINT2("server_recv_run: errno=%d \n", errno);
                 if(!recv_num)
                 {
                     ret = -1;
@@ -1190,7 +1190,7 @@ int server_recv_run(SocketObj *obj, SOCKFD sock_fd, struct sockaddr_in addr_serv
             time0 = now_time;
             recvsize = 0;
             if(bitrate > 0)
-                MYPRINT("server_recv_run: bitrate=%5.2f (Mbps) \n", bitrate);
+                MYPRINT2("server_recv_run: bitrate=%5.2f (Mbps) \n", bitrate);
         }
         pthread_mutex_lock(&obj->status_lock);
         status = obj->recv_status;
@@ -1201,7 +1201,7 @@ int server_recv_run(SocketObj *obj, SOCKFD sock_fd, struct sockaddr_in addr_serv
     StopBroadCast(obj);
     WaitSend(obj);
     WaitBroadCast(obj);
-    MYPRINT("server_recv_run: over \n");
+    MYPRINT2("server_recv_run: over \n");
     return ret;
 }
 int send_data(SocketObj *obj, DataNode *head, SOCKFD sock_fd, int len)
@@ -1247,9 +1247,9 @@ int send_data(SocketObj *obj, DataNode *head, SOCKFD sock_fd, int len)
             {
                 if(errno != EAGAIN && !send_num)
                 {
-                    MYPRINT("send_data: send_num=%d \n", send_num);
+                    MYPRINT2("send_data: send_num=%d \n", send_num);
                     perror("send_data: sendto error:");
-                    MYPRINT("send_data: errno=%d \n", errno);
+                    MYPRINT2("send_data: errno=%d \n", errno);
                     ret = -2;
                 }
             }
@@ -1275,7 +1275,7 @@ int process_recv_data(SocketObj *obj, DataNode *head, SOCKFD sock_fd, int len, i
     if(head && head->num)
     {
         if(head->num > (MAX_DELAY_PKT_NUM - 10))
-            MYPRINT("process_recv_data: head->num=%d \n", head->num);
+            MYPRINT2("process_recv_data: head->num=%d \n", head->num);
         do{
             DataNode *q;
             q = head->next;
@@ -1356,14 +1356,14 @@ int server_send_run(SocketObj *obj)
             time0 = now_time;
             sendsize = 0;
             if(bitrate > 0)
-                MYPRINT("server_send_run: bitrate=%5.2f (Mbps) \n", bitrate);
+                MYPRINT2("server_send_run: bitrate=%5.2f (Mbps) \n", bitrate);
         }
         pthread_mutex_lock(&obj->status_lock);
         status = obj->send_status;
         pthread_mutex_unlock(&obj->status_lock);
     }
     ExitSend(obj);
-    MYPRINT("server_send_run: over \n");
+    MYPRINT2("server_send_run: over \n");
 
     char *p = malloc(32);
     strcpy(p,"server_send_run exit");
@@ -1374,7 +1374,7 @@ int server_send_run(SocketObj *obj)
 void * server_main(SocketObj *obj)
 {
     int ret = 0;
-    MYPRINT("server_main: obj->params=%s \n", obj->params);
+    MYPRINT2("server_main: obj->params=%s \n", obj->params);
     obj->session_idx = 0;
     obj->SessionList = (SessionInfo *)calloc(1, glob_session_num * sizeof(SessionInfo));
     cJSON * json = (cJSON *)api_str2json(obj->params);
@@ -1453,7 +1453,7 @@ void * server_main(SocketObj *obj)
     obj->broadCastHead = create();
     if (obj->broadCastHead == NULL)
         return 0;
-    MYPRINT("输出创建的链表：");
+    MYPRINT2("输出创建的链表：");
     display(obj->broadCastHead);
     //
     StartRecv(obj);
@@ -1465,13 +1465,13 @@ void * server_main(SocketObj *obj)
     //if(pthread_create(&tid, &attr, server_send_run, obj) < 0)
     if(pthread_create(&tid, NULL, server_send_run, obj) < 0)
     {
-        MYPRINT("server_main: Create server_send_run failed!\n");
+        MYPRINT2("server_main: Create server_send_run failed!\n");
         //perror("server_main: server_send_run thread error:");
     }
     pthread_t tid2;
     if(pthread_create(&tid2, NULL, server_broadcast_run, obj) < 0)
     {
-        MYPRINT("server_main: Create server_broadcast_run failed!\n");
+        MYPRINT2("server_main: Create server_broadcast_run failed!\n");
         //perror("server_main: server_broadcast_run thread error:");
     }
     //
@@ -1481,10 +1481,10 @@ void * server_main(SocketObj *obj)
     char *p0;
     if (pthread_join(tid, (void**)&p0))
     {
-        MYPRINT("server_main: server_send_run thread is not exit...\n");
+        MYPRINT2("server_main: server_send_run thread is not exit...\n");
     }
     else{
-        MYPRINT("server_main: p0=%s \n", p0);
+        MYPRINT2("server_main: p0=%s \n", p0);
         free(p0);
     }
 
@@ -1492,10 +1492,10 @@ void * server_main(SocketObj *obj)
     char *p1;
     if (pthread_join(tid2, (void**)&p1))
     {
-        MYPRINT("server_main: server_broadcast_run thread is not exit...\n");
+        MYPRINT2("server_main: server_broadcast_run thread is not exit...\n");
     }
     else{
-        MYPRINT("server_main: p1=%s \n", p1);
+        MYPRINT2("server_main: p1=%s \n", p1);
         free(p1);
     }
 
@@ -1507,7 +1507,7 @@ void * server_main(SocketObj *obj)
 #endif
     pthread_mutex_destroy(&obj->lock);
     pthread_mutex_destroy(&obj->status_lock);
-    MYPRINT("server_main: over \n");
+    MYPRINT2("server_main: over \n");
     return 0;
 }
 int send_data2server(SocketObj *obj, int64_t now_time)

@@ -32,7 +32,7 @@ import random
 
 #sys.stdout = io.TextIOWrapper(sys.stdout.buffer,encoding='utf-8')
 MAX_RESORT_FRAME_NUM = 3#10#20
-CONFIG_FILENAME = "config-2w.json"
+CONFIG_FILENAME = "config-16w.json"
 
 yuvdir = '/home/gxh/works/datashare/'
 if (platform.system() == 'Windows'):
@@ -306,7 +306,6 @@ class LoadLib(object):
         filename = 'test-0.h264'
         codec_id = -1
         ##self.lib.APIEncodecTest(filename, codec_id)
-        # self.lib.mystr2json("")
         # self.lib.api_video_encode_one_frame.argtypes = [c_char_p]
         # self.lib.api_video_encode_one_frame.restype = c_char_p
         h264filename = r'/data/home/gxh/works/datashare/for_ENC/stream720p/FVDO_Girl_720p.264'

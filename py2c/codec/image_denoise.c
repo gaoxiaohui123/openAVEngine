@@ -1,14 +1,6 @@
 #include "inc.h"
 
-
-extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
-extern cJSON* renewJson(cJSON *json, char *key, int ivalue, char *cvalue, cJSON *subJson);
-extern cJSON* renewJsonInt(cJSON *json, char *key, int ivalue);
-extern cJSON* renewJsonStr(cJSON *json, char *key, char *cvalue);
-extern cJSON* deleteJson(cJSON *json);
-//extern cJSON* renewJsonArray2(cJSON *json, char *key, short *value);
-//extern inline int GetRtpInfo(uint8_t* dataPtr, int insize, RtpInfo *info);
 extern int64_t get_sys_time();
 
 typedef struct
@@ -59,7 +51,7 @@ int api_image_denoise_init(char *handle, char *param)
     long long *testp = (long long *)handle;
     ImageDenoiseObj *obj = (ImageDenoiseObj *)testp[0];
     printf("api_image_denoise_init: param= %s \n", param);
-    obj->json = mystr2json(param);
+    obj->json = (cJSON *)api_str2json(param);
     printf("api_image_denoise_init: obj->json= %x \n", obj->json);
     obj->param = param;
     obj->print = GetvalueInt(obj->json, "print");
@@ -118,12 +110,12 @@ int api_image_denoise(char *handle, char *data, char *param, char *outbuf, char 
 
     if (obj->c != NULL)
     {
-        json = mystr2json(param);
+        json = (cJSON *)api_str2json(param);
         obj->param = (void *)json;
         int insize = GetvalueInt(json, "insize");
 
         ret = api_video_denoise(obj->img_hnd, obj->frame->data, obj->frame->linesize, width, height);
-        deleteJson(json);
+        api_json_free(json);
         obj->param = NULL;
     }
     return ret;

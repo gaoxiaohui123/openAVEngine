@@ -1088,6 +1088,7 @@ int32_t GetNetResult(CallCodecVideo *obj, int ref_idx)
                     //cJSON *thisjson = &q->json;
                     cJSON *thisjson = q->json;
                     api_add_array2json(&obj->json, &jsonArray, thisjson, "rttInfo");
+                    api_json_free(thisjson);
                     head->next = head->next->next;
                     if(head->next == NULL)
                     {
@@ -1178,9 +1179,10 @@ int32_t GetNetResult(CallCodecVideo *obj, int ref_idx)
                     //cJSON *thisjson = &q->json;
                     MYPRINT("GetNetResult: q= %x \n", q);
                     cJSON *thisjson = q->json;
-                    char* teststr = api_json2str(thisjson);
-                    MYPRINT("GetNetResult: teststr= %s \n", teststr);
+                    //char* teststr = api_json2str(thisjson);
+                    //MYPRINT("GetNetResult: teststr= %s \n", teststr);
                     api_add_array2json(&obj->json, &jsonArray, thisjson, "rtxInfo");
+                    api_json_free(thisjson);
                     head->next = head->next->next;
                     if(head->next == NULL)
                     {

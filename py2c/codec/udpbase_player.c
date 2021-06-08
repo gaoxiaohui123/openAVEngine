@@ -317,12 +317,12 @@ static void * FrameBufferFinder(CallPlayer *obj, int id)
 int PlayerInit(CallPlayer *obj)
 {
     int ret = 0;
-    cJSON *json = NULL;//mystr2json(params);
+    cJSON *json = NULL;
 
     ret = api_player_init(obj->handle, obj->params);
     if(json)
     {
-        deleteJson(json);
+        api_json_free(json);
         json = NULL;
     }
 
@@ -494,7 +494,7 @@ int player_run(CallPlayer *obj)
                 }
             }
             obj->json = api_renew_json_int(obj->json , "mix_num", mix_num);
-            char *jsonStr = cJSON_Print(obj->json);
+            char *jsonStr = api_json2str(obj->json);
             MixPlayerData(obj, jsonStr, mix_buf, mix_num, data_size);
             //printf("player_run:mix_num=%d \n", mix_num);
             api_json2str_free(jsonStr);
@@ -514,7 +514,7 @@ int player_run(CallPlayer *obj)
 #else
         //usleep(400000);//40ms
         obj->json = api_renew_json_int(obj->json , "mix_num", 1);
-        char *jsonStr = cJSON_Print(obj->json);
+        char *jsonStr = api_json2str(obj->json);
         char testdata[8192] = {0};
         char *indata[1] = {testdata};
         printf("player_run:jsonStr=%s \n", jsonStr);

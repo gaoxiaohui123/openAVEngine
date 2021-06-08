@@ -39,7 +39,6 @@ extern int rate_control16(void *hnd);
 extern void get_time(int64_t time, char *ctime, int offset);
 extern int64_t get_time_stamp(void);
 
-extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
 extern char* GetvalueStr(cJSON *json, char *key, char *result);
 extern AVCodec *find_codec_by_name(char *codec_name, int is_encoder);
@@ -1185,7 +1184,7 @@ int api_audio_codec_init(char *handle, char *param)
     long long *testp = (long long *)handle;
     AudioCodecObj *obj = (AudioCodecObj *)testp[0];
     printf("api_audio_codec_init: param= %s \n", param);
-    obj->json = mystr2json(param);
+    obj->json = (cJSON *)api_str2json(param);
     printf("api_audio_codec_init: obj->json= %x \n", obj->json);
     obj->param = param;
     obj->print = GetvalueInt(obj->json, "print");
@@ -1454,7 +1453,7 @@ int api_audio_codec_one_frame(char *handle, char *data, char *param, char *outbu
 
     if (obj->c != NULL)
     {
-        json = mystr2json(param);
+        json = (cJSON *)api_str2json(param);
         obj->param = (void *)json;
         int insize = GetvalueInt(json, "insize");
         int get_pkt = GetvalueInt(json, "get_pkt");
@@ -1641,7 +1640,7 @@ int api_audio_codec_one_frame(char *handle, char *data, char *param, char *outbu
                 }
             }
         }
-        deleteJson(obj->param);
+        api_json_free(obj->param);
         obj->param = NULL;
         if(testflag)
         {
@@ -2529,7 +2528,7 @@ int encode_open2(char *handle, char *param)
 #endif
         //if (obj->Obj_id < 0)
         {
-            obj->json = mystr2json(param);
+            obj->json = (cJSON *)api_str2json(param);
             json = obj->json;
             obj->param = (void *)json;
             //
@@ -2974,7 +2973,7 @@ int api_video_encode_one_frame(char *handle, char *data, char *param, char *outb
         {
             //AVPacket pkt;
             int got_output;
-            json = mystr2json(param);
+            json = (cJSON *)api_str2json(param);
             obj->param = (void *)json;
             int width = GetvalueInt(json, "width");
             int height = GetvalueInt(json, "height");
@@ -2988,7 +2987,7 @@ int api_video_encode_one_frame(char *handle, char *data, char *param, char *outb
 		    get_time(0, cTime, 0);
 		    //printf("api_video_encode_one_frame: now= %s \n", cTime);
 		    get_time_stamp();//test
-            //注意：此处不能用obj->json = mystr2json(param);否则，会出现编码异常，具体原因待查（可能与rtp等冲突）
+            //注意：此处不能用obj->json = (cJSON *)api_str2json(param);否则，会出现编码异常，具体原因待查（可能与rtp等冲突）
 
             int adapt_cpu = GetvalueInt(json, "adapt_cpu");
             if(adapt_cpu)
@@ -3200,7 +3199,7 @@ int api_video_encode_one_frame(char *handle, char *data, char *param, char *outb
                 //printf("api_video_encode_one_frame: obj->pkt.data= %x \n", obj->pkt.data);
             }
             obj->frame_idx += 1;
-            deleteJson(obj->param);
+            api_json_free(obj->param);
             obj->param = NULL;
         }
     }
@@ -3702,7 +3701,7 @@ int decode_open2(char *handle, char *param)
 
         //if (obj->Obj_id < 0)
         {
-            obj->json = mystr2json(param);
+            obj->json = (cJSON *)api_str2json(param);
             //obj->param = (void *)json;
             //cJSON *item;
             //item = cJSON_GetObjectItem(json, "insize");
@@ -3780,7 +3779,7 @@ int api_video_decode_one_frame(char *handle, char *data, char *param, char *outb
         //if (obj->Obj_id == id && obj->c != NULL)
         if(obj->c != NULL)
         {
-            json = mystr2json(param);
+            json = (cJSON *)api_str2json(param);
             obj->param = (void *)json;
             //cJSON *json = (cJSON *)obj->param;
             int insize = GetvalueInt(json, "insize");
@@ -3820,7 +3819,7 @@ int api_video_decode_one_frame(char *handle, char *data, char *param, char *outb
                     fprintf(obj->logfp, "api_video_decode_one_frame: obj->frame_idx= %d \n", obj->frame_idx);
                     fflush(obj->logfp);
                 }
-                deleteJson(obj->param);
+                api_json_free(obj->param);
                 obj->param = NULL;
                 return ret;
             }
@@ -3861,7 +3860,7 @@ int api_video_decode_one_frame(char *handle, char *data, char *param, char *outb
 			//outparam[2] = text1;
 			//av_free_packet(&pkt);
             obj->frame_idx += 1;
-            deleteJson(obj->param);
+            api_json_free(obj->param);
             obj->param = NULL;
             //printf("api_video_decode_one_frame: obj->frame_idx=%d \n", obj->frame_idx);
         }

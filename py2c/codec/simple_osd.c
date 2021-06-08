@@ -1,6 +1,5 @@
 #include "inc.h"
 
-extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
 extern char* GetvalueStr(cJSON *json, char *key, char *result);
 
@@ -88,7 +87,7 @@ int api_simple_osd_init(char *handle, char *param)
     long long *testp = (long long *)handle;
     TextOsd *obj = (TextOsd *)testp[0];
     printf("api_simple_osd_init: param= %s \n", param);
-    obj->json = mystr2json(param);
+    obj->json = (cJSON *)api_str2json(param);
     printf("api_simple_osd_init: obj->json= %x \n", obj->json);
     //int width, int height, int orgX, int orgY, int scale, int color, char *text
     int width = GetvalueInt(obj->json, "width");
@@ -214,7 +213,7 @@ int api_simple_osd_process(char *handle, char *data, char *param)
     int ret = 0;
     long long *testp = (long long *)handle;
     TextOsd *obj = (TextOsd *)testp[0];
-    obj->json = mystr2json(param);
+    obj->json = (cJSON *)api_str2json(param);
     char context[64] = "";
     GetvalueStr(obj->json, "context", context);
     //printf("api_simple_osd_process: param= %s \n", param);
@@ -320,7 +319,7 @@ int api_simple_osd_process(char *handle, char *data, char *param)
 			}
 		}
 	}
-	deleteJson(obj->json);
+	api_json_free(obj->json);
 	obj->json = NULL;
 	return ret;
 }

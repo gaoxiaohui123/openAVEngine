@@ -1080,7 +1080,6 @@ typedef struct
     FILE *fp;
 }AudioCaptureObj;
 
-extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
 extern char* GetvalueStr(cJSON *json, char *key, char *result);
 extern int64_t get_sys_time();
@@ -1300,7 +1299,7 @@ int api_audio_capture_init(char *handle, char *param)
     long long *testp = (long long *)handle;
     AudioCaptureObj *obj = (AudioCaptureObj *)testp[0];
     printf("api_audio_capture_init: param= %s \n", param);
-    obj->json = mystr2json(param);
+    obj->json = (cJSON *)api_str2json(param);
     printf("api_audio_capture_init: obj->json= %x \n", obj->json);
     obj->param = param;
     obj->print = GetvalueInt(obj->json, "print");//

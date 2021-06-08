@@ -73,15 +73,8 @@ static void	dump_buffer_32 (void	*buf,
 
 
 /*************************************************************************************************/
-
-
-extern cJSON* mystr2json(char *text);
 extern int GetvalueInt(cJSON *json, char *key);
-extern cJSON* renewJson(cJSON *json, char *key, int ivalue, char *cvalue, cJSON *subJson);
-extern cJSON* renewJsonInt(cJSON *json, char *key, int ivalue);
-extern cJSON* renewJsonStr(cJSON *json, char *key, char *cvalue);
 extern cJSON* renewJsonArray1(cJSON *json, char *key, short *value, int len);
-extern cJSON* deleteJson(cJSON *json);
 //extern int init_fec_obj(int id);
 extern int fec_init(FecObj *obj);
 //extern FecObj global_fec_objs[MAX_OBJ_NUM];
@@ -908,7 +901,7 @@ int api_fec_decode(char *handle, char *data, char *param, char *outbuf, char *ou
             fec_init(obj);
             obj->Obj_id = id;
         }
-        obj->json = mystr2json(param);
+        obj->json = (cJSON *)api_str2json(param);
         int symbol_size = GetvalueInt(obj->json, "symbol_size");
         if(symbol_size)
         {
@@ -979,10 +972,10 @@ int api_fec_decode(char *handle, char *data, char *param, char *outbuf, char *ou
 
 	        cJSON *json2 = NULL;
             json2 = renewJsonArray1(json2, "rtpSize", pktSize, ret);
-            char *jsonStr = cJSON_Print(json2);//比较耗时
-            deleteJson(json2);
+            char *jsonStr = api_json2str(json2);//比较耗时
+            api_json_free(json2);
             strcpy(obj->outparam[0], jsonStr);
-            cJSON_free(jsonStr);
+            api_json2str_free(jsonStr);
             ret = sum;
             //outparam[2] = "complete";
             //printf("api_fec_decode: sum= %d \n", sum);
@@ -992,7 +985,7 @@ int api_fec_decode(char *handle, char *data, char *param, char *outbuf, char *ou
             free(obj->inSize);
             obj->inSize = NULL;
         }
-        deleteJson(obj->json);
+        api_json_free(obj->json);
         obj->json = NULL;
     }
     return ret;

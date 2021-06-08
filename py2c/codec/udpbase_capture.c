@@ -106,12 +106,12 @@ int read_frame(CallCapture *obj, char **outbuf)
 int CaptureInit(CallCapture *obj)
 {
     int ret = 0;
-    cJSON *json = NULL;//mystr2json(params);
+    cJSON *json = NULL;
 
     ret = api_capture_init(obj->handle, obj->params);
     if(json)
     {
-        deleteJson(json);
+        api_json_free(json);
         json = NULL;
     }
 

@@ -3691,7 +3691,7 @@ int video_set_codec(SocketObj *sock, SessionInfoObj *sessionInfo, int is_encoder
         obj->json = api_renew_json_int(obj->json , "color", 1);
         obj->json = api_renew_json_int(obj->json , "adapt_cpu", config->adapt_cpu);
         obj->json = api_renew_json_int(obj->json , "print", 0);
-        char *jsonStr = cJSON_Print(obj->json );
+        char *jsonStr = api_json2str(obj->json );
         api_video_encode_open(obj->handle, jsonStr);
 
         for(int l = 0; l < 4; l++)
@@ -3749,7 +3749,7 @@ int video_set_codec(SocketObj *sock, SessionInfoObj *sessionInfo, int is_encoder
         obj->json = api_renew_json_int(obj->json , "scale", 0);
         obj->json = api_renew_json_int(obj->json , "color", 4);
         obj->json = api_renew_json_int(obj->json , "adapt_cpu", config->adapt_cpu);
-        char *jsonStr = cJSON_Print(obj->json );
+        char *jsonStr = api_json2str(obj->json );
         api_video_decode_open(obj->handle, jsonStr);
         for(int l = 0; l < 4; l++)
         {

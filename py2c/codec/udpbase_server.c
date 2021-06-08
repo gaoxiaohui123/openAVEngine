@@ -76,13 +76,7 @@ int api_taskpool_addtask(char *handle, char *params, void *thread_fun, int taskI
     int ret = 0;
     long long *testp = (long long *)handle;
     TaskPool *obj = (TaskPool *)testp[0];
-#if 0
-    printf("api_taskpool_addtask: params= %s \n", params);
-    obj->json = mystr2json(params);
-    printf("api_taskpool_addtask: obj->json= %x \n", obj->json);
-    obj->params = params;
-    obj->print = GetvalueInt(obj->json, "print");
-#endif
+
     AddTask(obj, params, thread_fun, taskId);
 
     return ret;
@@ -105,7 +99,7 @@ int pool_start_server(char *handle, int taskId, int port, char *host)
         json = (cJSON *)api_str2json(params);
         json = api_renew_json_int(json, "aliveTaskNum", 2);
         json = api_renew_json_int(json, "taskNum", 2);
-        jsonStr = cJSON_Print(json);
+        jsonStr = api_json2str(json);
         api_taskpool_init(handle, jsonStr);
         task = (TaskPool *)testp[0];
     }
@@ -114,7 +108,7 @@ int pool_start_server(char *handle, int taskId, int port, char *host)
     json = (cJSON *)api_str2json(params);
     json = api_renew_json_int(json, "port", port);
     json = api_renew_json_str(json, "server_ip", host);
-    jsonStr = cJSON_Print(json);
+    jsonStr = api_json2str(json);
     ret = api_taskpool_addtask(handle, jsonStr, server_main, taskId);
 
     printf("pool_server: port=%d \n", port);
